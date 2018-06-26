@@ -2,6 +2,7 @@ import os, os.path as op
 import shutil
 import logging
 import cv2
+import numpy as np
 import matplotlib.pyplot as plt  # for colormaps
 
 
@@ -68,23 +69,57 @@ def drawScoredRoi (img, roi, label=None, score=None, thickness=2):
   cv2.rectangle (img, (roi[1], roi[0]), (roi[3], roi[2]), color, thickness)
   cv2.putText (img, label, (roi[1], roi[0] - 5), font, 0.6, score, thickness)
 
-def relabelMask(mask, labelmap):
-  assert len(labelmap) > 0
-  firstval = labelmap.itervalues().next()
-  if len(firstval) == 1:
-    # Grayscale.
-    out = np.zeros(shape=mask.shape, dtype=np.uint8)
-    for key, value in sorted(labelmap.items()):
-      key = int(key)  # To be able to store it as json.
-      assert len(value) == 1, 'All value should have len 1: %s' % value
-      out[mask[key]] = value
-  elif len(firstval) == 3 or len(firstval) == 4:
-    # RGB or RGBA.
-    out = np.zeros(shape=[mask.shape[0], mask.shape[1], len(firstval)], dtype=np.uint8)
-    for key, value in sorted(labelmap.items()):
-      key = int(key)  # To be able to store it as json.
-      assert len(value) == len(firstval), 'All value should have len %d: %s' % (len(firstval), value)
-      out[mask[key],:] = value
-  else:
-    raise ValueError('Can only map to 1, 3, or 4 channels.')
+def relabelGrayMask(mask, labelmap):
+  '''
+  Paint mask colors with other colors, grayscale to grayscale.
+  '''
+  out = np.zeros(shape=mask.shape, dtype=np.uint8)
+  for key, value in sorted(labelmap.items()):
+    key = int(key)  # To be able to store it as json.
+    out[mask[key]] = value
   return out
+
+def drawFrameId(img, imagefile):
+  '''
+  Draw the imagename in the corner of the image.
+  Returns:
+    Nothing. Input "img" is changed in place.
+  '''
+  font = cv2.FONT_HERSHEY_SIMPLEX
+  imheight, imwidth = img.shape[0:2]
+  fontscale = float(imheight) / 700
+  thickness = imheight / 700
+  offsety = imheight / 30
+  cv2.putText (img, op.basename(imagefile), (10, 10 + offsety), font, fontscale, (0,0,0), thickness=thickness*3)
+  cv2.putText (img, op.basename(imagefile), (10, 10 + offsety), font, fontscale, (255,255,255), thickness=thickness)
+
+def drawMaskOnImage(img, mask, labelmap):
+  '''
+  Draw a mask on the image, with colors.
+  Args:
+    img: numpy array
+    mask: numpy 2-dim array, the same size as img.
+    labelmap: a dict. labelmap['key'] = [R, G, B].
+        Key corresponds to pixels in mask. R,G,B corresponds to color.
+        Additionally labelmap may contrain "alpha", e.g. labelmap["alpha"] = 0.5.
+  Returns:
+    Output image.
+  '''
+  labels = np.unique(mask).tolist()
+  logging.debug('drawMaskOnImage: found labels: %s' % str(labels))
+  maskR = np.zeros(mask.shape, dtype=np.uint8)
+  maskG = np.zeros(mask.shape, dtype=np.uint8)
+  maskB = np.zeros(mask.shape, dtype=np.uint8)
+  logging.debug('drawMaskOnImage: labelmap: %s' % labelmap)
+  for label in labels:
+    labelRGBA = labelmap[str(label)] if str(label) in labelmap else [label,label,label]
+    logging.debug('drawMaskOnImage: label: %d, color: %s, numpixels: %d' %
+        (label, labelRGBA, np.count_nonzero(mask == label)))
+    maskR[mask == label] = labelRGBA[0]
+    maskG[mask == label] = labelRGBA[1]
+    maskB[mask == label] = labelRGBA[2]
+  alpha = labelmap['alpha'] if 'alpha' in labelmap else 0.5
+  logging.debug('drawMaskOnImage: alpha %.3f' % alpha)
+  maskRGB = np.stack([maskR, maskG, maskB], axis=2)
+  img = cv2.addWeighted(src1=img, alpha=1, src2=maskRGB, beta=alpha, gamma=0)
+  return img

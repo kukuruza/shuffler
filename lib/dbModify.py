@@ -4,7 +4,7 @@ import cv2
 import logging
 from glob import glob
 from pprint import pformat
-from backendImages import getVideoLength
+from backendImages import getVideoLength, getImageSize
 
 
 def add_parsers(subparsers):
@@ -114,13 +114,12 @@ def importPictures (c, args):
   # Write to database.
   relpath = os.getenv('HOME')
   for image_path, mask_path in pairs:
-    image = cv2.imread(image_path)
-    h, w = image.shape[0:2]
+    h, w = getImageSize(image_path)
     if mask_path is not None:
-      mask = cv2.imread(mask_path)
-      if not mask.shape[0:2] == (h, w):
+      maskshape = getImageSize(mask_path)
+      if maskshape != (h, w):
         logging.warning('Image %s and mask %s have different dimensions: %s vs %s' %
-            (image_path, mask_path, (h, w), mask.shape[0:2]))
+            (image_path, mask_path, (h, w), maskshape))
       maskfile = op.relpath(op.abspath(mask_path), relpath)
     else:
       maskfile = None

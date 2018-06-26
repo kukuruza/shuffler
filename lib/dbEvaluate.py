@@ -7,7 +7,7 @@ from progressbar import progressbar
 import simplejson as json
 from backendDb import carField, loadToMemory
 from backendImages import maskread, validateMask
-from utilities import relabelMask
+from utilities import relabelGrayMask
 
 
 
@@ -111,8 +111,15 @@ def evaluateSegmentation(c, args):
 
   hist = np.zeros((2, 2))
 
-  pred_labelmap = json.load(args.pred_labelmap_file)['label']
-  gt_labelmap = json.load(args.gt_labelmap_file)['label']
+  if not op.exists(args.pred_labelmap_file):
+    raise Exception('Pred labelmap file does not exist: %s' % args.pred_labelmap_file)
+  with open(args.pred_labelmap_file) as f:
+    pred_labelmap = json.load(f)['label']
+
+  if not op.exists(args.gt_labelmap_file):
+    raise Exception('GT labelmap file does not exist: %s' % args.gt_labelmap_file)
+  with open(args.gt_labelmap_file) as f:
+    gt_labelmap = json.load(f)['label']
 
   for entry_pred, entry_gt in progressbar(zip(entries_pred, entries_gt)):
     imagefile_pred, maskfile_pred = entry_pred
@@ -121,8 +128,8 @@ def evaluateSegmentation(c, args):
       raise ValueError('Imagefile entries for pred and gt must be the same: %s vs %s.' %
           (imagefile_pred, imagefile_gt))
 
-    mask_pred = relabelMask(validateMask(maskread(maskfile_pred)), pred_labelmap)
-    mask_gt = relabelMask(validateMask(maskread(maskfile_gt)), gt_labelmap)
+    mask_pred = relabelGrayMask(validateMask(maskread(maskfile_pred)), pred_labelmap)
+    mask_gt = relabelGrayMask(validateMask(maskread(maskfile_gt)), gt_labelmap)
 
     hist += fast_hist(mask_gt.flatten(), mask_pred.flatten(), 2)
 
