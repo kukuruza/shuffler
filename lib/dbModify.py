@@ -10,12 +10,13 @@ from backendImages import getVideoLength, getImageSize
 def add_parsers(subparsers):
   importVideoParser(subparsers)
   importPicturesParser(subparsers)
+  headParser(subparsers)
 
 
 def importVideoParser(subparsers):
   parser = subparsers.add_parser('importVideo',
       description='Import frames from a video into the database.')
-  parser.add_argument('--frame_video_path', required=True)
+  parser.add_argument('--image_video_path', required=True)
   parser.add_argument('--mask_video_path')
   parser.add_argument('--src', help='Where the video came from.')
   parser.set_defaults(func=importVideo)
@@ -24,17 +25,17 @@ def importVideo (c, args):
   logging.info ('==== importVideo ====')
 
   # Check video paths.
-  if not op.exists(args.frame_video_path):
-    raise IOError('frame video does not exist: %s' % args.frame_video_path)
+  if not op.exists(args.image_video_path):
+    raise IOError('frame video does not exist: %s' % args.image_video_path)
   if args.mask_video_path is not None and not op.exists(args.mask_video_path):
     raise IOError('mask video does not exist: %s' % args.mask_video_path)
 
-  frame_video = cv2.VideoCapture(args.frame_video_path)
+  frame_video = cv2.VideoCapture(args.image_video_path)
   ret, frame = frame_video.read()
   length = getVideoLength(frame_video)
   logging.info('Video has %d frames' % length)
   if not ret:
-    raise IOError('Frame video %s is empty' % args.frame_video_path)
+    raise IOError('Frame video %s is empty' % args.image_video_path)
 
   # Check how mask agrees with images.
   if args.mask_video_path is not None:
@@ -50,9 +51,9 @@ def importVideo (c, args):
 
   # Get the paths.
   relpath = os.getenv('HOME')
-  frame_video_rel_path = op.relpath(op.abspath(args.frame_video_path), relpath)
+  frame_video_rel_path = op.relpath(op.abspath(args.image_video_path), relpath)
   if args.mask_video_path is not None:
-    mask_video_rel_path = op.relpath(op.abspath(args.frame_video_path), relpath)
+    mask_video_rel_path = op.relpath(op.abspath(args.image_video_path), relpath)
 
   # Write to db.
   for iframe in range(length):
@@ -108,18 +109,18 @@ def importPictures (c, args):
   if len(masks) > 0:
     logging.warning('%d masks dont have their images, e.g. %s' % (len(masks), masks[0][1]))
 
-  logging.info('Found %d image pictures, %d of them have masks' %
+  logging.info('Found %d image pictures, %d of them have masks.' %
       (len(pairs), len([x for x in pairs if x[1] is not None])))
 
   # Write to database.
   relpath = os.getenv('HOME')
+  num_masks_of_different_size = 0
   for image_path, mask_path in pairs:
     h, w = getImageSize(image_path)
     if mask_path is not None:
-      maskshape = getImageSize(mask_path)
-      if maskshape != (h, w):
-        logging.warning('Image %s and mask %s have different dimensions: %s vs %s' %
-            (image_path, mask_path, (h, w), maskshape))
+    #  maskshape = getImageSize(mask_path)
+    #  if maskshape != (h, w):
+    #    num_masks_of_different_size += 1
       maskfile = op.relpath(op.abspath(mask_path), relpath)
     else:
       maskfile = None
@@ -127,3 +128,28 @@ def importPictures (c, args):
     s = 'INSERT INTO images(imagefile,maskfile,src,width,height) VALUES (?,?,?,?,?)'
     c.execute(s, (imagefile, maskfile, args.src, w, h))
 
+  if num_masks_of_different_size > 0:
+    logging.warning('%d masks have dims different from images.' % num_masks_of_different_size)
+
+
+def headParser(subparsers):
+  parser = subparsers.add_parser('head',
+      description='Keep the first N entries.')
+  parser.add_argument('-n', required=True, type=int)
+  parser.set_defaults(func=head)
+
+def head (c, args):
+  logging.info ('==== head ====')
+
+  # Get all the imagefiles from the main db.
+  c.execute('SELECT imagefile FROM images')
+  imagefiles = c.fetchall()
+
+  if len(imagefiles) < args.n:
+    logging.info('Nothing to delete. Number of images is %d' % len(imagefiles))
+    return
+
+  # Delete.
+  for imagefile, in imagefiles[args.n:]:
+    c.execute('DELETE FROM images WHERE imagefile=?', (imagefile,))
+    c.execute('DELETE FROM cars   WHERE imagefile=?', (imagefile,))

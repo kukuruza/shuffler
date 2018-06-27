@@ -3,6 +3,9 @@ import shutil
 import logging
 import cv2
 import numpy as np
+from pprint import pformat
+import simplejson as json
+from collections import OrderedDict
 import matplotlib.pyplot as plt  # for colormaps
 
 
@@ -69,16 +72,6 @@ def drawScoredRoi (img, roi, label=None, score=None, thickness=2):
   cv2.rectangle (img, (roi[1], roi[0]), (roi[3], roi[2]), color, thickness)
   cv2.putText (img, label, (roi[1], roi[0] - 5), font, 0.6, score, thickness)
 
-def relabelGrayMask(mask, labelmap):
-  '''
-  Paint mask colors with other colors, grayscale to grayscale.
-  '''
-  out = np.zeros(shape=mask.shape, dtype=np.uint8)
-  for key, value in sorted(labelmap.items()):
-    key = int(key)  # To be able to store it as json.
-    out[mask[key]] = value
-  return out
-
 def drawFrameId(img, imagefile):
   '''
   Draw the imagename in the corner of the image.
@@ -93,15 +86,13 @@ def drawFrameId(img, imagefile):
   cv2.putText (img, op.basename(imagefile), (10, 10 + offsety), font, fontscale, (0,0,0), thickness=thickness*3)
   cv2.putText (img, op.basename(imagefile), (10, 10 + offsety), font, fontscale, (255,255,255), thickness=thickness)
 
-def drawMaskOnImage(img, mask, labelmap):
+def drawMaskOnImage(img, mask, labelmap, transparency=0.5):
   '''
   Draw a mask on the image, with colors.
   Args:
     img: numpy array
     mask: numpy 2-dim array, the same size as img.
-    labelmap: a dict. labelmap['key'] = [R, G, B].
-        Key corresponds to pixels in mask. R,G,B corresponds to color.
-        Additionally labelmap may contrain "alpha", e.g. labelmap["alpha"] = 0.5.
+    labelmap: an ordered dict, see the function loadLabelmap.
   Returns:
     Output image.
   '''
@@ -112,14 +103,32 @@ def drawMaskOnImage(img, mask, labelmap):
   maskB = np.zeros(mask.shape, dtype=np.uint8)
   logging.debug('drawMaskOnImage: labelmap: %s' % labelmap)
   for label in labels:
-    labelRGBA = labelmap[str(label)] if str(label) in labelmap else [label,label,label]
+    labelRGBA = labelmap[label]['color'] if label in labelmap else [0,0,0]
     logging.debug('drawMaskOnImage: label: %d, color: %s, numpixels: %d' %
         (label, labelRGBA, np.count_nonzero(mask == label)))
     maskR[mask == label] = labelRGBA[0]
     maskG[mask == label] = labelRGBA[1]
     maskB[mask == label] = labelRGBA[2]
-  alpha = labelmap['alpha'] if 'alpha' in labelmap else 0.5
-  logging.debug('drawMaskOnImage: alpha %.3f' % alpha)
+  logging.debug('drawMaskOnImage: transparency %.3f' % transparency)
   maskRGB = np.stack([maskR, maskG, maskB], axis=2)
-  img = cv2.addWeighted(src1=img, alpha=1, src2=maskRGB, beta=alpha, gamma=0)
+  if maskRGB.shape != img.shape:
+    maskRGB = cv2.resize(maskRGB, (img.shape[1], img.shape[0]), cv2.INTER_NEAREST)
+  img = cv2.addWeighted(src1=img, alpha=1, src2=maskRGB, beta=transparency, gamma=0)
   return img
+
+def loadLabelmap(labelmap_path):
+  ''' Load the labelmap file w.r.t the conventions. '''
+
+  logging.info('loadLabelmap: loading %s' % labelmap_path)
+  if not op.exists(labelmap_path):
+    raise Exception('Labelmap file does not exist: %s' % labelmap_path)
+  with open(labelmap_path) as f:
+    labelmap = json.load(f)
+    labelmap = labelmap['labelmap']
+    logging.info(pformat(labelmap))
+
+  # Create an ordered dict out of the list.
+  labelmap = OrderedDict([(int(key), value) for key, value in labelmap.iteritems()])
+  return labelmap
+  
+  

@@ -70,9 +70,9 @@ def validateMask(mask):
     raise ValueError('Mask is None.')
   if not isinstance(mask, np.ndarray):
     raise ValueError('Mask is of type %s' % type(mask))
-  if not len(mask.shape) != 2:
+  if len(mask.shape) != 2:
     raise ValueError('Mask is not grayscale, it has %d channels' % len(mask.shape))
-  if not mask.dtype != np.uint8:
+  if mask.dtype != np.uint8:
     raise ValueError('Mask is not 8-bit, it is type %s' % mask.dtype)
   return mask
 

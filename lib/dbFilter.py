@@ -4,7 +4,7 @@ import cv2
 import logging
 from glob import glob
 from pprint import pformat
-from backendImages import getVideoLength
+from backendDb import loadToMemory
 
 def add_parsers(subparsers):
   filterWithAnotherParser(subparsers)
@@ -16,7 +16,7 @@ def filterWithAnotherParser(subparsers):
   parser.add_argument('--ref_db_file', required=True)
   parser.set_defaults(func=filterWithAnother)
 
-def filterWithAnother (c, c_ref):
+def filterWithAnother (c, args):
   logging.info ('==== filterWithAnother ====')
 
   # Get all the imagefiles from the reference db.
@@ -37,3 +37,9 @@ def filterWithAnother (c, c_ref):
   for imagefile_del in imagefiles_del:
     c.execute('DELETE FROM images WHERE imagefile=?', (imagefile_del,))
     c.execute('DELETE FROM cars   WHERE imagefile=?', (imagefile_del,))
+
+  # Get all the imagefiles from the main db.
+  c.execute('SELECT COUNT(*) FROM images')
+  count = c.fetchone()[0]
+  logging.info('%d images left.' % count)
+

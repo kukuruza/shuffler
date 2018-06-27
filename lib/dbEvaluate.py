@@ -3,11 +3,12 @@ import sys
 import logging
 import sqlite3
 import numpy as np
+import cv2
 from progressbar import progressbar
 import simplejson as json
 from backendDb import carField, loadToMemory
 from backendImages import maskread, validateMask
-from utilities import relabelGrayMask
+from utilities import loadLabelmap
 
 
 
@@ -88,7 +89,10 @@ def evaluateSegmentationParser(subparsers):
       help='If specified, result files with be written there.')
   parser.add_argument('--out_prefix', default='',
       help='Add to filenames, use to keep predictions from different epochs in one dir.')
-  parser.add_argument('--gt_labelmap_file', required=True)
+  parser.add_argument('--gt_labelmap_path')
+  parser.add_argument('--pred_labelmap_path')
+  parser.add_argument('--debug_display', action='store_true')
+  parser.add_argument('--debug_winwidth', type=int, default=1000)
 
 def evaluateSegmentation(c, args):
   logging.info ('==== evaluateSegmentation ====')
@@ -109,38 +113,67 @@ def evaluateSegmentation(c, args):
   logging.info ('Total %d images in gt.' % len(entries_gt))
   conn_gt.close()
 
-  hist = np.zeros((2, 2))
+  # Map from label on the image to the target label space.
+  labelmap_pred = loadLabelmap(args.pred_labelmap_path) if args.pred_labelmap_path else {}
+  labelmap_gt = loadLabelmap(args.gt_labelmap_path) if args.gt_labelmap_path else {}
+  def relabelGrayMask(mask, labelmap):
+    ''' Paint mask colors with other colors, grayscale to grayscale. '''
+    out = np.zeros(shape=mask.shape, dtype=np.uint8)
+    for key in labelmap:
+      out[mask == key] = labelmap[key]['to']
+    return out
+  def getRelevantPixels(mask, labelmap):
+    ''' Return pixels that are used for evaluation '''
+    care_labels = [labelmap[key]['to'] for key in labelmap if 'class' in labelmap[key]]
+    care_pixels = np.zeros(mask.shape, dtype=bool)
+    for care_label in care_labels:
+      care_pixels[mask == care_label] = True
+    return care_pixels
 
-  if not op.exists(args.pred_labelmap_file):
-    raise Exception('Pred labelmap file does not exist: %s' % args.pred_labelmap_file)
-  with open(args.pred_labelmap_file) as f:
-    pred_labelmap = json.load(f)['label']
-
-  if not op.exists(args.gt_labelmap_file):
-    raise Exception('GT labelmap file does not exist: %s' % args.gt_labelmap_file)
-  with open(args.gt_labelmap_file) as f:
-    gt_labelmap = json.load(f)['label']
+  class_names = [labelmap_gt[key]['class'] for key in labelmap_gt if 'class' in labelmap_gt[key]]
+  num_relevant_classes = len(class_names)
+  hist = np.zeros((num_relevant_classes, num_relevant_classes))
 
   for entry_pred, entry_gt in progressbar(zip(entries_pred, entries_gt)):
     imagefile_pred, maskfile_pred = entry_pred
     imagefile_gt, maskfile_gt = entry_gt
-    if imagefile_pred != imagefile_gt:
+    if op.basename(imagefile_pred) != op.basename(imagefile_gt):
       raise ValueError('Imagefile entries for pred and gt must be the same: %s vs %s.' %
           (imagefile_pred, imagefile_gt))
+    if maskfile_pred is None:
+      raise ValueError('Mask is None for image %s' % imagefile_pred)
+    if maskfile_gt is None:
+      raise ValueError('Mask is None for image %s' % imagefile_gt)
 
-    mask_pred = relabelGrayMask(validateMask(maskread(maskfile_pred)), pred_labelmap)
-    mask_gt = relabelGrayMask(validateMask(maskread(maskfile_gt)), gt_labelmap)
+    # Load masks and bring them to comparable form.
+    mask_gt = relabelGrayMask(validateMask(maskread(maskfile_gt)), labelmap_gt)
+    mask_pred = relabelGrayMask(validateMask(maskread(maskfile_pred)), labelmap_pred)
+    mask_pred = cv2.resize(mask_pred, (mask_gt.shape[1], mask_gt.shape[0]), cv2.INTER_NEAREST)
+    if args.debug_display:
+      scale = float(args.debug_winwidth) / mask_pred.shape[1]
+      cv2.imshow('debug_display', cv2.resize((np.hstack((mask_gt, mask_pred)) != 0).astype(np.uint8), dsize=(0,0), fx=scale, fy=scale) * 255)
+      if cv2.waitKey(-1) == 27:
+        args.debug_display = False
 
-    hist += fast_hist(mask_gt.flatten(), mask_pred.flatten(), 2)
+    # Use only relevant pixels (not the 'dontcare' class.)
+    relevant = getRelevantPixels(mask_gt, labelmap_gt)
+    mask_gt = mask_gt[relevant].flatten()
+    mask_pred = mask_pred[relevant].flatten()
+    assert np.all(mask_gt < num_relevant_classes), np.max(num_relevant_classes)
+    assert np.all(mask_pred < num_relevant_classes), np.max(num_relevant_classes)
 
-  # Get label distribution
+    # Evaluate one image pair. 
+    hist += fast_hist(mask_gt, mask_pred, 2)
+
+  # Get label distribution.
   pred_per_class = hist.sum(0)
   gt_per_class = hist.sum(1)
 
+  # Remove the classes that have >0 pixels in 'pred' and in 'gt'.
+  # so that we don't experience zero division further on.
   used_class_id_list = np.where(gt_per_class != 0)[0]
-  hist = hist[used_class_id_list][:, used_class_id_list]  # Extract only GT existing (more than 1) classes
-
-  class_list = np.array(['background', 'car'])[used_class_id_list]
+  hist = hist[used_class_id_list][:, used_class_id_list]
+  class_list = np.array(class_names)[used_class_id_list]
 
   iou_list = per_class_iu(hist)
   fwIoU = calc_fw_iu(hist)
@@ -148,7 +181,7 @@ def evaluateSegmentation(c, args):
   mAcc = calc_mean_accuracy(hist)
 
   result_df = pd.DataFrame({
-      'class': ['background', 'car'],
+      'class': class_names,
       'IoU': iou_list,
       "pred_distribution": pred_per_class[used_class_id_list],
       "gt_distribution": gt_per_class[used_class_id_list],
