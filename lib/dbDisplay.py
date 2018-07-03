@@ -23,8 +23,8 @@ def displayParser(subparsers):
       help='Json file with mappings from labels to color.'
            'Its content may be: "vis": [ {255: [0,128,128,30]} ]')
   parser.add_argument('--shuffle', action='store_true')
-  parser.add_argument('--transparency', type=float, default=0.5,
-      help='Transparency to overlay the label mask with.')
+  parser.add_argument('--alpha', type=float, default=0.5,
+      help='Transparency to overlay the label mask with, 1 means cant see the image behind the mask.')
   parser.add_argument('--with_frameid', action='store_true', help='print frame number.')
 
 def display (c, args):
@@ -46,7 +46,7 @@ def display (c, args):
     # Overlay the mask.
     if args.labelmap_path and maskfile is not None:
       mask = maskread(maskfile)
-      frame = drawMaskOnImage(frame, mask, labelmap, args.transparency)
+      frame = drawMaskOnImage(frame, mask, labelmap, args.alpha)
 
     # Overlay frame id.
     if args.with_frameid:

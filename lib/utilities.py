@@ -86,7 +86,7 @@ def drawFrameId(img, imagefile):
   cv2.putText (img, op.basename(imagefile), (10, 10 + offsety), font, fontscale, (0,0,0), thickness=thickness*3)
   cv2.putText (img, op.basename(imagefile), (10, 10 + offsety), font, fontscale, (255,255,255), thickness=thickness)
 
-def drawMaskOnImage(img, mask, labelmap, transparency=0.5):
+def drawMaskOnImage(img, mask, labelmap, alpha=0.5):
   '''
   Draw a mask on the image, with colors.
   Args:
@@ -109,11 +109,11 @@ def drawMaskOnImage(img, mask, labelmap, transparency=0.5):
     maskR[mask == label] = labelRGBA[0]
     maskG[mask == label] = labelRGBA[1]
     maskB[mask == label] = labelRGBA[2]
-  logging.debug('drawMaskOnImage: transparency %.3f' % transparency)
+  logging.debug('drawMaskOnImage: alpha %.3f' % alpha)
   maskRGB = np.stack([maskR, maskG, maskB], axis=2)
   if maskRGB.shape != img.shape:
     maskRGB = cv2.resize(maskRGB, (img.shape[1], img.shape[0]), cv2.INTER_NEAREST)
-  img = cv2.addWeighted(src1=img, alpha=1, src2=maskRGB, beta=transparency, gamma=0)
+  img = cv2.addWeighted(src1=img, alpha=1, src2=maskRGB, beta=alpha, gamma=0)
   return img
 
 def loadLabelmap(labelmap_path):

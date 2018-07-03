@@ -4,8 +4,12 @@ import logging
 import sqlite3
 import numpy as np
 import cv2
+import torch
 from progressbar import progressbar
 import simplejson as json
+import matplotlib
+from matplotlib import pyplot as plt
+from pprint import pformat
 from backendDb import carField, loadToMemory
 from backendImages import maskread, validateMask
 from utilities import loadLabelmap
@@ -13,7 +17,8 @@ from utilities import loadLabelmap
 
 
 def add_parsers(subparsers):
-  evaluateSegmentationParser(subparsers)
+  evaluateSegmentationIoUParser(subparsers)
+  evaluateSegmentationROCParser(subparsers)
 
 
 def fast_hist(a, b, n):
@@ -54,10 +59,6 @@ def plot_confusion_matrix(cm, classes,
   This function prints and plots the confusion matrix.
   Normalization can be applied by setting `normalize=True`.
   """
-  import matplotlib
-  matplotlib.use('Agg')
-  from matplotlib import pyplot as plt
-
   if cmap is None:
     cmap = plt.cm.Blues
 
@@ -79,10 +80,10 @@ def plot_confusion_matrix(cm, classes,
   plt.ylabel('Ground truth')
   plt.xlabel('Predicted label')
 
-def evaluateSegmentationParser(subparsers):
-  parser = subparsers.add_parser('evaluateSegmentation',
+def evaluateSegmentationIoUParser(subparsers):
+  parser = subparsers.add_parser('evaluateSegmentationIoU',
     description='Evaluate mask segmentation w.r.t. a ground truth db.')
-  parser.set_defaults(func=evaluateSegmentation)
+  parser.set_defaults(func=evaluateSegmentationIoU)
   parser.add_argument('--gt_db_file', required=True)
   parser.add_argument('--image_constraint', default='1')
   parser.add_argument('--out_dir',
@@ -94,8 +95,8 @@ def evaluateSegmentationParser(subparsers):
   parser.add_argument('--debug_display', action='store_true')
   parser.add_argument('--debug_winwidth', type=int, default=1000)
 
-def evaluateSegmentation(c, args):
-  logging.info ('==== evaluateSegmentation ====')
+def evaluateSegmentationIoU(c, args):
+  logging.info ('==== evaluateSegmentationIoU ====')
   import pandas as pd
 
   s = ('SELECT imagefile, maskfile FROM images '
@@ -205,10 +206,6 @@ def evaluateSegmentation(c, args):
   print(result_ser)
 
   if args.out_dir is not None:
-    import matplotlib
-    matplotlib.use('Agg')
-    from matplotlib import pyplot as plt
-
     if not op.exists(args.out_dir):
       os.makedirs(args.out_dir)
 
@@ -228,3 +225,145 @@ def evaluateSegmentation(c, args):
     result_ser.to_csv(outserfn)
     print('Total result is saved at %s !' % outserfn)
 
+
+
+def getPrecRecall(tp, fp, tn, fn):
+  ''' Accumulate into Precision-Recall curve. '''
+  ROC = np.zeros((256, 2), dtype=float)
+  for val in range(256):
+    if tp[val] == 0 and fp[val] == 0:
+      precision = -1.
+    else:
+      precision = tp[val] / float(tp[val] + fp[val])
+    if tp[val] == 0 and fn[val] == 0:
+      recall = -1.
+    else:
+      recall = tp[val] / float(tp[val] + fn[val])
+    ROC[val, 0] = recall
+    ROC[val, 1] = precision
+  ROC = ROC[np.bitwise_and(ROC[:,0] != -1, ROC[:,1] != -1), :]
+  ROC = np.vstack(( ROC, np.array([0, ROC[-1,1]]) ))
+  area = -np.trapz(x=ROC[:,0], y=ROC[:,1])
+  return ROC, area
+
+def evaluateSegmentationROCParser(subparsers):
+  parser = subparsers.add_parser('evaluateSegmentationROC',
+      description='Evaluate mask segmentation ROC curve w.r.t. a ground truth db. '
+      'GT mask must be relabelled into 0 and 1, and "dontcare" using "gt_labelmap_file". '
+      'Pred mask must be grayscale in [0,255], with brightness meaning probability of class 1.')
+  parser.set_defaults(func=evaluateSegmentationROC)
+  parser.add_argument('--gt_db_file', required=True)
+  parser.add_argument('--image_constraint', default='1')
+  parser.add_argument('--out_dir',
+      help='If specified, result files with be written there.')
+  parser.add_argument('--out_prefix', default='',
+      help='Add to filenames, use to keep predictions from different epochs in one dir.')
+  parser.add_argument('--display_images_roc', action='store_true')
+  parser.add_argument('--debug_display', action='store_true')
+  parser.add_argument('--debug_winwidth', type=int, default=1000)
+
+def evaluateSegmentationROC(c, args):
+  logging.info ('==== evaluateSegmentationROC ====')
+  import pandas as pd
+
+  s = ('SELECT imagefile, maskfile FROM images '
+       'WHERE %s ORDER BY imagefile ASC' % args.image_constraint)
+  logging.debug(s)
+
+  c.execute(s)
+  entries_pred = c.fetchall()
+  logging.info ('Total %d images in predicted.' % len(entries_pred))
+
+  conn_gt = loadToMemory(args.gt_db_file)
+  c_gt = conn_gt.cursor()
+  c_gt.execute(s)
+  entries_gt = c_gt.fetchall()
+  logging.info ('Total %d images in gt.' % len(entries_gt))
+  conn_gt.close()
+
+  TPs = np.zeros((256,), dtype=int)
+  TNs = np.zeros((256,), dtype=int)
+  FPs = np.zeros((256,), dtype=int)
+  FNs = np.zeros((256,), dtype=int)
+
+  if args.display_images_roc:
+    fig = plt.figure()
+    plt.xlabel('recall')
+    plt.ylabel('precision')
+    plt.xlim(0, 1)
+    plt.ylim(0, 1)
+
+  for entry_pred, entry_gt in progressbar(zip(entries_pred, entries_gt)):
+    imagefile_pred, maskfile_pred = entry_pred
+    imagefile_gt, maskfile_gt = entry_gt
+    if op.basename(imagefile_pred) != op.basename(imagefile_gt):
+      raise ValueError('Imagefile entries for pred and gt must be the same: %s vs %s.' %
+          (imagefile_pred, imagefile_gt))
+    if maskfile_pred is None:
+      raise ValueError('Mask is None for image %s' % imagefile_pred)
+    if maskfile_gt is None:
+      raise ValueError('Mask is None for image %s' % imagefile_gt)
+
+    # Load masks and bring them to comparable form.
+    mask_gt = validateMask(maskread(maskfile_gt))
+    mask_pred = validateMask(maskread(maskfile_pred))
+    mask_pred = cv2.resize(mask_pred, (mask_gt.shape[1], mask_gt.shape[0]), cv2.INTER_NEAREST)
+    if args.debug_display:
+      if cv2.waitKey(-1) == 27:
+        args.debug_display = False
+      scale = float(args.debug_winwidth) / mask_pred.shape[1]
+      cv2.imshow('debug_display', cv2.resize(np.hstack((mask_gt, mask_pred)), dsize=(0,0), fx=scale, fy=scale))
+
+    # Some printputs.
+    gt_pos = np.count_nonzero(mask_gt == 255)
+    gt_neg = np.count_nonzero(mask_gt == 0)
+    gt_other = mask_gt.size - gt_pos - gt_neg
+    logging.debug('GT: positive: %d, negative: %d, others: %d.' % (gt_pos, gt_neg, gt_other))
+
+    # Use only relevant pixels (not the 'dontcare' class.)
+    relevant = np.bitwise_or(mask_gt == 0, mask_gt == 255)
+    mask_gt = mask_gt[relevant].flatten()
+    mask_pred = mask_pred[relevant].flatten()
+    mask_gt = torch.Tensor(mask_gt).cuda()
+    mask_pred = torch.Tensor(mask_pred).cuda()
+
+    TP = np.zeros((256,), dtype=int)
+    TN = np.zeros((256,), dtype=int)
+    FP = np.zeros((256,), dtype=int)
+    FN = np.zeros((256,), dtype=int)
+    for val in range(256):
+      tp = torch.nonzero(torch.mul(mask_pred > val, mask_gt == 255)).size()[0]
+      fp = torch.nonzero(torch.mul(mask_pred > val, mask_gt != 255)).size()[0]
+      fn = torch.nonzero(torch.mul(mask_pred <= val, mask_gt == 255)).size()[0]
+      tn = torch.nonzero(torch.mul(mask_pred <= val, mask_gt != 255)).size()[0]
+      TP[val] = tp
+      FP[val] = fp
+      TN[val] = tn
+      FN[val] = fn
+      TPs[val] += tp
+      FPs[val] += fp
+      TNs[val] += tn
+      FNs[val] += fn
+    ROC, area = getPrecRecall(TP, FP, TN, FN)
+    logging.info('%s\t%.2f' % (op.basename(imagefile_gt), area * 100.))
+    
+    if args.display_images_roc:
+      plt.plot(ROC[:, 0], ROC[:, 1], 'go-', linewidth=2, markersize=4)
+      plt.pause(0.05)
+      fig.show()
+
+  # Accumulate into Precision-Recall curve.
+  ROC, area = getPrecRecall(TPs, FPs, TNs, FNs)
+  print("Average across image area under the Precision-Recall curve, perc: %.1f" % (area * 100.))
+
+  if args.out_dir is not None:
+    if not op.exists(args.out_dir):
+      os.makedirs(args.out_dir)
+    fig = plt.figure()
+    plt.xlabel('recall')
+    plt.ylabel('precision')
+    plt.xlim(0, 1)
+    plt.ylim(0, 1)
+    plt.plot(ROC[:, 0], ROC[:, 1], 'bo-', linewidth=2, markersize=6)
+    out_plot_path = op.join(args.out_dir, '%srecall-prec.png' % args.out_prefix)
+    fig.savefig(out_plot_path, transparent=True, bbox_inches='tight', pad_inches=0, dpi=300)

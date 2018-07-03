@@ -27,21 +27,21 @@ def images2video (args):
     if args.overwrite:
       os.remove(args.out_video_path)
     else:
-      raise IOError('images2video: video file already exists: %s. Set overwrite=True.' % args.out_video_path)
+      raise IOError('video file already exists: %s. Set overwrite=True.' % args.out_video_path)
 
   if not op.exists(args.in_images_dir):
-    raise IOError('images2video: image directory does not exist: %s' % args.in_images_dir)
+    raise IOError('image directory does not exist: %s' % args.in_images_dir)
 
   video = None
 
   in_image_paths = sorted(glob(op.join(args.in_images_dir, '*.%s' % args.ext)))
-  logging.info('images2video: will write %d frames.' % len(in_image_paths))
+  logging.info('will write %d frames.' % len(in_image_paths))
 
   for in_image_path in progressbar.progressbar(in_image_paths):
-    logging.debug('images2video: processing %s' % in_image_path)
+    logging.debug('processing %s' % in_image_path)
     image = cv2.imread(in_image_path)
     if image is None:
-      raise IOError('images2video: error reading %s' % in_image_path)
+      raise IOError('error reading %s' % in_image_path)
 
     # Lazy video initialization.
     if video is None:
@@ -52,10 +52,10 @@ def images2video (args):
     # Checking frame size and color.
     else:
       if (len(image.shape) == 3) != iscolor:
-        raise ValueError('images2video: images must be either grayscale or color: %s vs %s'
+        raise ValueError('images must be either grayscale or color: %s vs %s'
             (first_path, in_image_path))
       if not image.shape[0:2] == (height, width):
-        raise ValueError('images2video: shapes of images mismatch: %s vs %s: %dx%d vs %dx%d.'
+        raise ValueError('shapes of images mismatch: %s vs %s: %dx%d vs %dx%d.'
             (first_path, in_image_path, height, width, image.shape[0], image.shape[1]))
 
     if not args.dryrun:

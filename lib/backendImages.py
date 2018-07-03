@@ -250,7 +250,7 @@ class VideoWriter:
       if self.overwrite:
         os.makedirs(op.dirname(vpath))
       else:
-        raise Exception('Video dir does not exist: %s. A mistake?' % op.dirname(vpath))
+        raise Exception('Video dir does not exist: %s. Turn overwrite switch on?' % op.dirname(vpath))
 
     handler = cv2.VideoWriter (vpath, fourcc, self.fps, self.frame_size, isColor=True)#not ismask)
     if not handler.isOpened():
@@ -275,10 +275,12 @@ class VideoWriter:
   def maskwrite (self, mask):
     assert self.vmaskfile is not None
     assert len(mask.shape) == 2
-    assert mask.dtype == bool
     if self.mask_writer is None:
       self._openVideo (mask, ismask=True)
-    mask = mask.copy().astype(np.uint8) * 255
+    if mask.dtype == bool:
+      mask = mask.copy().astype(np.uint8) * 255
+    else:
+      assert mask.dtype == np.uint8
     mask = np.stack((mask, mask, mask), axis=-1)  # Otherwise mask is not written well.
     # write
     assert len(mask.shape) == 3 and mask.shape[2] == 3, mask.shape

@@ -22,8 +22,8 @@ def writeVideoParser(subparsers):
   parser.add_argument('--labelmap_path',
       help='Json file with mappings from labels to color.'
            'Its content may be: "vis": [ {255: [0,128,128,30]} ]')
-  parser.add_argument('--transparency', type=float, default=0.5,
-      help='Transparency to overlay the label mask with.')
+  parser.add_argument('--alpha', type=float, default=0.5,
+      help='Transparency to overlay the label mask with, 1 means cant see the image behind the mask.')
   parser.add_argument('--with_frameid', action='store_true', help='print frame number.')
   parser.set_defaults(func=writeVideo)
 
@@ -41,7 +41,7 @@ def writeVideo (c, args):
     # Draw the mask.
     if args.labelmap_path and maskfile is not None:
       mask = maskread(maskfile)
-      frame = drawMaskOnImage(frame, mask, labelmap, args.transparency)
+      frame = drawMaskOnImage(frame, mask, labelmap, args.alpha)
 
     # Display the frame id.
     if args.with_frameid:
