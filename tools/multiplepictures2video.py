@@ -24,20 +24,20 @@ def multiplemasks2video_parser():
 def multiplemasks2video(args):
   assert len(args.in_path_pattern) == 4, 'Only 2x2 grid for now.'
 
-  writer = VideoWriter(vmaskfile=args.out_videopath, overwrite=args.overwrite, fps=args.fps)
+  writer = VideoWriter(vimagefile=args.out_videopath, overwrite=args.overwrite, fps=args.fps)
 
   def processImage(imagefile):
-    image = maskread(imagefile)
-    #image = np.stack([image, image, image], axis=0) if len(image.shape) == 2 else image
+    image = imread(imagefile)
+    image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB) if len(image.shape) == 2 else image
     scale = float(args.imwidth) / image.shape[1]
     image = cv2.resize(image, dsize=(0,0), fx=scale, fy=scale)
     return image
 
-  imagefiles_by_video = [glob(x) for x in args.in_path_pattern]
+  imagefiles_by_video = [sorted(glob(x)) for x in args.in_path_pattern]
   for imagefiles in progressbar.progressbar(zip(*imagefiles_by_video)):
     images = [processImage(imagefile) for imagefile in imagefiles]
     gridimage = np.vstack([np.hstack([images[0], images[1]]), np.hstack([images[2], images[3]])])
-    writer.maskwrite(gridimage)
+    writer.imwrite(gridimage)
 
 
 if __name__ == '__main__':

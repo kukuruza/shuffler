@@ -316,12 +316,13 @@ class PictureReader:
     return img
 
   def imread (self, image_id):
-    #if image_id in self.image_cache: 
-    #  logging.debug ('imread: found image in cache')
-    #  return self.image_cache[image_id]  # get cached image if possible
-    image = self._readImpl(image_id)[:,:,::-1]
-    #logging.debug ('imread: new image, updating cache')
-    #self.image_cache = {image_id: image}   # currently only 1 image in the cache
+    image = self._readImpl(image_id)
+    if len(image.shape) == 3 and image.shape[2] == 3:
+      image = image[:,:,::-1]
+    elif len(image.shape) == 2:
+      image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+    else:
+      assert False, 'Only 3-channnel color or grayscale, got shape %s.' % str(image.shape)
     return image
 
   def maskread (self, mask_id):
@@ -342,23 +343,22 @@ class PictureReader:
 
 class PictureWriter:
 
-  def _writeImpl (self, image, image_id):
-    imagepath = op.join (os.getenv('CITY_PATH'), image_id)
+  def _writeImpl (self, image, imagepath):
     if image is None:
       raise Exception ('image to write is None')
     if not op.exists (op.dirname(imagepath)):
       os.makedirs (op.dirname(imagepath))
     cv2.imwrite (imagepath, image)
 
-  def imwrite (self, image, image_id):
+  def imwrite (self, image, imagepath):
     assert len(image.shape) == 3 and image.shape[2] == 3
-    self._writeImpl(image[:,:,::-1], image_id)
+    self._writeImpl(image[:,:,::-1], imagepath)
 
-  def maskwrite (self, mask, mask_id):
+  def maskwrite (self, mask, maskpath):
     assert len(mask.shape) == 2
     assert mask.dtype == bool
     mask = mask.copy().astype(np.uint8) * 255
-    self._writeImpl (mask, mask_id)
+    self._writeImpl (mask, maskpath)
 
   def close (self):
     pass

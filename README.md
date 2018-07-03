@@ -17,6 +17,7 @@ ffmpeg -f image2 -r 5  -pattern_type glob -i ${picsdir}'/*.jpg' -r 5 -c:v mpeg4 
 # Import labelled images and write them with mask and frame_id.
 ```
 GT_DIR=/home/evgeny/datasets/scotty/scotty_2018_6_7
+
 ./pipeline.py \
   importPictures \
     --image_pattern ${GT_DIR}"/images/*jpg" \
@@ -25,6 +26,15 @@ GT_DIR=/home/evgeny/datasets/scotty/scotty_2018_6_7
     --out_videopath ${GT_DIR}/visualization.avi \
     --labelmap_path ${GT_DIR}/labelmap.json \
     --fps 1 \
+    --with_frameid
+
+./pipeline.py \
+  importPictures \
+    --image_pattern ${GT_DIR}"/images/*jpg" \
+    --mask_pattern ${GT_DIR}"/labels/*.png" \
+  writePictures \
+    --out_dir ${GT_DIR}/visualization \
+    --labelmap_path ${GT_DIR}/labelmap.json \
     --with_frameid
 ```
 
@@ -49,4 +59,15 @@ PRED_LABELMAP_PATH=/home/evgeny/datasets/GTA5/labelmap_GTA5.json
   evaluateSegmentation --gt_db_file=${GT_DIR}/gt.db --gt_labelmap_path=${GT_DIR}/labelmap.json \
     --pred_labelmap_path=${PRED_LABELMAP_PATH} \
   writeVideo --out_videopath=${PRED_DIR}/vis_on_gt.avi --labelmap_path=${PRED_LABELMAP_PATH}
+```
+
+# Make grid out of four videos.
+```
+python tools/multiplepictures2video.py -i \
+  "/home/evgeny/datasets/scotty/scotty_2018_6_7/visualization/*.jpg" \
+  "/home/evgeny/datasets/scotty/scotty_2018_6_7_pred_alex/segout/*.png" \
+  "/home/evgeny/src/MCD_DA/segmentation/test_output/gta-images2scotty-train_3ch---scotty-test42/MCD-normal-drn_d_105-4.tar/prob/*.png" \
+  "/home/evgeny/src/MCD_DA/segmentation/test_output/gta-images_only_3ch---scotty-test42/normal-drn_d_105-4.tar/prob/*.png" \
+  -o /home/evgeny/Desktop/grid.avi \
+  --imwidth 1500 --fps 1 --overwrite
 ```
