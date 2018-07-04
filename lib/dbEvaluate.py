@@ -354,7 +354,7 @@ def evaluateSegmentationROC(c, args):
 
   # Accumulate into Precision-Recall curve.
   ROC, area = getPrecRecall(TPs, FPs, TNs, FNs)
-  print("Average across image area under the Precision-Recall curve, perc: %.1f" % (area * 100.))
+  print("Average across image area under the Precision-Recall curve, perc: %.2f" % (area * 100.))
 
   if args.out_dir is not None:
     if not op.exists(args.out_dir):

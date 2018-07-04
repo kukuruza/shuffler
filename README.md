@@ -47,9 +47,9 @@ GT_DIR=/home/evgeny/datasets/scotty/scotty_2018_6_7
     --mask_pattern=/home/evgeny/datasets/scotty/scotty_2018_6_7/labels/*.png
 ```
 
-# Evaluate MCD_DA predictions.
+# Evaluate MCD_DA IoU predictions.
 ```
-epoch=1
+epoch=4
 GT_DIR=/home/evgeny/datasets/scotty/scotty_2018_6_7
 PRED_DIR=/home/evgeny/src/MCD_DA/segmentation/test_output/gta-images2scotty-train_3ch---scotty-test/MCD-normal-drn_d_105-${epoch}.tar
 PRED_LABELMAP_PATH=/home/evgeny/datasets/GTA5/labelmap_GTA5.json
@@ -59,6 +59,21 @@ PRED_LABELMAP_PATH=/home/evgeny/datasets/GTA5/labelmap_GTA5.json
   evaluateSegmentation --gt_db_file=${GT_DIR}/gt.db --gt_labelmap_path=${GT_DIR}/labelmap.json \
     --pred_labelmap_path=${PRED_LABELMAP_PATH} \
   writeVideo --out_videopath=${PRED_DIR}/vis_on_gt.avi --labelmap_path=${PRED_LABELMAP_PATH}
+```
+
+# Evaluate MCD_DA and non-da ROC curve prediction
+```
+epoch=4
+# adapt
+PRED_DIR=/home/evgeny/src/MCD_DA/segmentation/test_output/gta-images2scotty-train_3ch---scotty-test42/MCD-normal-drn_d_105-${epoch}.tar/prob
+# no adapt
+PRED_DIR=/home/evgeny/src/MCD_DA/segmentation/test_output/gta-images_only_3ch---scotty-test42/normal-drn_d_105-${epoch}.tar/prob
+# alex weiss net
+PRED_DIR=/home/evgeny/datasets/scotty/scotty_2018_6_7_pred_alex/segout
+
+./pipeline.py \
+  importPictures --image_pattern=${GT_DIR}"/images/*.jpg" --mask_pattern=${PRED_DIR}/"*.png" 
+  evaluateSegmentationROC --gt_db_file=${GT_DIR}/gt.db --out_dir ${PRED_DIR}
 ```
 
 # Make grid out of four videos.
