@@ -10,7 +10,7 @@ import sys
 sys.path.append("/home/evgeny/src/shuffler/lib")
 from backendImages import imread, maskread, VideoWriter
 
-def multiplemasks2video_parser():
+def multiplepictures2video_parser():
   parser = ArgumentParser('Make a video, where each frame is a grid of 4 images from 4 sources.')
   parser.add_argument('-i', '--in_path_pattern', nargs='+', required=True,
       help='E.g. "mydir/*.dat" or "mydir/*.npy". Remember to mask * with quotes.')
@@ -21,10 +21,12 @@ def multiplemasks2video_parser():
   parser.add_argument('--imwidth', type=int, required=True)
   return parser
 
-def multiplemasks2video(args):
-  assert len(args.in_path_pattern) == 4, 'Only 2x2 grid for now.'
-
-  writer = VideoWriter(vimagefile=args.out_videopath, overwrite=args.overwrite, fps=args.fps)
+def multiplepictures2video(args):
+  num_videos = len(args.in_path_pattern)
+  assert num_videos in [2, 4], 'Only 2x1 or 2x2 grid for now.'
+  
+  if not args.dryrun:
+    writer = VideoWriter(vimagefile=args.out_videopath, overwrite=args.overwrite, fps=args.fps)
 
   def processImage(imagefile):
     image = imread(imagefile)
@@ -36,12 +38,16 @@ def multiplemasks2video(args):
   imagefiles_by_video = [sorted(glob(x)) for x in args.in_path_pattern]
   for imagefiles in progressbar.progressbar(zip(*imagefiles_by_video)):
     images = [processImage(imagefile) for imagefile in imagefiles]
-    gridimage = np.vstack([np.hstack([images[0], images[1]]), np.hstack([images[2], images[3]])])
-    writer.imwrite(gridimage)
+    if len(images) == 4:
+      gridimage = np.vstack([np.hstack([images[0], images[1]]), np.hstack([images[2], images[3]])])
+    elif len(images) == 2:
+      gridimage = np.vstack([images[0], images[1]])
+    if not args.dryrun:
+      writer.imwrite(gridimage)
 
 
 if __name__ == '__main__':
-  parser = multiplemasks2video_parser()
+  parser = multiplepictures2video_parser()
   parser.add_argument('--logging', default=20, type=int, choices={10, 20, 30, 40},
     help='Log debug (10), info (20), warning (30), error (40).')
   args = parser.parse_args()
@@ -49,4 +55,4 @@ if __name__ == '__main__':
   progressbar.streams.wrap_stderr()
   logging.basicConfig(level=args.logging, format='%(levelname)s: %(message)s')
 
-  multiplemasks2video(args)
+  multiplepictures2video(args)

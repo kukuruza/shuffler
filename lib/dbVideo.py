@@ -37,7 +37,7 @@ def writeVideo (c, args):
 
   c.execute('SELECT imagefile,maskfile FROM images')
   for imagefile,maskfile in progressbar(c.fetchall()):
-    frame = imread(imagefile)
+    frame = imread(imagefile).copy()
 
     # Draw the mask.
     if args.labelmap_path and maskfile is not None:
