@@ -3,10 +3,10 @@ import numpy as np
 import cv2
 import logging
 import simplejson as json
-from utilities import bbox2roi, drawScoredRoi, drawScoredPolygon
-from backendDb import deleteCar, carField
-from backendImages import imread, maskread
-from utilities import drawFrameId, drawMaskOnImage, loadLabelmap
+from .utilities import bbox2roi, drawScoredRoi, drawScoredPolygon
+from .backendDb import deleteCar, carField
+from .backendImages import imread, maskread
+from .utilities import drawFrameId, drawMaskOnImage, loadLabelmap
 
 
 def add_parsers(subparsers):

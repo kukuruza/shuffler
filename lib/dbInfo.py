@@ -3,7 +3,7 @@ import argparse
 import numpy as np
 import logging
 from pprint import pprint
-from backendDb import carField
+from .backendDb import carField
 
 
 def add_parsers(subparsers):

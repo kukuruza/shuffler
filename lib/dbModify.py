@@ -4,7 +4,7 @@ import cv2
 import logging
 from glob import glob
 from pprint import pformat
-from backendImages import getVideoLength, getImageSize
+from .backendImages import getVideoLength, getImageSize
 
 
 def add_parsers(subparsers):

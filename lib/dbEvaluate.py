@@ -4,15 +4,14 @@ import logging
 import sqlite3
 import numpy as np
 import cv2
-import torch
 from progressbar import progressbar
 import simplejson as json
 import matplotlib
 from matplotlib import pyplot as plt
 from pprint import pformat
-from backendDb import carField, loadToMemory
-from backendImages import maskread, validateMask
-from utilities import loadLabelmap
+from .backendDb import carField, loadToMemory
+from .backendImages import maskread, validateMask
+from .utilities import loadLabelmap
 
 
 
@@ -320,32 +319,39 @@ def evaluateSegmentationROC(c, args):
     gt_other = mask_gt.size - gt_pos - gt_neg
     logging.debug('GT: positive: %d, negative: %d, others: %d.' % (gt_pos, gt_neg, gt_other))
 
-    # Use only relevant pixels (not the 'dontcare' class.)
-    relevant = np.bitwise_or(mask_gt == 0, mask_gt == 255)
-    mask_gt = mask_gt[relevant].flatten()
-    mask_pred = mask_pred[relevant].flatten()
-    mask_gt = torch.Tensor(mask_gt).cuda()
-    mask_pred = torch.Tensor(mask_pred).cuda()
+    # If there is torch.
+    try:
+      import torch
+      # Use only relevant pixels (not the 'dontcare' class.)
+      relevant = np.bitwise_or(mask_gt == 0, mask_gt == 255)
+      mask_gt = mask_gt[relevant].flatten()
+      mask_pred = mask_pred[relevant].flatten()
+      mask_gt = torch.Tensor(mask_gt).cuda()
+      mask_pred = torch.Tensor(mask_pred).cuda()
 
-    TP = np.zeros((256,), dtype=int)
-    TN = np.zeros((256,), dtype=int)
-    FP = np.zeros((256,), dtype=int)
-    FN = np.zeros((256,), dtype=int)
-    for val in range(256):
-      tp = torch.nonzero(torch.mul(mask_pred > val, mask_gt == 255)).size()[0]
-      fp = torch.nonzero(torch.mul(mask_pred > val, mask_gt != 255)).size()[0]
-      fn = torch.nonzero(torch.mul(mask_pred <= val, mask_gt == 255)).size()[0]
-      tn = torch.nonzero(torch.mul(mask_pred <= val, mask_gt != 255)).size()[0]
-      TP[val] = tp
-      FP[val] = fp
-      TN[val] = tn
-      FN[val] = fn
-      TPs[val] += tp
-      FPs[val] += fp
-      TNs[val] += tn
-      FNs[val] += fn
-    ROC, area = getPrecRecall(TP, FP, TN, FN)
-    logging.info('%s\t%.2f' % (op.basename(imagefile_gt), area * 100.))
+      TP = np.zeros((256,), dtype=int)
+      TN = np.zeros((256,), dtype=int)
+      FP = np.zeros((256,), dtype=int)
+      FN = np.zeros((256,), dtype=int)
+      for val in range(256):
+        tp = torch.nonzero(torch.mul(mask_pred > val, mask_gt == 255)).size()[0]
+        fp = torch.nonzero(torch.mul(mask_pred > val, mask_gt != 255)).size()[0]
+        fn = torch.nonzero(torch.mul(mask_pred <= val, mask_gt == 255)).size()[0]
+        tn = torch.nonzero(torch.mul(mask_pred <= val, mask_gt != 255)).size()[0]
+        TP[val] = tp
+        FP[val] = fp
+        TN[val] = tn
+        FN[val] = fn
+        TPs[val] += tp
+        FPs[val] += fp
+        TNs[val] += tn
+        FNs[val] += fn
+      ROC, area = getPrecRecall(TP, FP, TN, FN)
+      logging.info('%s\t%.2f' % (op.basename(imagefile_gt), area * 100.))
+
+    except ImportError:
+      # TODO: write the same without torch, on CPU
+      raise NotImplementedError('Still need to write a non-torch implementation.')
     
     if args.display_images_roc:
       plt.plot(ROC[:, 0], ROC[:, 1], 'go-', linewidth=2, markersize=4)

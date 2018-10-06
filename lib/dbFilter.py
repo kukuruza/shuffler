@@ -4,7 +4,7 @@ import cv2
 import logging
 from glob import glob
 from pprint import pformat
-from backendDb import loadToMemory
+from .backendDb import loadToMemory
 
 def add_parsers(subparsers):
   filterWithAnotherParser(subparsers)

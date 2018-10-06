@@ -4,8 +4,8 @@ import cv2
 import logging
 import simplejson as json
 from progressbar import progressbar
-from backendImages import imread, maskread, VideoWriter, PictureWriter
-from utilities import drawFrameId, drawMaskOnImage, loadLabelmap
+from .backendImages import imread, maskread, VideoWriter, PictureWriter
+from .utilities import drawFrameId, drawMaskOnImage, loadLabelmap
 
 
 def add_parsers(subparsers):
