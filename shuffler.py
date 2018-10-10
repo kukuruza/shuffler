@@ -4,8 +4,8 @@ import logging
 import argparse
 import sqlite3
 import progressbar
-from lib.utilities import safeCopy
-from lib.backendDb import create, loadToMemory
+from lib.utilities import copyWithBackup
+from lib.backendDb import createDb
 from lib import dbModify, dbVideo, dbInfo, dbDisplay, dbFilter, dbEvaluate
 #import dbExport, dbLabel, dbLabelme
 
@@ -22,29 +22,36 @@ def connect (in_db_path=None, out_db_path=None):
     sqlite3.Connection
   '''
 
-  logging.info ('in_db_path:  %s' % in_db_path)
-  logging.info ('out_db_path: %s' % out_db_path)
+  logging.info('in_db_path:  %s' % in_db_path)
+  logging.info('out_db_path: %s' % out_db_path)
+
+  if in_db_path is not None and not op.exists(in_db_path):
+    raise IOError('Input database provided but does not exist: %s' % in_db_path)
 
   if in_db_path is None and out_db_path is not None:
+    # Create a new db and save as out_db_path.
     logging.info('will create database at %s' % out_db_path)
     if op.exists(out_db_path):
       raise Exception('Database "-o" exists. Specify it in "-i" too to change it.')
     conn = sqlite3.connect(out_db_path)
-    create(conn)
+    createDb(conn)
 
   elif in_db_path is not None and out_db_path is not None:
+    # Load db from in_db_path and save as out_db_path.
     logging.info('will copy existing database from %s to %s.' % (in_db_path, out_db_path))
-    safeCopy(in_db_path, out_db_path)
+    copyWithBackup(in_db_path, out_db_path)
     conn = sqlite3.connect(out_db_path)
 
   elif in_db_path is not None and out_db_path is None:
+    # Load db from in_db_path as read-only.
     logging.info('will load existing database from %s, but will not commit).' % in_db_path)
     conn = sqlite3.connect('file:%s?mode=ro' % in_db_path, uri=True)
 
   elif in_db_path is None and out_db_path is None:
+    # Create a db and discard it in the end.
     logging.info('will create a temporary database in memory.')
     conn = sqlite3.connect(':memory:')  # Create an in-memory database.
-    create(conn)
+    createDb(conn)
 
   else:
     assert False

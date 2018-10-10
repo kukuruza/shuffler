@@ -1,69 +1,19 @@
 import os, sys, os.path as op
 import numpy as np
-import cv2
+import imageio
 import logging
 import struct
+from PIL import Image
 from pkg_resources import parse_version
 
 
-def getImageSize(file_path):
-    """
-    Return (height, width) for a given img file content - no external
-    dependencies except the os and struct modules from core
-    """
-    size = os.path.getsize(file_path)
-    with open(file_path) as input:
-        height = -1
-        width = -1
-        data = input.read(25)
-        if (size >= 10) and data[:6] in ('GIF87a', 'GIF89a'):
-            # GIFs
-            w, h = struct.unpack("<HH", data[6:10])
-            width = int(w)
-            height = int(h)
-        elif ((size >= 24) and data.startswith('\211PNG\r\n\032\n')
-              and (data[12:16] == 'IHDR')):
-            # PNGs
-            w, h = struct.unpack(">LL", data[16:24])
-            width = int(w)
-            height = int(h)
-        elif (size >= 16) and data.startswith('\211PNG\r\n\032\n'):
-            # older PNGs?
-            w, h = struct.unpack(">LL", data[8:16])
-            width = int(w)
-            height = int(h)
-        elif (size >= 2) and data.startswith('\377\330'):
-            # JPEG
-            msg = " raised while trying to decode as JPEG."
-            input.seek(0)
-            input.read(2)
-            b = input.read(1)
-            try:
-                while (b and ord(b) != 0xDA):
-                    while (ord(b) != 0xFF): b = input.read(1)
-                    while (ord(b) == 0xFF): b = input.read(1)
-                    if (ord(b) >= 0xC0 and ord(b) <= 0xC3):
-                        input.read(3)
-                        h, w = struct.unpack(">HH", input.read(4))
-                        break
-                    else:
-                        input.read(int(struct.unpack(">H", input.read(2))[0])-2)
-                    b = input.read(1)
-                width = int(w)
-                height = int(h)
-            except struct.error:
-                raise Exception("UnknownImageFormat. StructError" + msg)
-            except ValueError:
-                raise Exception("UnknownImageFormat. ValueError" + msg)
-            except Exception as e:
-                raise Exception(e.__class__.__name__ + msg)
-        else:
-            raise Exception(
-                "Sorry, don't know how to get information from this file."
-            )
-    return height, width
-
-
+def getImageSize(imagepath):
+  if not op.exists (imagepath):
+    raise FileNotFoundError ('Image does not exist at path: "%s"' % imagepath)
+  im = Image.open(imagepath)
+  width, height = im.size
+  return height, width
+  
 
 def validateMask(mask):
   if mask is None:
@@ -128,6 +78,7 @@ def maskread(imagefile):
 
 # returns OpenCV VideoCapture property id given, e.g., "FPS"
 def capPropId(prop):
+  import cv2
   OPCV3 = parse_version(cv2.__version__) >= parse_version('3')
   return getattr(cv2 if OPCV3 else cv2.cv, ("" if OPCV3 else "CV_") + "CAP_PROP_" + prop)
 
@@ -139,6 +90,7 @@ class VideoReader:
   '''Implementation based on Image <-> Frame in video.'''
 
   def __init__ (self):
+    import cv2
     self.relpath = os.getenv('HOME')
     if self.relpath is not None:
       logging.info('ReaderVideo: relpath is set to %s' % self.relpath)
@@ -212,6 +164,7 @@ class VideoReader:
 class VideoWriter:
 
   def __init__(self, vimagefile=None, vmaskfile=None, overwrite=False, fps=2):
+    import cv2
     self.overwrite  = overwrite
     self.vimagefile = vimagefile
     self.vmaskfile = vmaskfile
@@ -300,42 +253,17 @@ class VideoWriter:
 
 class PictureReader:
 
-  def __init__ (self):
-    #self.image_cache = {}   # cache of previously read image(s)
-    #self.mask_cache = {}    # cache of previously read mask(s)
-    pass
-
-  def _readImpl (self, image_id):
-    imagepath = op.join (os.getenv('HOME'), image_id)
+  def _readImpl (self, imagepath):
     logging.debug ('imagepath: %s' % imagepath)
     if not op.exists (imagepath):
-      raise Exception ('image does not exist at path: "%s"' % imagepath)
-    img = cv2.imread(imagepath, cv2.IMREAD_UNCHANGED)
-    if img is None:
-      raise IOError ('image file exists, but failed to read it')
-    return img
+      raise FileNotFoundError ('Image does not exist at path: "%s"' % imagepath)
+    return imageio.imread(imagepath)
 
   def imread (self, image_id):
-    image = self._readImpl(image_id)
-    if len(image.shape) == 3 and image.shape[2] == 3:
-      image = image[:,:,::-1]
-    elif len(image.shape) == 2:
-      image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
-    else:
-      assert False, 'Only 3-channnel color or grayscale, got shape %s.' % str(image.shape)
-    return image
-
+    return self._readImpl(image_id)
+ 
   def maskread (self, mask_id):
-    #if mask_id in self.mask_cache: 
-    #  logging.debug ('maskread: found mask in cache')
-    #  return self.mask_cache[mask_id]  # get cached mask if possible
-    mask = self._readImpl (mask_id)
-    if len(mask.shape) == 3:
-      logging.warning('PictureReader: mask file should be grayscale: %s' % mask_id)
-      mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
-    #logging.debug ('imread: new mask, updating cache')
-    #self.mask_cache = {mask_id: mask}   # currently only 1 image in the cache
-    return mask
+    return self._readImpl (mask_id)
 
   def close(self):
     pass
@@ -343,22 +271,25 @@ class PictureReader:
 
 class PictureWriter:
 
-  def _writeImpl (self, image, imagepath):
+  def __init__(self, jpg_quality=100):
+    self.jpg_quality = jpg_quality
+
+  def _writeImpl (self, imagepath, image):
     if image is None:
-      raise Exception ('image to write is None')
+      raise ValueError('image to write is None')
     if not op.exists (op.dirname(imagepath)):
       os.makedirs (op.dirname(imagepath))
-    cv2.imwrite (imagepath, image)
 
-  def imwrite (self, image, imagepath):
-    assert len(image.shape) == 3 and image.shape[2] == 3
-    self._writeImpl(image[:,:,::-1], imagepath)
+    if op.splitext(imagepath)[1] in ['.jpg', '.jpeg']:
+      imageio.imwrite (imagepath, image, quality=self.jpg_quality)
+    else:
+      imageio.imwrite (imagepath, image)
 
-  def maskwrite (self, mask, maskpath):
-    assert len(mask.shape) == 2
-    assert mask.dtype == bool
-    mask = mask.copy().astype(np.uint8) * 255
-    self._writeImpl (mask, maskpath)
+  def imwrite (self, imagepath, image):
+    self._writeImpl (imagepath, image)
+
+  def maskwrite (self, maskpath, mask):
+    self._writeImpl (maskpath, mask)
 
   def close (self):
     pass

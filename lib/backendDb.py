@@ -5,159 +5,159 @@ import datetime
 
 
 def doesTableExist (cursor, table):
-    cursor.execute('''SELECT count(*) FROM sqlite_master 
-                      WHERE name=? AND type='table';''', (table,))
-    return cursor.fetchone()[0] != 0
+  cursor.execute('''SELECT count(*) FROM sqlite_master 
+                    WHERE name=? AND type='table';''', (table,))
+  return cursor.fetchone()[0] != 0
+
 
 def isColumnInTable (cursor, table, column):
-    if not doesTableExist(cursor, table):
-        raise Exception ('table %s does not exist' % table)
-    cursor.execute('PRAGMA table_info(%s)' % table)
-    return column in [x[1] for x in cursor.fetchall()]
+  if not doesTableExist(cursor, table):
+    raise IOError ('table %s does not exist' % table)
+  cursor.execute('PRAGMA table_info(%s)' % table)
+  return column in [x[1] for x in cursor.fetchall()]
+
 
 def createTableImages (cursor):
-    cursor.execute('''CREATE TABLE IF NOT EXISTS images
-                     (imagefile TEXT PRIMARY KEY, 
-                      src TEXT, 
-                      width INTEGER, 
-                      height INTEGER,
-                      maskfile TEXT,
-                      time TIMESTAMP
-                      );''')
-    cursor.execute('CREATE INDEX images_on_imagefile ON images(imagefile);')
+  cursor.execute('''CREATE TABLE images
+                   (imagefile TEXT PRIMARY KEY, 
+                    width INTEGER, 
+                    height INTEGER,
+                    maskfile TEXT,
+                    timestamp TIMESTAMP,
+                    name TEXT,
+                    score REAL
+                    );''')
+  cursor.execute('CREATE INDEX images_on_imagefile ON images(imagefile);')
 
-def createTableCars (cursor):
-    cursor.execute('''CREATE TABLE IF NOT EXISTS cars
-                     (id INTEGER PRIMARY KEY,
-                      imagefile TEXT, 
-                      name TEXT, 
-                      x1 INTEGER,
-                      y1 INTEGER,
-                      width INTEGER, 
-                      height INTEGER,
-                      score REAL,
-                      yaw REAL,
-                      pitch REAL,
-                      color TEXT
-                      );''')
-    cursor.execute('CREATE INDEX cars_on_imagefile ON cars(imagefile);')
-    cursor.execute('CREATE INDEX cars_on_carid ON cars(id);')
+
+def createTableObjects (cursor):
+  cursor.execute('''CREATE TABLE objects
+                   (objectid INTEGER PRIMARY KEY,
+                    imagefile TEXT, 
+                    x1 INTEGER,
+                    y1 INTEGER,
+                    width INTEGER, 
+                    height INTEGER,
+                    name TEXT,
+                    score REAL
+                    );''')
+  cursor.execute('CREATE INDEX objects_on_imagefile ON objects(imagefile);')
+  cursor.execute('CREATE INDEX objects_on_objectid ON objects(objectid);')
+
+
+def createTableProperties (cursor):
+  cursor.execute('''CREATE TABLE properties
+                   (id INTEGER PRIMARY KEY,
+                    objectid INTEGER, 
+                    key TEXT,
+                    value TEXT
+                    );''')
+  cursor.execute('CREATE INDEX properties_on_key ON properties(key);')
+  cursor.execute('CREATE INDEX properties_on_key_and_value ON properties(key,value);')
+  cursor.execute('CREATE INDEX properties_on_objectid ON properties(objectid);')
+
 
 def createTablePolygons (cursor):
-    cursor.execute('''CREATE TABLE IF NOT EXISTS polygons
-                     (id INTEGER PRIMARY KEY,
-                      carid INTEGER, 
-                      x INTEGER,
-                      y INTEGER
-                      );''')
-    cursor.execute('CREATE INDEX polygons_on_id ON polygons(id);')
-    cursor.execute('CREATE INDEX polygons_on_carid ON polygons(carid);')
+  cursor.execute('''CREATE TABLE polygons
+                   (id INTEGER PRIMARY KEY,
+                    objectid INTEGER, 
+                    x INTEGER,
+                    y INTEGER,
+                    name TEXT
+                    );''')
+  cursor.execute('CREATE INDEX polygons_on_id ON polygons(id);')
+  cursor.execute('CREATE INDEX polygons_on_objectid ON polygons(objectid);')
+
 
 def createTableMatches (cursor):
-    cursor.execute('''CREATE TABLE IF NOT EXISTS matches
-                     (id INTEGER PRIMARY KEY,
-                      match INTEGER,
-                      carid INTEGER
-                     );''')
-    cursor.execute('CREATE INDEX matches_on_match ON matches(match);')
+  cursor.execute('''CREATE TABLE matches
+                   (id INTEGER PRIMARY KEY,
+                    match INTEGER,
+                    objectid INTEGER
+                   );''')
+  cursor.execute('CREATE INDEX matches_on_match ON matches(match);')
 
-def create(conn):
-    cursor = conn.cursor()
-    conn.execute('PRAGMA user_version = 3')
-    createTablePolygons(cursor)
-    createTableImages(cursor)
-    createTableCars(cursor)
-    createTableMatches(cursor)
+
+def createDb (conn):
+  ''' Creates all the necessary tables and indexes. '''
+
+  cursor = conn.cursor()
+  conn.execute('PRAGMA user_version = 4')  # This is version 4.
+  createTableImages(cursor)
+  createTableObjects(cursor)
+  createTableProperties(cursor)
+  createTablePolygons(cursor)
+  createTableMatches(cursor)
+
 
 def makeTimeString (time):
-    ''' Write a string in my format.
-    Args: time -- datetime object
-    '''
-    return datetime.strftime(time, '%Y-%m-%d %H:%M:%S.%f')
+  ''' Write a time string in Shuffler format.
+  Args:      time -- a datetime object.
+  Returns:   string.
+  '''
+  return datetime.strftime(time, '%Y-%m-%d %H:%M:%S.%f')
+
 
 def parseTimeString (timestring):
-    return datetime.strptime(timestring, '%Y-%m-%d %H:%M:%S.%f')
-
-def parseIdatafaTimeString (timestring):
-    # E.g. 2016/04/25 18:00:25
-    return datetime.strptime(timestring, '%Y/%m/%d %H:%M:%S')
-
-def loadToMemory(in_db_path):
-    if not op.exists(in_db_path):
-      raise Exception('Input database provided but does not exist: %s' % in_db_path)
-    conn_in = sqlite3.connect(in_db_path)
-    conn = sqlite3.connect(':memory:') # create a memory database
-    query = ''.join(line for line in conn_in.iterdump())
-    # Dump input database in the one in memory. 
-    conn.executescript(query)
-    return conn
-
-
-def carField (car, field):
-    ''' all knowledge about 'cars' table is here '''
-    if field == 'id':        return car[0]
-    if field == 'imagefile': return car[1] 
-    if field == 'name':      return car[2] 
-    if field == 'x1':        return car[3]
-    if field == 'y1':        return car[4]
-    if field == 'width':     return car[5]
-    if field == 'height':    return car[6]
-    if field == 'score':     return car[7]
-    if field == 'yaw':       return car[8]
-    if field == 'pitch':     return car[9]
-    if field == 'color':     return car[10]
-
-    if field == 'bbox':      
-        return list(car[3:7])
-    if field == 'roi':
-        bbox = list(car[3:7])
-        return [bbox[1], bbox[0], bbox[3]+bbox[1]-1, bbox[2]+bbox[0]-1]
-    return None
-
-
-def imageField (image, field):
-    if field == 'imagefile': return image[0] 
-    if field == 'src':       return image[1] 
-    if field == 'width':     return image[2] 
-    if field == 'height':    return image[3] 
-    if field == 'maskfile':  return image[4] 
-    if field == 'time':      return image[5] 
-    return None
-
-
-def polygonField (polygon, field):
-    if field == 'id':        return polygon[0]
-    if field == 'carid':     return polygon[1]
-    if field == 'x':         return polygon[2]
-    if field == 'y':         return polygon[3]
-    return None
-
-
-def deleteCar (cursor, carid, has_polygons=False, has_matches=False):#, remove_matched=True):
-  ''' Delete all information about a car.
-  If the car does not exist, operation has no effect.
-  Args:
-    remove_matches:  if True, also delete all cars matched to the current car.
+  ''' Parses the Shuffler format.
+  Args:      timestring -- a string object
+  Returns:   datetime object
   '''
-  cursor.execute('DELETE FROM cars WHERE id=?;', (carid,))
-  if has_matches:
-    cursor.execute('''SELECT carid FROM matches WHERE carid IN
-                      (SELECT match FROM matches WHERE carid=?)''', (carid,))
-    carids_matched = cursor.fetchall()
-    logging.debug ('Car is in %d matches.' % len(carids_matched))
-    cursor.execute('DELETE FROM matches WHERE carid=?;', (carid,))
-    #if remove_matched:
-    #  for carid_matched, in carids_matched:
-    #    if carid_matched != carid:
-    #      deleteCar(cursor, carid_matched, has_polygons, has_matches, remove_matched=False)
-  if has_polygons:
-    cursor.execute('DELETE FROM polygons WHERE carid=?;', (carid,))
+  return datetime.strptime(timestring, '%Y-%m-%d %H:%M:%S.%f')
 
 
-def deleteCars (cursor, carids):
-  has_polygons = doesTableExist(cursor, 'polygons')
-  has_matches = doesTableExist(cursor, 'matches')
-  for carid, in ProgressBar()(carids):
-    deleteCar (cursor, carid, has_polygons=has_polygons, has_matches=has_matches)
+# def parseIdatafaTimeString (timestring):
+#   # E.g. 2016/04/25 18:00:25
+#   return datetime.strptime(timestring, '%Y/%m/%d %H:%M:%S')
 
 
+def objectField (entry, field):
+  ''' Convenience function to access by field name. '''
+
+  if field == 'id':        return entry[0]
+  if field == 'imagefile': return entry[1] 
+  if field == 'x1':        return entry[2]
+  if field == 'y1':        return entry[3]
+  if field == 'width':     return entry[4]
+  if field == 'height':    return entry[5]
+  if field == 'name':      return entry[6] 
+  if field == 'score':     return entry[7] 
+  if field == 'bbox':      
+    return list(entry[2:6])
+  if field == 'roi':
+    bbox = list(entry[2:6])
+    return [bbox[1], bbox[0], bbox[3]+bbox[1]-1, bbox[2]+bbox[0]-1]
+  raise KeyError('No field "%s" in object entry %s' % (field, entry))
+
+def imageField (entry, field):
+  ''' Convenience function to access by field name. '''
+
+  if field == 'imagefile': return entry[0]
+  if field == 'width':     return entry[1] 
+  if field == 'height':    return entry[2] 
+  if field == 'maskfile':  return entry[3] 
+  if field == 'timestamp': return entry[4] 
+  raise KeyError('No field "%s" in image entry %s' % (field, entry))
+
+def polygonField (entry, field):
+  ''' Convenience function to access by field name. '''
+
+  if field == 'id':        return entry[0]
+  if field == 'objectid':  return entry[1]
+  if field == 'x':         return entry[2]
+  if field == 'y':         return entry[3]
+  if field == 'name':      return entry[4]
+  raise KeyError('No field "%s" in polygon entry %s' % (field, entry))
+
+
+def deleteObject (cursor, objectid):
+  ''' Delete entries from all tables associated with the object.
+  If the object does not exist, raises KeyError.
+  '''
+  cursor.execute('SELECT COUNT(1) FROM objects WHERE objectid=?;', (objectid,))
+  if cursor.fetchone()[0] == 0:
+    raise KeyError('Can not delete objectid %d, as it is not in the database' % objectid)
+  cursor.execute('DELETE FROM objects WHERE objectid=?;', (objectid,))
+  cursor.execute('DELETE FROM matches WHERE objectid=?;', (objectid,))
+  cursor.execute('DELETE FROM polygons WHERE objectid=?;', (objectid,))
+  cursor.execute('DELETE FROM properties WHERE objectid=?;', (objectid,))

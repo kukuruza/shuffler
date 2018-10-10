@@ -9,15 +9,15 @@ from collections import OrderedDict
 import matplotlib.pyplot as plt  # for colormaps
 
 
-def safeCopy (in_path, out_path):
-  '''Copy in_path into out_path, which is backed-up if exists.'''
+def copyWithBackup (in_path, out_path):
+  ''' Copy in_path into out_path, which is backed up if already exists. '''
 
   if not op.exists (in_path):
-    raise Exception ('db does not exist: %s' % in_path)
+    raise Exception ('File does not exist: "%s"' % in_path)
   if op.exists (out_path):
-    logging.warning ('will back up existing out_path')
+    logging.warning ('Will back up existing out_path "%s"' % out_path)
     ext = op.splitext(out_path)[1]
-    backup_path = op.splitext(out_path)[0]  + '.backup.%s' % ext
+    backup_path = op.splitext(out_path)[0]  + '.backup%s' % ext
     if in_path != out_path:
       if op.exists (backup_path):
         os.remove (backup_path)
@@ -25,8 +25,9 @@ def safeCopy (in_path, out_path):
     else:
       shutil.copyfile(in_path, backup_path)
   if in_path != out_path:
-    # copy input database into the output one
+    # copy input file into the output one
     shutil.copyfile(in_path, out_path)
+
 
 def bbox2roi (bbox):
     assert ((isinstance(bbox, list) or isinstance(bbox, tuple)) and len(bbox) == 4)
