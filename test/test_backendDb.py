@@ -55,8 +55,8 @@ class TestGetFields (unittest.TestCase):
     cursor.execute('SELECT * FROM objects WHERE objectid=1')
     entry = cursor.fetchone()
 
-    self.assertEqual(backendDb.objectField(entry, 'id'), 1, str(entry))
-    self.assertEqual(backendDb.objectField(entry, 'imagefile'), 'images/000000', str(entry))
+    self.assertEqual(backendDb.objectField(entry, 'objectid'), 1, str(entry))
+    self.assertEqual(backendDb.objectField(entry, 'imagefile'), 'images/000000.jpg', str(entry))
     self.assertEqual(backendDb.objectField(entry, 'x1'), 225, str(entry))
     self.assertEqual(backendDb.objectField(entry, 'y1'), 134, str(entry))
     self.assertEqual(backendDb.objectField(entry, 'width'), 356, str(entry))
@@ -68,13 +68,13 @@ class TestGetFields (unittest.TestCase):
 
   def test_imageFields(self):
     cursor = self.conn.cursor()
-    cursor.execute('SELECT * FROM images WHERE imagefile="images/000000"')
+    cursor.execute('SELECT * FROM images WHERE imagefile="images/000000.jpg"')
     entry = cursor.fetchone()
 
-    self.assertEqual(backendDb.imageField(entry, 'imagefile'), 'images/000000', str(entry))
+    self.assertEqual(backendDb.imageField(entry, 'imagefile'), 'images/000000.jpg', str(entry))
     self.assertEqual(backendDb.imageField(entry, 'width'), 800, str(entry))
     self.assertEqual(backendDb.imageField(entry, 'height'), 700, str(entry))
-    self.assertEqual(backendDb.imageField(entry, 'maskfile'), 'masks/000000', str(entry))
+    self.assertEqual(backendDb.imageField(entry, 'maskfile'), 'masks/000000.png', str(entry))
     self.assertEqual(backendDb.imageField(entry, 'timestamp'), '2018-09-24 12:22:48.534685', str(entry))
     with self.assertRaises(KeyError):
       backendDb.imageField(entry, 'dummy')
@@ -113,7 +113,7 @@ class TestDeleteObject (unittest.TestCase):
 
     self.cursor.execute('SELECT objectid FROM objects')
     objectids = self.cursor.fetchall()
-    self.assertEqual(objectids, [(2,)], str(objectids))
+    self.assertEqual(objectids, [(2,), (3,)], str(objectids))
 
     self.cursor.execute('SELECT DISTINCT(objectid) FROM properties')
     self.assertEqual(self.cursor.fetchall(), [(2,)])
@@ -129,7 +129,7 @@ class TestDeleteObject (unittest.TestCase):
 
     self.cursor.execute('SELECT objectid FROM objects')
     objectids = self.cursor.fetchall()
-    self.assertEqual(objectids, [(1,)], str(objectids))
+    self.assertEqual(objectids, [(1,), (3,)], str(objectids))
 
     self.cursor.execute('SELECT DISTINCT(objectid) FROM properties')
     self.assertEqual(self.cursor.fetchall(), [(1,)])

@@ -114,7 +114,7 @@ def parseTimeString (timestring):
 def objectField (entry, field):
   ''' Convenience function to access by field name. '''
 
-  if field == 'id':        return entry[0]
+  if field == 'objectid':  return entry[0]
   if field == 'imagefile': return entry[1] 
   if field == 'x1':        return entry[2]
   if field == 'y1':        return entry[3]
@@ -122,11 +122,17 @@ def objectField (entry, field):
   if field == 'height':    return entry[5]
   if field == 'name':      return entry[6] 
   if field == 'score':     return entry[7] 
-  if field == 'bbox':      
-    return list(entry[2:6])
+  if field == 'bbox':
+    if None in list(entry[2:6]):
+      return None
+    else:
+      return list(entry[2:6])
   if field == 'roi':
-    bbox = list(entry[2:6])
-    return [bbox[1], bbox[0], bbox[3]+bbox[1]-1, bbox[2]+bbox[0]-1]
+    if None in list(entry[2:6]):
+      return None
+    else:
+      bbox = list(entry[2:6])
+      return [bbox[1], bbox[0], bbox[3]+bbox[1]-1, bbox[2]+bbox[0]-1]
   raise KeyError('No field "%s" in object entry %s' % (field, entry))
 
 def imageField (entry, field):

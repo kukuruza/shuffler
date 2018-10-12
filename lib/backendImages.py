@@ -3,6 +3,7 @@ import numpy as np
 import imageio
 import logging
 import struct
+import cv2
 from PIL import Image
 from pkg_resources import parse_version
 
@@ -13,18 +14,6 @@ def getImageSize(imagepath):
   im = Image.open(imagepath)
   width, height = im.size
   return height, width
-  
-
-def validateMask(mask):
-  if mask is None:
-    raise ValueError('Mask is None.')
-  if not isinstance(mask, np.ndarray):
-    raise ValueError('Mask is of type %s' % type(mask))
-  if len(mask.shape) != 2:
-    raise ValueError('Mask is not grayscale, it has %d channels' % len(mask.shape))
-  if mask.dtype != np.uint8:
-    raise ValueError('Mask is not 8-bit, it is type %s' % mask.dtype)
-  return mask
 
 
 def _is_video(image_id):
@@ -39,46 +28,48 @@ def _is_video(image_id):
     return False
 
 def _is_image(image_id):
-  relpath = os.getenv('HOME')
-  imagepath = op.join(relpath, image_id)
-  if op.exists(imagepath):
+  if op.exists(image_id):
     return True
   else:
     return False
 
-def imread(imagefile):
+def imread(image_id):
+  ''' Will create or take an existing Reader depending on whether
+  image_id refers to a video frame or an image file.
+  '''
   global reader
   try:
     reader
   except NameError:
     # Create global 'reader' if it does not exist yet.
-    if _is_video(imagefile):
+    if _is_video(image_id):
       reader = VideoReader()
-    elif _is_image(imagefile):
+    elif _is_image(image_id):
       reader = PictureReader()
     else:
-      raise ValueError('imagefile refers neither to image not to video: %s' % imagefile)
-  return reader.imread(imagefile)
+      raise ValueError('image_id refers neither to image not to video: %s' % image_id)
+  return reader.imread(image_id)
 
-def maskread(imagefile):
+def maskread(mask_id):
+  ''' Will create or take an existing Reader depending on whether
+  mask_id refers to a video frame or an image file.
+  '''
   global reader
   try:
     reader
   except NameError:
     # Create global 'reader' if it does not exist yet.
-    if _is_video(imagefile):
+    if _is_video(mask_id):
       reader = VideoReader()
-    elif _is_image(imagefile):
+    elif _is_image(mask_id):
       reader = PictureReader()
     else:
-      raise ValueError('imagefile refers neither to image not to video: %s' % imagefile)
-  return reader.maskread(imagefile)
-
+      raise ValueError('mask_id refers neither to image not to video: %s' % mask_id)
+  return reader.maskread(mask_id)
 
 
 # returns OpenCV VideoCapture property id given, e.g., "FPS"
 def capPropId(prop):
-  import cv2
   OPCV3 = parse_version(cv2.__version__) >= parse_version('3')
   return getattr(cv2 if OPCV3 else cv2.cv, ("" if OPCV3 else "CV_") + "CAP_PROP_" + prop)
 
@@ -164,7 +155,6 @@ class VideoReader:
 class VideoWriter:
 
   def __init__(self, vimagefile=None, vmaskfile=None, overwrite=False, fps=2):
-    import cv2
     self.overwrite  = overwrite
     self.vimagefile = vimagefile
     self.vmaskfile = vmaskfile
@@ -248,7 +238,6 @@ class VideoWriter:
       self.image_writer.release()
     if self.mask_writer is not None: 
       self.mask_writer.release()
-
 
 
 class PictureReader:

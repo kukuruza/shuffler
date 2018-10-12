@@ -6,7 +6,7 @@ import sqlite3
 import progressbar
 from lib.utilities import copyWithBackup
 from lib.backendDb import createDb
-from lib import dbModify, dbVideo, dbInfo, dbDisplay, dbFilter, dbEvaluate
+from lib import dbDisplay #, dbModify, dbVideo, dbInfo, dbFilter, dbEvaluate
 #import dbExport, dbLabel, dbLabelme
 
 
@@ -44,7 +44,7 @@ def connect (in_db_path=None, out_db_path=None):
 
   elif in_db_path is not None and out_db_path is None:
     # Load db from in_db_path as read-only.
-    logging.info('will load existing database from %s, but will not commit).' % in_db_path)
+    logging.info('will load existing database from %s, but will not commit.' % in_db_path)
     conn = sqlite3.connect('file:%s?mode=ro' % in_db_path, uri=True)
 
   elif in_db_path is None and out_db_path is None:
@@ -56,7 +56,7 @@ def connect (in_db_path=None, out_db_path=None):
   else:
     assert False
 
-  return sqlite3.Connection
+  return conn
 
 
 parser = argparse.ArgumentParser(description=
@@ -73,15 +73,15 @@ parser.add_argument('-o', '--out_db_file', required=False,
 parser.add_argument('--logging', default=20, type=int, choices={10, 20, 30, 40},
     help='Log debug (10), info (20), warning (30), error (40).')
 subparsers = parser.add_subparsers()
-dbVideo.add_parsers(subparsers)
-dbModify.add_parsers(subparsers)
+#dbVideo.add_parsers(subparsers)
+#dbModify.add_parsers(subparsers)
 dbDisplay.add_parsers(subparsers)
-dbInfo.add_parsers(subparsers)
+#dbInfo.add_parsers(subparsers)
 # dbExport.add_parsers(subparsers)
 # dbCadFilter.add_parsers(subparsers)
 # dbLabel.add_parsers(subparsers)
-dbEvaluate.add_parsers(subparsers)
-dbFilter.add_parsers(subparsers)
+#dbEvaluate.add_parsers(subparsers)
+#dbFilter.add_parsers(subparsers)
 # dbLabelme.add_parsers(subparsers)
 # Add a dummy option to allow passing '--' in order to end lists.
 dummy = subparsers.add_parser('--')
@@ -93,16 +93,17 @@ args, rest = parser.parse_known_args()
 out_db_file = args.out_db_file  # Copy, or it will get lost.
 
 progressbar.streams.wrap_stderr()
-FORMAT = '[%(filename)s:%(lineno)s - %(funcName)20s() %(levelname)s]: %(message)s'
+FORMAT = '[%(filename)s:%(lineno)s - %(funcName)s() %(levelname)s]: %(message)s'
 logging.basicConfig(level=args.logging, format=FORMAT)
 
-conn = dbInit(args.in_db_file, args.out_db_file)
+conn = connect(args.in_db_file, args.out_db_file)
+cursor = conn.cursor()
 
 # Go thourgh the pipeline.
-args.func(conn.cursor(), args)
+args.func(cursor, args)
 while rest:
   args, rest = parser.parse_known_args(rest)
-  args.func(conn.cursor(), args)
+  args.func(cursor, args)
 
 if out_db_file is not None:
   conn.commit()
