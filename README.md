@@ -1,5 +1,19 @@
 # shuffler
-Toolbox for manipulating image annotations in computer vision
+A toolbox for manipulating image annotations in computer vision
+
+## Installation (using conda)
+
+```bash
+conda install imageio, matplotlib, lxml, simplejson, progressbar2, Pillow, scipy
+conda install -c menpo opencv
+```
+
+#### With support for testing
+```bash
+conda install nose, scikit-image
+```
+
+
 
 ## Other useful commands.
 ```

@@ -57,19 +57,20 @@ class KeyReader:
       return None
 
 
-
 def examineImagesParser(subparsers):
   parser = subparsers.add_parser('examineImages',
     description='Loop through images. Possibly, assign names to images.')
   parser.set_defaults(func=examineImages)
   parser.add_argument('--mask_mapping_dict', 
-      help='How values in maskfile are displayed. E.g. "{0: [0,0,0], 255: [128,128,30]}"')
+    help='How values in maskfile are displayed. E.g. "{0: [0,0,0], 255: [128,128,30]}"')
   parser.add_argument('--mask_alpha', type=float, default=0.,
-      help='Transparency to overlay the label mask with, 1 means cant see the image behind the mask.')
+    help='Transparency to overlay the label mask with, 1 means cant see the image behind the mask.')
   parser.add_argument('--shuffle', action='store_true')
+  parser.add_argument('--with_objects', action='store_true',
+    help='Draw all objects on top of the image.')
   parser.add_argument('--winsize', type=int, default=500)
   parser.add_argument('--key_dict',
-      default='{"-": "previous", "=": "next", " ": "next", 27: "exit"}')
+    default='{"-": "previous", "=": "next", " ": "next", 27: "exit"}')
 
 def examineImages (c, args):
   cv2.namedWindow("examineImages", cv2.WINDOW_NORMAL)
@@ -108,6 +109,28 @@ def examineImages (c, args):
 
     # Overlay imagefile.
     drawImageId(image, imagefile)
+
+    # Put the objects on top of the image.
+    if args.with_objects:
+      c.execute('SELECT * FROM objects WHERE imagefile=?', (imagefile,))
+      object_entries = c.fetchall()
+      logging.info ('Found %d objects for image %s' % (len(object_entries), imagefile))
+      for object_entry in object_entries:
+        objectid     = objectField(object_entry, 'objectid')
+        roi          = objectField(object_entry, 'roi')
+        score        = objectField(object_entry, 'score')
+        name         = objectField(object_entry, 'name')
+        c.execute('SELECT * FROM polygons WHERE objectid=?', (objectid,))
+        polygon_entries = c.fetchall()
+        if len(polygon_entries) > 0:
+          logging.info('showing object with a polygon.')
+          polygon = [(polygonField(p, 'x'), polygonField(p, 'y')) for p in polygon_entries]
+          drawScoredPolygon (image, polygon, label=name, score=score)
+        elif roi is not None:
+          logging.info('showing object with a bounding box.')
+          drawScoredRoi (image, roi, label=name, score=score)
+        else:
+          raise Exception('Neither polygon, nor bbox is available for objectid %d' % objectid)
 
     # Display an image, wait for the key from user, and parse that key.
     scale = float(args.winsize) / max(image.shape[0:2])
@@ -186,10 +209,10 @@ def examineObjects (c, args):
       score        = objectField(object_entry, 'score')
       name         = objectField(object_entry, 'name')
       c.execute('SELECT * FROM polygons WHERE objectid=?', (objectid,))
-      polygon = c.fetchall()
-      if len(polygon) > 0:
+      polygon_entries = c.fetchall()
+      if len(polygon_entries) > 0:
         logging.info('showing object with a polygon.')
-        polygon = [(polygonField(p, 'x'), polygonField(p, 'y')) for p in polygon]
+        polygon = [(polygonField(p, 'x'), polygonField(p, 'y')) for p in polygon_entries]
         drawScoredPolygon (image, polygon, label=None, score=score)
       elif roi is not None:
         logging.info('showing object with a bounding box.')

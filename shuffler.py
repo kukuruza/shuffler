@@ -6,7 +6,7 @@ import sqlite3
 import progressbar
 from lib.utilities import copyWithBackup
 from lib.backendDb import createDb
-from lib import dbDisplay #, dbModify, dbVideo, dbInfo, dbFilter, dbEvaluate
+from lib import dbGui #, dbModify, dbVideo, dbInfo, dbFilter, dbEvaluate
 #import dbExport, dbLabel, dbLabelme
 
 
@@ -45,7 +45,13 @@ def connect (in_db_path=None, out_db_path=None):
   elif in_db_path is not None and out_db_path is None:
     # Load db from in_db_path as read-only.
     logging.info('will load existing database from %s, but will not commit.' % in_db_path)
-    conn = sqlite3.connect('file:%s?mode=ro' % in_db_path, uri=True)
+    conn_in = sqlite3.connect(in_db_path)
+    conn = sqlite3.connect(':memory:')  # Create a memory database.
+    query = ''.join(line for line in conn_in.iterdump())
+    conn.executescript(query)  # Dump input database in the one in memory.
+    # Alternative implementation is below, but one can't modify the database
+    #   even without changing it in the end.
+    #conn = sqlite3.connect('file:%s?mode=ro' % in_db_path, uri=True)
 
   elif in_db_path is None and out_db_path is None:
     # Create a db and discard it in the end.
@@ -75,7 +81,7 @@ parser.add_argument('--logging', default=20, type=int, choices={10, 20, 30, 40},
 subparsers = parser.add_subparsers()
 #dbVideo.add_parsers(subparsers)
 #dbModify.add_parsers(subparsers)
-dbDisplay.add_parsers(subparsers)
+dbGui.add_parsers(subparsers)
 #dbInfo.add_parsers(subparsers)
 # dbExport.add_parsers(subparsers)
 # dbCadFilter.add_parsers(subparsers)

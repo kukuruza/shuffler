@@ -87,7 +87,7 @@ class TestGetFields (unittest.TestCase):
     self.assertEqual(backendDb.polygonField(entry, 'id'), 1, str(entry))
     self.assertEqual(backendDb.polygonField(entry, 'objectid'), 2, str(entry))
     self.assertEqual(backendDb.polygonField(entry, 'x'), 97, str(entry))
-    self.assertEqual(backendDb.polygonField(entry, 'y'), 121, str(entry))
+    self.assertEqual(backendDb.polygonField(entry, 'y'), 296, str(entry))
     self.assertEqual(backendDb.polygonField(entry, 'name'), None, str(entry))
     with self.assertRaises(KeyError):
       backendDb.polygonField(entry, 'dummy')

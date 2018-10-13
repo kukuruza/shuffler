@@ -5,7 +5,6 @@ import cv2
 import numpy as np
 from pprint import pformat
 import simplejson as json
-from collections import OrderedDict
 import matplotlib.pyplot as plt  # for colormaps
 
 
@@ -19,7 +18,7 @@ def copyWithBackup (in_path, out_path):
   ''' Copy in_path into out_path, which is backed up if already exists. '''
 
   if not op.exists (in_path):
-    raise Exception ('File does not exist: "%s"' % in_path)
+    raise FileNotFoundError ('File does not exist: "%s"' % in_path)
   if op.exists (out_path):
     logging.warning ('Will back up existing out_path "%s"' % out_path)
     ext = op.splitext(out_path)[1]
@@ -36,18 +35,48 @@ def copyWithBackup (in_path, out_path):
 
 
 def bbox2roi (bbox):
-    assert ((isinstance(bbox, list) or isinstance(bbox, tuple)) and len(bbox) == 4)
-    return [bbox[1], bbox[0], bbox[3]+bbox[1]-1, bbox[2]+bbox[0]-1]
+  '''
+  Args:     [x1, y1, width, height]
+  Returns:  [y1, x1, y2, x2]
+  '''
+  if not (isinstance(bbox, (list, tuple))):
+    raise TypeError('Need a list of a tuple, got %s' % type(bbox))
+  if not len(bbox) == 4:
+    raise ValueError('Need 4 numbers, not %d.' % len(bbox))
+  for x in bbox:
+    if not (isinstance(x, (int, float))):
+      raise TypeError('Each element must be a number, but got %s' % type(x))
+  if bbox[2] < 0 or bbox[3] < 0:
+    raise ValueError('Bbox %s has negative width or height.' % str(bbox))
+  return [bbox[1], bbox[0], bbox[3]+bbox[1], bbox[2]+bbox[0]]
+
 
 def roi2bbox (roi):
-    assert ((isinstance(roi, list) or isinstance(roi, tuple)) and len(roi) == 4)
-    return [roi[1], roi[0], roi[3]-roi[1]+1, roi[2]-roi[0]+1]
+  '''
+  Args:     [y1, x1, y2, x2]
+  Returns:  [x1, y1, width, height]
+  '''
+  if not (isinstance(roi, list) or isinstance(roi, tuple)):
+    raise TypeError('Need a list of a tuple, got %s' % type(roi))
+  if not len(roi) == 4:
+    raise ValueError('Need 4 numbers, not %d.' % len(roi))
+  for x in roi:
+    if not (isinstance(x, (int, float))):
+      raise TypeError('Each element must be a number, but got %s' % type(x))
+  if roi[2] < roi[0] or roi[3] < roi[1]:
+    raise ValueError('Roi %s has negative width or height.' % str(roi))
+  return [roi[1], roi[0], roi[3]-roi[1], roi[2]-roi[0]]
 
 
 def drawScoredPolygon (img, polygon, label=None, score=None):
   '''
   Args:
-    polygon:  a list of coordinates (x,y)
+    img:            Numpy image where to draw the polygon on
+    polygon_entry:  A list of tuples (x,y)
+    label:          string, name of object
+    score:          float, score of object in range [0, 1]
+  Returns:
+    Nothing, img is changed in-place
   '''
   assert len(polygon) > 2, polygon
   
@@ -64,9 +93,9 @@ def drawScoredPolygon (img, polygon, label=None, score=None):
   for i in range(len(polygon)-1):
     xmin = min(xmin, polygon[i][0])
     ymin = min(ymin, polygon[i][1])
-  #cv2.putText (img, label, (xmin, ymin - 5), FONT, FONT_SIZE, score, THICKNESS)
   cv2.putText (img, label, (xmin, ymin - SCALE), FONT, FONT_SIZE, (0,0,0), THICKNESS)
   cv2.putText (img, label, (xmin, ymin - SCALE), FONT, FONT_SIZE, (255,255,255), THICKNESS-1)
+
 
 def drawScoredRoi (img, roi, label=None, score=None):
   assert score is None or score >= 0 and score <= 1
@@ -75,7 +104,6 @@ def drawScoredRoi (img, roi, label=None, score=None):
     score = 0
   color = tuple([int(x * 255) for x in plt.cm.jet(float(score))][0:3][::-1])
   cv2.rectangle (img, (roi[1], roi[0]), (roi[3], roi[2]), color, THICKNESS)
-  #cv2.putText (img, label, (roi[1], roi[0] - SCALE), FONT, FONT_SIZE, score, THICKNESS)
   cv2.putText (img, label, (roi[1], roi[0] - SCALE), FONT, FONT_SIZE, (0,0,0), THICKNESS)
   cv2.putText (img, label, (roi[1], roi[0] - SCALE), FONT, FONT_SIZE, (255,255,255), THICKNESS-1)
 
