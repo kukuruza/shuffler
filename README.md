@@ -72,22 +72,75 @@ conda install nose scikit-image
 #### Examine images.
 ```bash
 ./shuffler.py --rootdir test \
-  --in_db_file test/databases/micro1_v4.db \
+  --in_db_file test/cars/micro1_v4.db \
   examineImages
 ```
 
 #### Examine objects.
 ```bash
 ./shuffler.py --rootdir test \
-  --in_db_file test/databases/micro1_v4.db \
+  --in_db_file test/cars/micro1_v4.db \
   examineObjects
 ```
 
 #### Examine matches.
 ```bash
 ./shuffler.py --rootdir test \
-  --in_db_file test/databases/micro1_v4.db \
+  --in_db_file test/cars/micro1_v4.db \
   examineMatches
+```
+
+
+### Filtering
+
+#### Filter images that are present another .
+```bash
+./shuffler.py --rootdir test \
+  --in_db_file test/cars/micro1_v4.db \
+  filterImagesOfAnotherDb --ref_db_file test/cars/micro1_v4_singleim.db
+```
+
+#### Filter objects at image border.
+```bash
+./shuffler.py --rootdir test \
+  --in_db_file test/cars/micro1_v4.db \
+  filterObjectsAtBorder --with_display
+```
+
+#### Filter objects that intersect other objects too much.
+```bash
+./shuffler.py --rootdir test \
+  --in_db_file test/cars/micro1_v4.db \
+filterObjectsByIntersection --with_display
+```
+
+#### Filter objects that have certain names.
+```bash
+./shuffler.py --rootdir test \
+  --in_db_file test/cars/micro1_v4.db \
+  filterObjectsByName --good_names 'car' 'bus'
+```
+
+#### Filter objects that have low score.
+```bash
+./shuffler.py --rootdir test \
+  --in_db_file test/cars/micro1_v4.db \
+  filterObjectsByScore --score_threshold 0.7
+```
+
+#### Filter objects with an SQL query
+```bash
+./shuffler.py --rootdir test \
+  --in_db_file test/cars/micro1_v4.db \
+  filterObjectsSQL --where 'properties.value="blue" AND objects.score > 0.8'
+
+./shuffler.py --rootdir test \
+  --in_db_file test/cars/micro1_v4.db \
+  filterObjectsSQL \
+  --sql 'SELECT objects.objectid FROM objects \
+    INNER JOIN properties p1 ON objects.objectid=p1.objectid 
+    INNER JOIN properties p2 ON objects.objectid=p2.objectid 
+    WHERE p1.value="blue" AND p2.key="pitch"'
 ```
 
 
@@ -164,15 +217,4 @@ PRED_DIR=/home/evgeny/datasets/scotty/scotty_2018_6_7_pred_alex/segout
 ./pipeline.py \
   importPictures --image_pattern=${GT_DIR}"/images/*.jpg" --mask_pattern=${PRED_DIR}/"*.png" 
   evaluateSegmentationROC --gt_db_file=${GT_DIR}/gt.db --out_dir ${PRED_DIR}
-```
-
-## Make grid out of four videos.
-```
-python tools/multiplepictures2video.py -i \
-  "/home/evgeny/datasets/scotty/scotty_2018_6_7/visualization/*.jpg" \
-  "/home/evgeny/datasets/scotty/scotty_2018_6_7_pred_alex/segout/*.png" \
-  "/home/evgeny/src/MCD_DA/segmentation/test_output/gta-images2scotty-train_3ch---scotty-test42/MCD-normal-drn_d_105-4.tar/prob/*.png" \
-  "/home/evgeny/src/MCD_DA/segmentation/test_output/gta-images_only_3ch---scotty-test42/normal-drn_d_105-4.tar/prob/*.png" \
-  -o /home/evgeny/Desktop/grid.avi \
-  --imwidth 1500 --fps 1 --overwrite
 ```

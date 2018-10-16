@@ -6,7 +6,7 @@ import sqlite3
 import progressbar
 from lib.utilities import copyWithBackup
 from lib.backendDb import createDb
-from lib import dbGui, dbInfo #, dbModify, dbVideo, dbFilter, dbEvaluate
+from lib import dbGui, dbInfo, dbFilter #, dbModify, dbVideo, dbEvaluate
 #import dbExport, dbLabel, dbLabelme
 
 
@@ -83,13 +83,13 @@ parser.add_argument('--logging', default=20, type=int, choices={10, 20, 30, 40},
 subparsers = parser.add_subparsers()
 #dbVideo.add_parsers(subparsers)
 #dbModify.add_parsers(subparsers)
+dbFilter.add_parsers(subparsers)
 dbGui.add_parsers(subparsers)
 dbInfo.add_parsers(subparsers)
 # dbExport.add_parsers(subparsers)
 # dbCadFilter.add_parsers(subparsers)
 # dbLabel.add_parsers(subparsers)
 #dbEvaluate.add_parsers(subparsers)
-#dbFilter.add_parsers(subparsers)
 # dbLabelme.add_parsers(subparsers)
 # Add a dummy option to allow passing '--' in order to end lists.
 dummy = subparsers.add_parser('--')

@@ -1,4 +1,4 @@
-import os, sys
+import os, sys, os.path as op
 sys.path.append( os.path.dirname( os.path.dirname( os.path.abspath(__file__) ) ) )
 import random
 import logging
@@ -95,14 +95,78 @@ class TestGetFields (unittest.TestCase):
 
 class TestDeleteObject (unittest.TestCase):
 
+  WORK_DIR = '/tmp/TestDeleteObject'
+
   def setUp (self):
-    shutil.copyfile('cars/micro1_v4.db', 'cars/micro1_v4.temp.db')
-    self.conn = sqlite3.connect('cars/micro1_v4.temp.db')
+    if not op.exists(self.WORK_DIR):
+      os.makedirs(self.WORK_DIR)
+    shutil.copyfile('cars/micro1_v4.db', op.join(self.WORK_DIR, 'micro1_v4.db'))
+    self.conn = sqlite3.connect(op.join(self.WORK_DIR, 'micro1_v4.db'))
     self.cursor = self.conn.cursor()
 
   def tearDown (self):
     self.conn.close()
-    os.remove('cars/micro1_v4.temp.db')
+    shutil.rmtree(self.WORK_DIR)
+
+  def test_delete_imagefile_nonexistent(self):
+    with self.assertRaises(KeyError):
+      backendDb.deleteImage (self.cursor, imagefile='not_existent')
+
+  def test_delete_imagefile000000(self):
+    backendDb.deleteImage (self.cursor, imagefile='cars/images/000000.jpg')
+
+    self.cursor.execute('SELECT imagefile FROM images')
+    imagefiles = self.cursor.fetchall()
+    self.assertEqual(imagefiles, [('cars/images/000001.jpg',), ('cars/images/000002.jpg',)], str(imagefiles))
+
+    self.cursor.execute('SELECT objectid FROM objects')
+    objectids = self.cursor.fetchall()
+    self.assertEqual(objectids, [(2,), (3,)], str(objectids))
+
+    self.cursor.execute('SELECT DISTINCT(objectid) FROM properties')
+    self.assertEqual(self.cursor.fetchall(), [(2,),(3,)])
+
+    self.cursor.execute('SELECT DISTINCT(objectid) FROM matches')
+    self.assertEqual(self.cursor.fetchall(), [(2,)])
+
+    self.cursor.execute('SELECT DISTINCT(objectid) FROM polygons')
+    self.assertEqual(self.cursor.fetchall(), [(2,)])
+
+  def test_delete_imagefile000001(self):
+    backendDb.deleteImage (self.cursor, imagefile='cars/images/000001.jpg')
+
+    self.cursor.execute('SELECT imagefile FROM images')
+    imagefiles = self.cursor.fetchall()
+    self.assertEqual(imagefiles, [('cars/images/000000.jpg',), ('cars/images/000002.jpg',)], str(imagefiles))
+
+    self.cursor.execute('SELECT objectid FROM objects')
+    objectids = self.cursor.fetchall()
+    self.assertEqual(objectids, [(1,)], str(objectids))
+
+    self.cursor.execute('SELECT DISTINCT(objectid) FROM properties')
+    self.assertEqual(self.cursor.fetchall(), [(1,)])
+
+    self.cursor.execute('SELECT DISTINCT(objectid) FROM matches')
+    self.assertEqual(self.cursor.fetchall(), [(1,)])
+
+    self.cursor.execute('SELECT DISTINCT(objectid) FROM polygons')
+    self.assertEqual(self.cursor.fetchall(), [])
+
+
+class TestDeleteImage (unittest.TestCase):
+
+  WORK_DIR = '/tmp/TestDeleteImage'
+
+  def setUp (self):
+    if not op.exists(self.WORK_DIR):
+      os.makedirs(self.WORK_DIR)
+    shutil.copyfile('cars/micro1_v4.db', op.join(self.WORK_DIR, 'micro1_v4.db'))
+    self.conn = sqlite3.connect(op.join(self.WORK_DIR, 'micro1_v4.db'))
+    self.cursor = self.conn.cursor()
+
+  def tearDown (self):
+    self.conn.close()
+    shutil.rmtree(self.WORK_DIR)
 
   def test_deleteObject0(self):
     with self.assertRaises(KeyError):

@@ -167,3 +167,18 @@ def deleteObject (cursor, objectid):
   cursor.execute('DELETE FROM matches WHERE objectid=?;', (objectid,))
   cursor.execute('DELETE FROM polygons WHERE objectid=?;', (objectid,))
   cursor.execute('DELETE FROM properties WHERE objectid=?;', (objectid,))
+
+
+def deleteImage (cursor, imagefile):
+  ''' Delete entries from all tables associated with the imagefile and all objects in this imagefile.
+  If the image does not exist, raises KeyError.
+  '''
+  cursor.execute('SELECT COUNT(1) FROM images WHERE imagefile=?;', (imagefile,))
+  if cursor.fetchone()[0] == 0:
+    raise KeyError('Can not delete imagefile %s, as it is not in the database' % imagefile)
+  cursor.execute('DELETE FROM matches WHERE objectid IN (SELECT objectid FROM objects WHERE imagefile=?);', (imagefile,))
+  cursor.execute('DELETE FROM polygons WHERE objectid IN (SELECT objectid FROM objects WHERE imagefile=?);', (imagefile,))
+  cursor.execute('DELETE FROM properties WHERE objectid IN (SELECT objectid FROM objects WHERE imagefile=?);', (imagefile,))
+  cursor.execute('DELETE FROM objects WHERE imagefile=?;', (imagefile,))
+  cursor.execute('DELETE FROM images WHERE imagefile=?;', (imagefile,))
+
