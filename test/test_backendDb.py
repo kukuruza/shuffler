@@ -45,7 +45,7 @@ class TestEmptyDb (unittest.TestCase):
 class TestGetFields (unittest.TestCase):
 
   def setUp (self):
-    self.conn = sqlite3.connect('file:databases/micro1_v4.db?mode=ro', uri=True)
+    self.conn = sqlite3.connect('file:cars/micro1_v4.db?mode=ro', uri=True)
 
   def tearDown (self):
     self.conn.close()
@@ -56,7 +56,7 @@ class TestGetFields (unittest.TestCase):
     entry = cursor.fetchone()
 
     self.assertEqual(backendDb.objectField(entry, 'objectid'), 1, str(entry))
-    self.assertEqual(backendDb.objectField(entry, 'imagefile'), 'images/000000.jpg', str(entry))
+    self.assertEqual(backendDb.objectField(entry, 'imagefile'), 'cars/images/000000.jpg', str(entry))
     self.assertEqual(backendDb.objectField(entry, 'x1'), 225, str(entry))
     self.assertEqual(backendDb.objectField(entry, 'y1'), 134, str(entry))
     self.assertEqual(backendDb.objectField(entry, 'width'), 356, str(entry))
@@ -68,13 +68,13 @@ class TestGetFields (unittest.TestCase):
 
   def test_imageFields(self):
     cursor = self.conn.cursor()
-    cursor.execute('SELECT * FROM images WHERE imagefile="images/000000.jpg"')
+    cursor.execute('SELECT * FROM images WHERE imagefile="cars/images/000000.jpg"')
     entry = cursor.fetchone()
 
-    self.assertEqual(backendDb.imageField(entry, 'imagefile'), 'images/000000.jpg', str(entry))
+    self.assertEqual(backendDb.imageField(entry, 'imagefile'), 'cars/images/000000.jpg', str(entry))
     self.assertEqual(backendDb.imageField(entry, 'width'), 800, str(entry))
     self.assertEqual(backendDb.imageField(entry, 'height'), 700, str(entry))
-    self.assertEqual(backendDb.imageField(entry, 'maskfile'), 'masks/000000.png', str(entry))
+    self.assertEqual(backendDb.imageField(entry, 'maskfile'), 'cars/masks/000000.png', str(entry))
     self.assertEqual(backendDb.imageField(entry, 'timestamp'), '2018-09-24 12:22:48.534685', str(entry))
     with self.assertRaises(KeyError):
       backendDb.imageField(entry, 'dummy')
@@ -96,13 +96,13 @@ class TestGetFields (unittest.TestCase):
 class TestDeleteObject (unittest.TestCase):
 
   def setUp (self):
-    shutil.copyfile('databases/micro1_v4.db', 'databases/micro1_v4.temp.db')
-    self.conn = sqlite3.connect('databases/micro1_v4.temp.db')
+    shutil.copyfile('cars/micro1_v4.db', 'cars/micro1_v4.temp.db')
+    self.conn = sqlite3.connect('cars/micro1_v4.temp.db')
     self.cursor = self.conn.cursor()
 
   def tearDown (self):
     self.conn.close()
-    os.remove('databases/micro1_v4.temp.db')
+    os.remove('cars/micro1_v4.temp.db')
 
   def test_deleteObject0(self):
     with self.assertRaises(KeyError):

@@ -13,22 +13,22 @@ from test_backendDb import TestEmptyDb
 class TestUpgradeV3toV4 (TestEmptyDb):
 
   def setUp (self):
-    shutil.copyfile('databases/micro1_v3.db', 'databases/micro1_v3.temp.db')
-    shutil.copyfile('databases/micro1_v4.db', 'databases/micro1_v4.temp.db')
-    self.conn = sqlite3.connect('databases/micro1_v3.temp.db')
+    shutil.copyfile('cars/micro1_v3.db', 'cars/micro1_v3.temp.db')
+    shutil.copyfile('cars/micro1_v4.db', 'cars/micro1_v4.temp.db')
+    self.conn = sqlite3.connect('cars/micro1_v3.temp.db')
     backendDbUpgrade.upgradeV3toV4(self.conn.cursor())
 
   def tearDown (self):
     self.conn.close()
-    os.remove('databases/micro1_v3.temp.db')
-    os.remove('databases/micro1_v4.temp.db')
+    os.remove('cars/micro1_v3.temp.db')
+    os.remove('cars/micro1_v4.temp.db')
 
   def _test_table_contents(self, cursor, table):
     ''' Compare the contents of "table" between "main" and "gt" schema names. '''
 
     cursor.execute('SELECT * FROM main.%s' % table)
     entries_main = cursor.fetchall()
-    cursor.execute('ATTACH "databases/micro1_v4.temp.db" AS gt')
+    cursor.execute('ATTACH "cars/micro1_v4.temp.db" AS gt')
     cursor.execute('SELECT * FROM gt.%s' % table)
     entries_gt = cursor.fetchall()
     self.assertEqual (entries_main, entries_gt)
