@@ -7,7 +7,7 @@ from pprint import pformat
 from .utilities import bbox2roi, drawScoredRoi, drawScoredPolygon
 from .utilities import FONT, SCALE, FONT_SIZE, THICKNESS
 from .backendDb import deleteObject, objectField, polygonField
-from .backendImages import imread, maskread
+from .backendImages import ImageryReader
 from .utilities import drawImageId, drawMaskOnImage
 
 
@@ -73,7 +73,7 @@ def examineImagesParser(subparsers):
     default='{"-": "previous", "=": "next", " ": "next", 27: "exit"}')
 
 def examineImages (c, args):
-  cv2.namedWindow("examineImages", cv2.WINDOW_NORMAL)
+  cv2.namedWindow("examineImages")
 
   c.execute('SELECT imagefile,maskfile FROM images')
   image_entries = c.fetchall()
@@ -84,6 +84,8 @@ def examineImages (c, args):
 
   if args.shuffle:
     np.random.shuffle(image_entries)
+
+  imreader = ImageryReader(rootdir=args.rootdir)
 
   # For parsing keys.
   key_reader = KeyReader(args.key_dict)
@@ -98,11 +100,11 @@ def examineImages (c, args):
 
     imagefile, maskfile = image_entries[index_image]
     logging.info ('Imagefile "%s"' % imagefile)
-    image = imread(imagefile)
+    image = imreader.imread(imagefile)
 
     # Overlay the mask.
     if maskfile is not None:
-      mask = maskread(maskfile)
+      mask = imreader.maskread(maskfile)
       image = drawMaskOnImage(image, mask, alpha=args.mask_alpha, labelmap=labelmap)
     else:
       logging.info('No mask for this image.')
@@ -166,9 +168,10 @@ def examineObjectsParser(subparsers):
   parser.add_argument('--winsize', type=int, default=500)
   parser.add_argument('--key_dict', 
     default='{"-": "previous", "=": "next", 27: "exit", 127: "delete", " ": "unname"}')
+  # TODO: add display of mask.
 
 def examineObjects (c, args):
-  cv2.namedWindow("examineObjects", cv2.WINDOW_NORMAL)
+  cv2.namedWindow("examineObjects")
 
   c.execute('SELECT COUNT(*) FROM objects WHERE (%s) ' % args.where_object)
   logging.info('Found %d objects in db.' % c.fetchone()[0])
@@ -183,6 +186,8 @@ def examineObjects (c, args):
   if args.shuffle:
     np.random.shuffle(image_entries)
 
+  imreader = ImageryReader(rootdir=args.rootdir)
+
   # For parsing keys.
   key_reader = KeyReader(args.key_dict)
 
@@ -194,7 +199,7 @@ def examineObjects (c, args):
 
     (imagefile,) = image_entries[index_image]
     logging.info ('Imagefile "%s"' % imagefile)
-    image = imread(imagefile)
+    image = imreader.imread(imagefile)
 
     c.execute('SELECT * FROM objects WHERE imagefile=? AND (%s)' % args.where_object, (imagefile,))
     object_entries = c.fetchall()
@@ -281,13 +286,15 @@ def examineMatchesParser(subparsers):
       default='{"-": "previous", "=": "next", " ": "next", 27: "exit"}')
 
 def examineMatches (c, args):
-  cv2.namedWindow("examineMatches", cv2.WINDOW_FULLSCREEN)
+  cv2.namedWindow("examineMatches")
 
   c.execute('SELECT DISTINCT(match) FROM matches')
   match_entries = c.fetchall()
 
   if args.shuffle:
     np.random.shuffle(match_entries)
+
+  imreader = ImageryReader(rootdir=args.rootdir)
 
   # For parsing keys.
   key_reader = KeyReader(args.key_dict)
@@ -310,7 +317,7 @@ def examineMatches (c, args):
       roi       = objectField(object_entry, 'roi')
       score     = objectField(object_entry, 'score')
 
-      image = imread(imagefile)
+      image = imreader.imread(imagefile)
       drawScoredRoi(image, roi, score=score)
 
       scale = float(args.winsize) / max(image.shape[0:2])

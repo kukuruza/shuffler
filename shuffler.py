@@ -6,7 +6,7 @@ import sqlite3
 import progressbar
 from lib.utilities import copyWithBackup
 from lib.backendDb import createDb
-from lib import dbGui #, dbModify, dbVideo, dbInfo, dbFilter, dbEvaluate
+from lib import dbGui, dbInfo #, dbModify, dbVideo, dbFilter, dbEvaluate
 #import dbExport, dbLabel, dbLabelme
 
 
@@ -76,13 +76,15 @@ parser.add_argument('-i', '--in_db_file', required=False,
     help='If specified, open this file. If unspecified create out_db_file')
 parser.add_argument('-o', '--out_db_file', required=False,
     help='If specified, write to that file. If unspecified, do not commit')
+parser.add_argument('--rootdir', required=False,
+    help='If specified, all images paths will be related to this directory.')
 parser.add_argument('--logging', default=20, type=int, choices={10, 20, 30, 40},
     help='Log debug (10), info (20), warning (30), error (40).')
 subparsers = parser.add_subparsers()
 #dbVideo.add_parsers(subparsers)
 #dbModify.add_parsers(subparsers)
 dbGui.add_parsers(subparsers)
-#dbInfo.add_parsers(subparsers)
+dbInfo.add_parsers(subparsers)
 # dbExport.add_parsers(subparsers)
 # dbCadFilter.add_parsers(subparsers)
 # dbLabel.add_parsers(subparsers)
@@ -97,6 +99,7 @@ dummy.set_defaults(func=lambda *args: None)
 # Parse main parser and the first subsparser.
 args, rest = parser.parse_known_args()
 out_db_file = args.out_db_file  # Copy, or it will get lost.
+rootdir = args.rootdir  # Copy, or it will get lost.
 
 progressbar.streams.wrap_stderr()
 FORMAT = '[%(filename)s:%(lineno)s - %(funcName)s() %(levelname)s]: %(message)s'
@@ -109,10 +112,10 @@ cursor = conn.cursor()
 args.func(cursor, args)
 while rest:
   args, rest = parser.parse_known_args(rest)
+  args.rootdir = rootdir
   args.func(cursor, args)
 
 if out_db_file is not None:
   conn.commit()
   logging.info('Commited.')
 conn.close()
-

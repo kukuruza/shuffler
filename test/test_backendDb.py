@@ -116,7 +116,7 @@ class TestDeleteObject (unittest.TestCase):
     self.assertEqual(objectids, [(2,), (3,)], str(objectids))
 
     self.cursor.execute('SELECT DISTINCT(objectid) FROM properties')
-    self.assertEqual(self.cursor.fetchall(), [(2,)])
+    self.assertEqual(self.cursor.fetchall(), [(2,),(3,)])
 
     self.cursor.execute('SELECT DISTINCT(objectid) FROM matches')
     self.assertEqual(self.cursor.fetchall(), [(2,)])
@@ -132,7 +132,7 @@ class TestDeleteObject (unittest.TestCase):
     self.assertEqual(objectids, [(1,), (3,)], str(objectids))
 
     self.cursor.execute('SELECT DISTINCT(objectid) FROM properties')
-    self.assertEqual(self.cursor.fetchall(), [(1,)])
+    self.assertEqual(self.cursor.fetchall(), [(1,),(3,)])
 
     self.cursor.execute('SELECT DISTINCT(objectid) FROM matches')
     self.assertEqual(self.cursor.fetchall(), [(1,)])

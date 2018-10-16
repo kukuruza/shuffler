@@ -4,15 +4,91 @@ A toolbox for manipulating image annotations in computer vision
 ## Installation (using conda)
 
 ```bash
-conda install imageio, matplotlib, lxml, simplejson, progressbar2, Pillow, scipy
+conda install imageio matplotlib lxml simplejson progressbar2 Pillow scipy
 conda install -c menpo opencv
+```
+
+#### For plotting
+```bash
+conda install pandas seaborn
 ```
 
 #### With support for testing
 ```bash
-conda install nose, scikit-image
+conda install nose scikit-image
 ```
 
+
+
+## Commands
+
+### Info
+
+#### Print general info. Info about objects are grouped by image.
+```bash
+./shuffler.py \
+  --in_db_file test/databases/micro1_v4.db \
+  printInfo \
+  --objects_by_image
+```
+
+#### Plot a histogram of value of field "yaw" of objects named "car".
+```bash
+./shuffler.py \
+  --in_db_file test/databases/micro1_v4.db \
+  plotObjectsHistogram \
+  --sql_query 'SELECT value FROM objects 
+               INNER JOIN properties p1 ON objects.objectid=p1.objectid 
+               WHERE name="car" AND key="yaw"' \
+  --xlabel yaw --display
+```
+
+#### Plot a "strip" plot of values of field "yaw" and "pitch" of objects named "car".
+```bash
+./shuffler.py \
+  --in_db_file test/databases/micro1_v4.db \
+  plotObjectsStrip \
+  --sql_query 'SELECT p1.value, p2.value FROM objects 
+               INNER JOIN properties p1 ON objects.objectid=p1.objectid 
+               INNER JOIN properties p2 ON p1.objectid=p2.objectid 
+               WHERE name="car" AND p1.key="yaw" AND p2.key="pitch"' \
+  --xlabel yaw --ylabel pitch --display
+```
+
+#### Plot a scatter plot of values of field "yaw" and "pitch" of objects named "car".
+```bash
+./shuffler.py \
+  --in_db_file test/databases/micro1_v4.db \
+  plotObjectsScatter \
+  --sql_query 'SELECT p1.value, p2.value FROM objects 
+               INNER JOIN properties p1 ON objects.objectid=p1.objectid 
+               INNER JOIN properties p2 ON p1.objectid=p2.objectid 
+               WHERE name="car" AND p1.key="yaw" AND p2.key="pitch"' \
+  --xlabel yaw --ylabel pitch --display
+```
+
+### GUI
+
+#### Examine images.
+```bash
+./shuffler.py --rootdir test \
+  --in_db_file test/databases/micro1_v4.db \
+  examineImages
+```
+
+#### Examine objects.
+```bash
+./shuffler.py --rootdir test \
+  --in_db_file test/databases/micro1_v4.db \
+  examineObjects
+```
+
+#### Examine matches.
+```bash
+./shuffler.py --rootdir test \
+  --in_db_file test/databases/micro1_v4.db \
+  examineMatches
+```
 
 
 ## Other useful commands.
