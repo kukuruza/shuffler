@@ -5,7 +5,7 @@ import cv2
 import logging
 from glob import glob
 from pprint import pformat
-import progressbar
+from progressbar import progressbar
 
 from .backendDb import objectField, polygonField, deleteImage, deleteObject
 from .backendImages import ImageryReader
@@ -86,7 +86,7 @@ def filterObjectsAtBorder (c, args):
   num_before = c.fetchone()[0]
 
   c.execute('SELECT imagefile FROM images')
-  for imagefile, in progressbar.ProgressBar()(c.fetchall()):
+  for imagefile, in progressbar(c.fetchall()):
 
     if args.with_display:
       image = imreader.imread(imagefile)
@@ -176,7 +176,7 @@ def filterObjectsByIntersection (c, args):
   num_before = c.fetchone()[0]
 
   c.execute('SELECT imagefile FROM images')
-  for imagefile, in progressbar.ProgressBar()(c.fetchall()):
+  for imagefile, in progressbar(c.fetchall()):
 
     if args.with_display:
       image = imreader.imread(imagefile)
@@ -243,7 +243,7 @@ def filterObjectsByName (c, args):
   good_names = ','.join(['"%s"' % x for x in args.good_names])
   logging.info('Will keep the folllowing object names: %s' % pformat(good_names))
   c.execute('SELECT objectid FROM objects WHERE name NOT IN (%s)' % good_names)
-  for objectid, in progressbar.ProgressBar()(c.fetchall()):
+  for objectid, in progressbar(c.fetchall()):
     deleteObject(c, objectid)
 
 
@@ -254,7 +254,7 @@ def filterEmptyImagesParser(subparsers):
 def filterEmptyImages(c, args):
   c.execute('SELECT imagefile FROM images WHERE imagefile NOT IN '
             '(SELECT imagefile FROM objects)')
-  for imagefile, in progressbar.ProgressBar()(c.fetchall()):
+  for imagefile, in progressbar(c.fetchall()):
     deleteImage(imagefile)
 
 
@@ -266,7 +266,7 @@ def filterObjectsByScoreParser(subparsers):
 
 def filterObjectsByScore (c, args):
   c.execute('SELECT objectid FROM objects WHERE score < %f' % args.score_threshold)
-  for objectid, in progressbar.ProgressBar()(c.fetchall()):
+  for objectid, in progressbar(c.fetchall()):
     deleteObject(c, objectid)
 
 
@@ -293,5 +293,5 @@ def filterObjectsSQL (c, args):
     c.execute(args.sql)
 
   objectids = c.fetchall()
-  for objectid, in progressbar.ProgressBar()(objectids):
+  for objectid, in progressbar(objectids):
     deleteObject(c, objectid)

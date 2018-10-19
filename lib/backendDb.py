@@ -1,7 +1,7 @@
 import os, os.path as op
 import logging
 import sqlite3
-import datetime
+from datetime import datetime
 
 
 def doesTableExist (cursor, table):
@@ -18,63 +18,63 @@ def isColumnInTable (cursor, table, column):
 
 
 def createTableImages (cursor):
-  cursor.execute('''CREATE TABLE images
-                   (imagefile TEXT PRIMARY KEY, 
-                    width INTEGER, 
-                    height INTEGER,
-                    maskfile TEXT,
-                    timestamp TIMESTAMP,
-                    name TEXT,
-                    score REAL
-                    );''')
+  cursor.execute('CREATE TABLE images '
+                '(imagefile TEXT PRIMARY KEY, '
+                 'width INTEGER, '
+                 'height INTEGER, '
+                 'maskfile TEXT, '
+                 'timestamp TIMESTAMP, '
+                 'name TEXT, '
+                 'score REAL '
+                 ');')
   cursor.execute('CREATE INDEX images_on_imagefile ON images(imagefile);')
 
 
 def createTableObjects (cursor):
-  cursor.execute('''CREATE TABLE objects
-                   (objectid INTEGER PRIMARY KEY,
-                    imagefile TEXT, 
-                    x1 INTEGER,
-                    y1 INTEGER,
-                    width INTEGER, 
-                    height INTEGER,
-                    name TEXT,
-                    score REAL
-                    );''')
+  cursor.execute('CREATE TABLE objects '
+                '(objectid INTEGER PRIMARY KEY, '
+                 'imagefile TEXT, '
+                 'x1 INTEGER, '
+                 'y1 INTEGER, '
+                 'width INTEGER, ' 
+                 'height INTEGER, '
+                 'name TEXT, '
+                 'score REAL '
+                 ');')
   cursor.execute('CREATE INDEX objects_on_imagefile ON objects(imagefile);')
   cursor.execute('CREATE INDEX objects_on_objectid ON objects(objectid);')
 
 
 def createTableProperties (cursor):
-  cursor.execute('''CREATE TABLE properties
-                   (id INTEGER PRIMARY KEY,
-                    objectid INTEGER, 
-                    key TEXT,
-                    value TEXT
-                    );''')
+  cursor.execute('CREATE TABLE properties '
+                '(id INTEGER PRIMARY KEY, '
+                 'objectid INTEGER, '
+                 'key TEXT, '
+                 'value TEXT '
+                 ');')
   cursor.execute('CREATE INDEX properties_on_key ON properties(key);')
   cursor.execute('CREATE INDEX properties_on_key_and_value ON properties(key,value);')
   cursor.execute('CREATE INDEX properties_on_objectid ON properties(objectid);')
 
 
 def createTablePolygons (cursor):
-  cursor.execute('''CREATE TABLE polygons
-                   (id INTEGER PRIMARY KEY,
-                    objectid INTEGER, 
-                    x INTEGER,
-                    y INTEGER,
-                    name TEXT
-                    );''')
+  cursor.execute('CREATE TABLE polygons '
+                '(id INTEGER PRIMARY KEY, '
+                 'objectid INTEGER, '
+                 'x INTEGER, '
+                 'y INTEGER, '
+                 'name TEXT '
+                 ');')
   cursor.execute('CREATE INDEX polygons_on_id ON polygons(id);')
   cursor.execute('CREATE INDEX polygons_on_objectid ON polygons(objectid);')
 
 
 def createTableMatches (cursor):
-  cursor.execute('''CREATE TABLE matches
-                   (id INTEGER PRIMARY KEY,
-                    match INTEGER,
-                    objectid INTEGER
-                   );''')
+  cursor.execute('CREATE TABLE matches '
+                '(id INTEGER PRIMARY KEY, '
+                 'match INTEGER, '
+                 'objectid INTEGER '
+                 ');')
   cursor.execute('CREATE INDEX matches_on_match ON matches(match);')
 
 
@@ -92,7 +92,7 @@ def createDb (conn):
 
 def makeTimeString (time):
   ''' Write a time string in Shuffler format.
-  Args:      time -- a datetime object.
+  Args:      time -- a datetime.datetime object.
   Returns:   string.
   '''
   return datetime.strftime(time, '%Y-%m-%d %H:%M:%S.%f')
@@ -101,7 +101,7 @@ def makeTimeString (time):
 def parseTimeString (timestring):
   ''' Parses the Shuffler format.
   Args:      timestring -- a string object
-  Returns:   datetime object
+  Returns:   datetime.datetime object
   '''
   return datetime.strptime(timestring, '%Y-%m-%d %H:%M:%S.%f')
 
@@ -139,10 +139,12 @@ def imageField (entry, field):
   ''' Convenience function to access by field name. '''
 
   if field == 'imagefile': return entry[0]
-  if field == 'width':     return entry[1] 
-  if field == 'height':    return entry[2] 
-  if field == 'maskfile':  return entry[3] 
-  if field == 'timestamp': return entry[4] 
+  if field == 'width':     return entry[1]
+  if field == 'height':    return entry[2]
+  if field == 'maskfile':  return entry[3]
+  if field == 'timestamp': return entry[4]
+  if field == 'name':      return entry[5]
+  if field == 'score':     return entry[6]
   raise KeyError('No field "%s" in image entry %s' % (field, entry))
 
 def polygonField (entry, field):

@@ -63,7 +63,7 @@ def examineImagesParser(subparsers):
   parser.set_defaults(func=examineImages)
   parser.add_argument('--mask_mapping_dict', 
     help='How values in maskfile are displayed. E.g. "{0: [0,0,0], 255: [128,128,30]}"')
-  parser.add_argument('--mask_alpha', type=float, default=0.,
+  parser.add_argument('--mask_alpha', type=float, default=0.2,
     help='Transparency to overlay the label mask with, 1 means cant see the image behind the mask.')
   parser.add_argument('--shuffle', action='store_true')
   parser.add_argument('--with_objects', action='store_true',

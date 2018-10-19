@@ -13,6 +13,7 @@ def add_parsers(subparsers):
   plotObjectsScatterParser(subparsers)
   plotObjectsStripParser(subparsers)
   printInfoParser(subparsers)
+  dumpDbParser(subparsers)
 
 
 def _maybeNumerizeProperty(values):
@@ -249,4 +250,25 @@ def printInfo (c, args):
   info['matches'] = len(matches)
 
   pprint (info)
+
+
+def dumpDbParser(subparsers):
+  parser = subparsers.add_parser('dumpDb',
+    description='Print tables of the database.')
+  parser.add_argument('--tables', nargs='+',
+    choices=['images', 'objects', 'properties', 'polygons', 'matches'],
+    default=['images', 'objects', 'properties', 'polygons', 'matches'],
+    help='Tables to print out, all by default.')
+  parser.set_defaults(func=dumpDb)
+
+def dumpDb (c, args):
+  
+  def _dumpTable(tablename):
+    print('Table: "%s":' % tablename)
+    c.execute('SELECT * FROM %s' % tablename)
+    for entry in c.fetchall():
+      print(entry)
+
+  for table in args.tables:
+    _dumpTable(table)
 

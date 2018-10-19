@@ -6,7 +6,7 @@ import sqlite3
 import progressbar
 from lib.utilities import copyWithBackup
 from lib.backendDb import createDb
-from lib import dbGui, dbInfo, dbFilter #, dbModify, dbVideo, dbEvaluate
+from lib import dbGui, dbInfo, dbFilter, dbModify #, dbVideo, dbEvaluate
 #import dbExport, dbLabel, dbLabelme
 
 
@@ -82,7 +82,7 @@ parser.add_argument('--logging', default=20, type=int, choices={10, 20, 30, 40},
     help='Log debug (10), info (20), warning (30), error (40).')
 subparsers = parser.add_subparsers()
 #dbVideo.add_parsers(subparsers)
-#dbModify.add_parsers(subparsers)
+dbModify.add_parsers(subparsers)
 dbFilter.add_parsers(subparsers)
 dbGui.add_parsers(subparsers)
 dbInfo.add_parsers(subparsers)

@@ -24,41 +24,39 @@ conda install nose scikit-image
 
 ### Info
 
-#### Print general info. Info about objects are grouped by image.
 ```bash
-./shuffler.py \
-  --in_db_file test/databases/micro1_v4.db \
-  printInfo \
-  --objects_by_image
-```
+# Print general info. Info about objects are grouped by image.
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/databases/micro1_v4.db' \
+  printInfo --objects_by_image
 
-#### Plot a histogram of value of field "yaw" of objects named "car".
-```bash
-./shuffler.py \
-  --in_db_file test/databases/micro1_v4.db \
+# Print several tables of a database
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/databases/micro1_v4.db' \
+  dumpDb --tables objects properties
+
+# Plot a histogram of value of field "yaw" of objects named "car".
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/databases/micro1_v4.db' \
   plotObjectsHistogram \
   --sql_query 'SELECT value FROM objects 
                INNER JOIN properties p1 ON objects.objectid=p1.objectid 
                WHERE name="car" AND key="yaw"' \
   --xlabel yaw --display
-```
 
-#### Plot a "strip" plot of values of field "yaw" and "pitch" of objects named "car".
-```bash
-./shuffler.py \
-  --in_db_file test/databases/micro1_v4.db \
+# Plot a "strip" plot of values of field "yaw" and "pitch" of objects named "car".
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/databases/micro1_v4.db' \
   plotObjectsStrip \
   --sql_query 'SELECT p1.value, p2.value FROM objects 
                INNER JOIN properties p1 ON objects.objectid=p1.objectid 
                INNER JOIN properties p2 ON p1.objectid=p2.objectid 
                WHERE name="car" AND p1.key="yaw" AND p2.key="pitch"' \
   --xlabel yaw --ylabel pitch --display
-```
 
-#### Plot a scatter plot of values of field "yaw" and "pitch" of objects named "car".
-```bash
-./shuffler.py \
-  --in_db_file test/databases/micro1_v4.db \
+# Plot a scatter plot of values of field "yaw" and "pitch" of objects named "car".
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/databases/micro1_v4.db' \
   plotObjectsScatter \
   --sql_query 'SELECT p1.value, p2.value FROM objects 
                INNER JOIN properties p1 ON objects.objectid=p1.objectid 
@@ -69,79 +67,152 @@ conda install nose scikit-image
 
 ### GUI
 
-#### Examine images.
 ```bash
-./shuffler.py --rootdir test \
-  --in_db_file test/cars/micro1_v4.db \
+# Examine images.
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/cars/micro1_v4.db' \
   examineImages
-```
 
-#### Examine objects.
-```bash
-./shuffler.py --rootdir test \
-  --in_db_file test/cars/micro1_v4.db \
+# Examine objects.
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/cars/micro1_v4.db' \
   examineObjects
-```
 
-#### Examine matches.
-```bash
-./shuffler.py --rootdir test \
-  --in_db_file test/cars/micro1_v4.db \
+# Examine matches.
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/cars/micro1_v4.db' \
   examineMatches
 ```
 
-
 ### Filtering
 
-#### Filter images that are present another .
 ```bash
-./shuffler.py --rootdir test \
-  --in_db_file test/cars/micro1_v4.db \
-  filterImagesOfAnotherDb --ref_db_file test/cars/micro1_v4_singleim.db
-```
+# Filter images that are present another .
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/cars/micro1_v4.db' \
+  filterImagesOfAnotherDb --ref_db_file 'test/cars/micro1_v4_singleim.db'
 
-#### Filter objects at image border.
-```bash
-./shuffler.py --rootdir test \
-  --in_db_file test/cars/micro1_v4.db \
+# Filter objects at image border.
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/cars/micro1_v4.db' \
   filterObjectsAtBorder --with_display
-```
 
-#### Filter objects that intersect other objects too much.
-```bash
-./shuffler.py --rootdir test \
-  --in_db_file test/cars/micro1_v4.db \
+# Filter objects that intersect other objects too much.
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/cars/micro1_v4.db' \
 filterObjectsByIntersection --with_display
-```
 
-#### Filter objects that have certain names.
-```bash
-./shuffler.py --rootdir test \
-  --in_db_file test/cars/micro1_v4.db \
+# Filter objects that have certain names.
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/cars/micro1_v4.db' \
   filterObjectsByName --good_names 'car' 'bus'
-```
 
-#### Filter objects that have low score.
-```bash
-./shuffler.py --rootdir test \
-  --in_db_file test/cars/micro1_v4.db \
+# Filter objects that have low score.
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/cars/micro1_v4.db' \
   filterObjectsByScore --score_threshold 0.7
-```
 
-#### Filter objects with an SQL query
-```bash
-./shuffler.py --rootdir test \
-  --in_db_file test/cars/micro1_v4.db \
+# Filter objects with an SQL query
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/cars/micro1_v4.db' \
   filterObjectsSQL --where 'properties.value="blue" AND objects.score > 0.8'
-
-./shuffler.py --rootdir test \
-  --in_db_file test/cars/micro1_v4.db \
+# or
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/cars/micro1_v4.db' \
   filterObjectsSQL \
   --sql 'SELECT objects.objectid FROM objects \
     INNER JOIN properties p1 ON objects.objectid=p1.objectid 
     INNER JOIN properties p2 ON objects.objectid=p2.objectid 
     WHERE p1.value="blue" AND p2.key="pitch"'
 ```
+
+### Modifications
+
+```bash
+# Add a video of images and a video of masks.
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/cars/micro1_v4.db' \
+  addVideo --image_video_path 'test/moon/images.avi' --mask_video_path 'test/moon/masks.avi'
+
+# Add image and mask pictures.
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/cars/micro1_v4.db' \
+  addPictures --image_pattern 'test/moon/images/*.jpg' --mask_pattern 'test/moon/masks/*.png'
+
+# Discard all, but the first N images.
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/cars/micro1_v4.db' \
+  headImages -n 2
+
+# Discard all, but the last N images.
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/cars/micro1_v4.db' \
+  tailImages -n 2
+
+# Expand bounding boxes
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/cars/micro1_v4.db' \
+  expandBoxes --expand_perc 0.2 --with_display
+# or to try match the target_ratio
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/cars/micro1_v4.db' \
+  expandBoxes --expand_perc 0.2 --target_ratio 0.75 --with_display
+
+# To move the directory of images or masks
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/cars/micro1_v4.db' \
+  moveDir --image_dir '/tmp/images' --mask_dir '/tmp/masks' --where_image 'imagefile LIKE "cars/images/%"'
+
+# Add a new database (follow this one with mergeObjectDuplicates).
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/cars/micro1_v4.db' \
+  addDb --db_file 'test/cars/micro1_v4_singleim.db'
+
+# Merge multiple objects that have the same ROI 
+# For example, when objects were collected from different annotators and then merged via addDb.
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/cars/micro1_v4.db' \
+  mergeObjectDuplicates
+
+# Split into several databases.
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/cars/micro1_v4.db' \
+  splitDb --out_dir '.' --out_names 'test' 'train' --out_fractions 0.3 0.7 --shuffle
+
+# Masks from polygons.
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/cars/micro1_v4.db' \
+  polygonsToMask --out_mask_pictures_dir 'cars/mask_polygons' --skip_empty_masks
+```
+
+
+### Chaining commands
+```bash
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/cars/micro1_v4.db' \
+  addVideo --image_video_path 'test/moon/images.avi' --mask_video_path 'test/moon/masks.avi' \
+  printInfo \
+  moveDir --image_dir 'test/cars/images' --where_image 'imagefile LIKE "cars/images/%"' \
+  dumpTables --tables 'images' 'objects'
+
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/cars/micro1_v4.db' \
+  addDb --db_file 'test/cars/micro1_v4_singleim.db' \
+  mergeObjectDuplicates \
+  polygonsToMask --out_mask_pictures_dir 'cars/mask_polygons' --skip_empty_masks \
+  dumpDb --tables images \
+  examineImages 
+```
+
+
+## Testing
+
+### Run all tests
+```bash
+python3 -m "nose"
+```
+
+
 
 
 ## Other useful commands.

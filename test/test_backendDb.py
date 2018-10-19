@@ -76,6 +76,8 @@ class TestGetFields (unittest.TestCase):
     self.assertEqual(backendDb.imageField(entry, 'height'), 700, str(entry))
     self.assertEqual(backendDb.imageField(entry, 'maskfile'), 'cars/masks/000000.png', str(entry))
     self.assertEqual(backendDb.imageField(entry, 'timestamp'), '2018-09-24 12:22:48.534685', str(entry))
+    self.assertEqual(backendDb.imageField(entry, 'name'), None, str(entry))
+    self.assertEqual(backendDb.imageField(entry, 'score'), None, str(entry))
     with self.assertRaises(KeyError):
       backendDb.imageField(entry, 'dummy')
 
