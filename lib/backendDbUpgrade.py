@@ -7,7 +7,7 @@ import progressbar
 from pprint import pformat
 
 import backendDb
-from utilities import copyWithBackup
+from util import copyWithBackup
 
 
 def upgradeV3toV4(cursor):

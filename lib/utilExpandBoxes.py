@@ -1,6 +1,6 @@
 import logging
 
-from .utilities import roi2bbox
+from .util import roi2bbox
 
 def expandRoiBorder (roi, imsize, perc, integer_result=True):
   '''Expands a ROI, and clips it within borders.

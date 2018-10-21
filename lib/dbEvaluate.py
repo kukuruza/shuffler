@@ -6,18 +6,148 @@ import numpy as np
 import cv2
 from progressbar import progressbar
 import simplejson as json
-import matplotlib
+from ast import literal_eval
 from matplotlib import pyplot as plt
 from pprint import pformat
-from .backendDb import carField, loadToMemory
-from .backendImages import maskread, validateMask
-from .utilities import loadLabelmap
+
+from .backendDb import objectField
+from .backendImages import ImageryReader
 
 
 
 def add_parsers(subparsers):
+  evaluateDetectionParser(subparsers)
   evaluateSegmentationIoUParser(subparsers)
-  evaluateSegmentationROCParser(subparsers)
+  evaluateBinarySegmentationParser(subparsers)
+
+
+
+def _voc_ap(rec, prec):
+  """ Compute VOC AP given precision and recall. """
+
+  # first append sentinel values at the end
+  mrec = np.concatenate(([0.], rec, [1.]))
+  mpre = np.concatenate(([0.], prec, [0.]))
+
+  # compute the precision envelope
+  for i in range(mpre.size - 1, 0, -1):
+      mpre[i - 1] = np.maximum(mpre[i - 1], mpre[i])
+
+  # to calculate area under PR curve, look for points
+  # where X axis (recall) changes value
+  i = np.where(mrec[1:] != mrec[:-1])[0]
+
+  # and sum (\Delta recall) * prec
+  ap = np.sum((mrec[i + 1] - mrec[i]) * mpre[i + 1])
+  return ap
+
+def evaluateDetectionParser(subparsers):
+  parser = subparsers.add_parser('evaluateDetection',
+    description='Evaluate detections in the open db with a ground truth db.')
+  parser.set_defaults(func=evaluateDetection)
+  parser.add_argument('--gt_db_file', required=True)
+  parser.add_argument('--overlap_thresh', type=float, default=0.5)
+  parser.add_argument('--where_object_gt', default='TRUE')
+
+def evaluateDetection (c, args):
+
+  # Attach the ground truth database.
+  c.execute('ATTACH ? AS "gt"', (args.gt_db_file,))
+  c.execute('SELECT DISTINCT(name) FROM gt.objects')
+  names = [x for x, in c.fetchall()]
+
+  for name in names:
+
+    c.execute('SELECT * FROM objects WHERE name=? ORDER BY score DESC', (name,))
+    entries_det = c.fetchall()
+    logging.info ('Total %d detected objects for class "%s"' % (len(entries_det), name))
+
+    # go down dets and mark TPs and FPs
+    tp = np.zeros(len(entries_det), dtype=float)
+    fp = np.zeros(len(entries_det), dtype=float)
+    ignored = np.zeros(len(entries_det), dtype=bool)  # detected of no interest
+
+    # 'already_detected' used to penalize multiple detections of same GT box
+    already_detected = set()
+
+    # go through each detection
+    for idet,entry_det in progressbar(enumerate(entries_det)):
+
+      bbox_det = np.array(objectField(entry_det, 'bbox'), dtype=float)
+      imagefile = objectField(entry_det, 'imagefile')
+      score = objectField(entry_det, 'score')
+      name = objectField(entry_det, 'name')
+
+      # get all GT boxes from the same imagefile [of the same class]
+      c.execute('SELECT * FROM gt.objects WHERE imagefile=? AND name=?', (imagefile,name))
+      entries_gt = c.fetchall()
+      objectids_gt = [objectField(entry, 'objectid') for entry in entries_gt]
+      bboxes_gt = np.array([objectField(entry, 'bbox') for entry in entries_gt], dtype=float)
+
+      # separately manage no GT boxes
+      if bboxes_gt.size == 0:
+        fp[idet] = 1.
+        continue
+
+      # intersection between bbox_det and all bboxes_gt.
+      ixmin = np.maximum(bboxes_gt[:,0], bbox_det[0])
+      iymin = np.maximum(bboxes_gt[:,1], bbox_det[1])
+      ixmax = np.minimum(bboxes_gt[:,0]+bboxes_gt[:,2], bbox_det[0]+bbox_det[2])
+      iymax = np.minimum(bboxes_gt[:,1]+bboxes_gt[:,3], bbox_det[1]+bbox_det[3])
+      iw = np.maximum(ixmax - ixmin, 0.)
+      ih = np.maximum(iymax - iymin, 0.)
+      inters = iw * ih
+
+      # union between bbox_det and all bboxes_gt.
+      uni = bbox_det[2] * bbox_det[3] + bboxes_gt[:,2] * bboxes_gt[:,3] - inters
+
+      # overlaps and get the best overlap.
+      overlaps = inters / uni
+      max_overlap = np.max(overlaps)
+      objectid_gt = objectids_gt[np.argmax(overlaps)]
+
+      # find which objects count towards TP and FN (should be detected).
+      c.execute('SELECT * FROM gt.objects WHERE imagefile=? AND name=? AND %s' % 
+        args.where_object_gt, (imagefile,name))
+      entries_gt = c.fetchall()
+      objectids_gt_of_interest = [objectField(entry, 'objectid') for entry in entries_gt]
+
+      # if 1) large enough overlap and 2) this GT box was not detected before
+      if max_overlap > args.overlap_thresh and not objectid_gt in already_detected:
+        if objectid_gt in objectids_gt_of_interest:
+          tp[idet] = 1.
+        else:
+          ignored[idet] = True
+        already_detected.add(objectid_gt)
+      else:
+        fp[idet] = 1.
+
+    # find the number of GT of interest
+    c.execute('SELECT COUNT(1) FROM gt.objects WHERE %s AND name=?' % args.where_object_gt, (name,))
+    n_gt = c.fetchone()[0]
+    logging.info ('Total objects of interest: %d' % n_gt)
+
+    # remove dets, neither TP or FP
+    tp = tp[np.bitwise_not(ignored)]
+    fp = fp[np.bitwise_not(ignored)]
+
+    logging.info('ignored: %d, tp: %d, fp: %d, gt: %d' %
+                 (np.count_nonzero(ignored),
+                  np.count_nonzero(tp),
+                  np.count_nonzero(fp),
+                  n_gt))
+    assert np.count_nonzero(tp) + np.count_nonzero(fp) + np.count_nonzero(ignored) == len(entries_det)
+
+    # compute precision-recall
+    fp = np.cumsum(fp)
+    tp = np.cumsum(tp)
+    rec = tp / float(n_gt)
+    # avoid divide by zero in case the first detection matches a difficult
+    # ground truth
+    prec = tp / np.maximum(tp + fp, np.finfo(np.float64).eps)
+    ap = _voc_ap(rec, prec)
+    print ('Average precision for class "%s": %.3f' % (name, ap))
+
 
 
 def fast_hist(a, b, n):
@@ -79,101 +209,84 @@ def plot_confusion_matrix(cm, classes,
   plt.ylabel('Ground truth')
   plt.xlabel('Predicted label')
 
+
+def _label2classMapping(gt_mapping_dict, pred_mapping_dict):
+  ''' Parse user-defined label mapping dictionaries. '''
+
+  # "gt_mapping_dict" maps mask pixel-values to classes.
+  labelmap_gt = literal_eval(gt_mapping_dict)
+  labelmap_pr = literal_eval(pred_mapping_dict) if pred_mapping_dict else labelmap_gt
+  # Create a list of classes.
+  class_names = list(labelmap_gt.values())
+  labelmap_gt_new = {}
+  # Here, we remap pixel-values to indices of class_names.
+  for key in labelmap_gt:
+    labelmap_gt_new[key] = class_names.index(labelmap_gt[key])
+  labelmap_gt = labelmap_gt_new
+  labelmap_pr_new = {}
+  for key in labelmap_pr:
+    if not labelmap_pr[key] in class_names:
+      raise ValueError('Class %s is in "pred_mapping_dict" but not in "gt_mapping_dict"')
+    labelmap_pr_new[key] = class_names.index(labelmap_pr[key])
+  labelmap_pr = labelmap_pr_new
+  return labelmap_gt, labelmap_pr, class_names
+  
+def _relabelMask(mask, labelmap):
+  ''' Map from pixel values to the target label space. '''
+  out = np.empty(shape=mask.shape, dtype=np.uint8)
+  out[:] = np.nan
+  for key in labelmap:
+    out[mask == key] = labelmap[key]
+  return out
+
 def evaluateSegmentationIoUParser(subparsers):
   parser = subparsers.add_parser('evaluateSegmentationIoU',
     description='Evaluate mask segmentation w.r.t. a ground truth db.')
   parser.set_defaults(func=evaluateSegmentationIoU)
   parser.add_argument('--gt_db_file', required=True)
-  parser.add_argument('--image_constraint', default='1')
+  parser.add_argument('--where_image', default='TRUE')
   parser.add_argument('--out_dir',
-      help='If specified, result files with be written there.')
+      help='If specified, output files with be written there.')
   parser.add_argument('--out_prefix', default='',
-      help='Add to filenames, use to keep predictions from different epochs in one dir.')
-  parser.add_argument('--gt_labelmap_path')
-  parser.add_argument('--pred_labelmap_path')
-  parser.add_argument('--debug_display', action='store_true')
-  parser.add_argument('--debug_winwidth', type=int, default=1000)
+      help='Add to output filenames, use to keep predictions from different epochs in one dir.')
+  parser.add_argument('--gt_mapping_dict', required=True,
+    help='from ground truth maskfile to classes. E.g. "{0: \'background\', 255: \'car\'}"')
+  parser.add_argument('--pred_mapping_dict', 
+    help='the mapping from predicted masks to classes, if different from "gt_mapping_dict"')
 
 def evaluateSegmentationIoU(c, args):
-  logging.info ('==== evaluateSegmentationIoU ====')
   import pandas as pd
 
-  s = ('SELECT imagefile, maskfile FROM images '
-       'WHERE %s ORDER BY imagefile ASC' % args.image_constraint)
-  logging.debug(s)
+  # Get corresponding maskfiles from predictions and ground truth.
+  c.execute('ATTACH ? AS "attached"', (args.gt_db_file,))
+  c.execute('SELECT pr.imagefile,pr.maskfile,gt.maskfile FROM images pr INNER JOIN attached.images gt '
+    'WHERE pr.imagefile=gt.imagefile AND pr.maskfile IS NOT NULL AND gt.maskfile IS NOT NULL AND %s '
+    'ORDER BY pr.imagefile ASC' % args.where_image)
+  entries = c.fetchall()
+  logging.info ('Total %d images in both the open and the ground truth databases.' % len(entries))
+  logging.debug (pformat(entries))
 
-  c.execute(s)
-  entries_pred = c.fetchall()
-  logging.info ('Total %d images in predicted.' % len(entries_pred))
+  imreader = ImageryReader(rootdir=args.rootdir)
 
-  conn_gt = loadToMemory(args.gt_db_file)
-  c_gt = conn_gt.cursor()
-  c_gt.execute(s)
-  entries_gt = c_gt.fetchall()
-  logging.info ('Total %d images in gt.' % len(entries_gt))
-  conn_gt.close()
+  labelmap_gt, labelmap_pr, class_names = _label2classMapping(
+    args.gt_mapping_dict, args.pred_mapping_dict)
 
-  # Map from label on the image to the target label space.
-  labelmap_pred = loadLabelmap(args.pred_labelmap_path) if args.pred_labelmap_path else {}
-  labelmap_gt = loadLabelmap(args.gt_labelmap_path) if args.gt_labelmap_path else {}
-  def relabelGrayMask(mask, labelmap):
-    ''' Paint mask colors with other colors, grayscale to grayscale. '''
-    out = np.zeros(shape=mask.shape, dtype=np.uint8)
-    for key in labelmap:
-      out[mask == key] = labelmap[key]['to']
-    return out
-  def getRelevantPixels(mask, labelmap):
-    ''' Return pixels that are used for evaluation '''
-    care_labels = [labelmap[key]['to'] for key in labelmap if 'class' in labelmap[key]]
-    care_pixels = np.zeros(mask.shape, dtype=bool)
-    for care_label in care_labels:
-      care_pixels[mask == care_label] = True
-    return care_pixels
+  hist = np.zeros((len(class_names), len(class_names)))
 
-  class_names = [labelmap_gt[key]['class'] for key in labelmap_gt if 'class' in labelmap_gt[key]]
-  num_relevant_classes = len(class_names)
-  hist = np.zeros((num_relevant_classes, num_relevant_classes))
-
-  for entry_pred, entry_gt in progressbar(zip(entries_pred, entries_gt)):
-    imagefile_pred, maskfile_pred = entry_pred
-    imagefile_gt, maskfile_gt = entry_gt
-    if op.basename(imagefile_pred) != op.basename(imagefile_gt):
-      raise ValueError('Imagefile entries for pred and gt must be the same: %s vs %s.' %
-          (imagefile_pred, imagefile_gt))
-    if maskfile_pred is None:
-      raise ValueError('Mask is None for image %s' % imagefile_pred)
-    if maskfile_gt is None:
-      raise ValueError('Mask is None for image %s' % imagefile_gt)
+  for imagefile, maskfile_pr, maskfile_gt in progressbar(entries):
 
     # Load masks and bring them to comparable form.
-    mask_gt = relabelGrayMask(validateMask(maskread(maskfile_gt)), labelmap_gt)
-    mask_pred = relabelGrayMask(validateMask(maskread(maskfile_pred)), labelmap_pred)
-    mask_pred = cv2.resize(mask_pred, (mask_gt.shape[1], mask_gt.shape[0]), cv2.INTER_NEAREST)
-    if args.debug_display:
-      scale = float(args.debug_winwidth) / mask_pred.shape[1]
-      cv2.imshow('debug_display', cv2.resize((np.hstack((mask_gt, mask_pred)) != 0).astype(np.uint8), dsize=(0,0), fx=scale, fy=scale) * 255)
-      if cv2.waitKey(-1) == 27:
-        args.debug_display = False
+    mask_gt = _relabelMask(imreader.maskread(maskfile_gt), labelmap_gt)
+    mask_pr = _relabelMask(imreader.maskread(maskfile_pr), labelmap_pr)
+    mask_pr = cv2.resize(mask_pr, (mask_gt.shape[1], mask_gt.shape[0]), cv2.INTER_NEAREST)
 
-    # Use only relevant pixels (not the 'dontcare' class.)
-    relevant = getRelevantPixels(mask_gt, labelmap_gt)
-    mask_gt = mask_gt[relevant].flatten()
-    mask_pred = mask_pred[relevant].flatten()
-    assert np.all(mask_gt < num_relevant_classes), np.max(num_relevant_classes)
-    assert np.all(mask_pred < num_relevant_classes), np.max(num_relevant_classes)
-
-    # Evaluate one image pair. 
-    hist += fast_hist(mask_gt, mask_pred, 2)
+    # Evaluate one image pair.
+    careabout = mask_gt is not None 
+    hist += fast_hist(mask_gt[careabout][:], mask_pr[careabout][:], len(class_names))
 
   # Get label distribution.
-  pred_per_class = hist.sum(0)
+  pr_per_class = hist.sum(0)
   gt_per_class = hist.sum(1)
-
-  # Remove the classes that have >0 pixels in 'pred' and in 'gt'.
-  # so that we don't experience zero division further on.
-  used_class_id_list = np.where(gt_per_class != 0)[0]
-  hist = hist[used_class_id_list][:, used_class_id_list]
-  class_list = np.array(class_names)[used_class_id_list]
 
   iou_list = per_class_iu(hist)
   fwIoU = calc_fw_iu(hist)
@@ -183,10 +296,10 @@ def evaluateSegmentationIoU(c, args):
   result_df = pd.DataFrame({
       'class': class_names,
       'IoU': iou_list,
-      "pred_distribution": pred_per_class[used_class_id_list],
-      "gt_distribution": gt_per_class[used_class_id_list],
+      "pr_distribution": pr_per_class,
+      "gt_distribution": gt_per_class,
   })
-  result_df["IoU"] = result_df["IoU"] * 100  # change to percent ratio
+  result_df["IoU"] *= 100  # Changing to percent ratio.
 
   result_df.set_index("class", inplace=True)
   print("---- info per class -----")
@@ -201,7 +314,7 @@ def evaluateSegmentationIoU(c, args):
   result_ser = result_ser[["pixAcc", "mAcc", "fwIoU", "mIoU"]]
   result_ser *= 100  # change to percent ratio
 
-  print("---- total result -----")
+  print("---- result summary -----")
   print(result_ser)
 
   if args.out_dir is not None:
@@ -212,8 +325,8 @@ def evaluateSegmentationIoU(c, args):
     fig = plt.figure()
     normalized_hist = hist.astype("float") / hist.sum(axis=1)[:, np.newaxis]
 
-    plot_confusion_matrix(normalized_hist, classes=class_list, title='Confusion matrix')
-    outfigfn = os.path.join(args.out_dir, "%sconf_mat.pdf" % args.out_prefix)
+    plot_confusion_matrix(normalized_hist, classes=class_names, title='Confusion matrix')
+    outfigfn = op.join(args.out_dir, "%sconf_mat.pdf" % args.out_prefix)
     fig.savefig(outfigfn, transparent=True, bbox_inches='tight', pad_inches=0, dpi=300)
     print("Confusion matrix was saved to %s" % outfigfn)
 
@@ -245,40 +358,33 @@ def getPrecRecall(tp, fp, tn, fn):
   area = -np.trapz(x=ROC[:,0], y=ROC[:,1])
   return ROC, area
 
-def evaluateSegmentationROCParser(subparsers):
-  parser = subparsers.add_parser('evaluateSegmentationROC',
+def evaluateBinarySegmentationParser(subparsers):
+  parser = subparsers.add_parser('evaluateBinarySegmentation',
       description='Evaluate mask segmentation ROC curve w.r.t. a ground truth db. '
-      'GT mask must be relabelled into 0 and 1, and "dontcare" using "gt_labelmap_file". '
-      'Pred mask must be grayscale in [0,255], with brightness meaning probability of class 1.')
-  parser.set_defaults(func=evaluateSegmentationROC)
+      'Ground truth values must be 0 for background, 255 for foreground, and the rest for dontcare.'
+      'Predicted mask must be grayscale in [0,255], with brightness meaning probability of foreground.')
+  parser.set_defaults(func=evaluateBinarySegmentation)
   parser.add_argument('--gt_db_file', required=True)
-  parser.add_argument('--image_constraint', default='1')
+  parser.add_argument('--where_image', default='TRUE')
   parser.add_argument('--out_dir',
       help='If specified, result files with be written there.')
   parser.add_argument('--out_prefix', default='',
       help='Add to filenames, use to keep predictions from different epochs in one dir.')
   parser.add_argument('--display_images_roc', action='store_true')
-  parser.add_argument('--debug_display', action='store_true')
-  parser.add_argument('--debug_winwidth', type=int, default=1000)
 
-def evaluateSegmentationROC(c, args):
-  logging.info ('==== evaluateSegmentationROC ====')
+def evaluateBinarySegmentation(c, args):
   import pandas as pd
 
-  s = ('SELECT imagefile, maskfile FROM images '
-       'WHERE %s ORDER BY imagefile ASC' % args.image_constraint)
-  logging.debug(s)
+  # Get corresponding maskfiles from predictions and ground truth.
+  c.execute('ATTACH ? AS "attached"', (args.gt_db_file,))
+  c.execute('SELECT pr.imagefile,pr.maskfile,gt.maskfile FROM images pr INNER JOIN attached.images gt '
+    'WHERE pr.imagefile=gt.imagefile AND pr.maskfile IS NOT NULL AND gt.maskfile IS NOT NULL AND %s '
+    'ORDER BY pr.imagefile ASC' % args.where_image)
+  entries = c.fetchall()
+  logging.info ('Total %d images in both the open and the ground truth databases.' % len(entries))
+  logging.debug (pformat(entries))
 
-  c.execute(s)
-  entries_pred = c.fetchall()
-  logging.info ('Total %d images in predicted.' % len(entries_pred))
-
-  conn_gt = loadToMemory(args.gt_db_file)
-  c_gt = conn_gt.cursor()
-  c_gt.execute(s)
-  entries_gt = c_gt.fetchall()
-  logging.info ('Total %d images in gt.' % len(entries_gt))
-  conn_gt.close()
+  imreader = ImageryReader(rootdir=args.rootdir)
 
   TPs = np.zeros((256,), dtype=int)
   TNs = np.zeros((256,), dtype=int)
@@ -292,26 +398,12 @@ def evaluateSegmentationROC(c, args):
     plt.xlim(0, 1)
     plt.ylim(0, 1)
 
-  for entry_pred, entry_gt in progressbar(zip(entries_pred, entries_gt)):
-    imagefile_pred, maskfile_pred = entry_pred
-    imagefile_gt, maskfile_gt = entry_gt
-    if op.basename(imagefile_pred) != op.basename(imagefile_gt):
-      raise ValueError('Imagefile entries for pred and gt must be the same: %s vs %s.' %
-          (imagefile_pred, imagefile_gt))
-    if maskfile_pred is None:
-      raise ValueError('Mask is None for image %s' % imagefile_pred)
-    if maskfile_gt is None:
-      raise ValueError('Mask is None for image %s' % imagefile_gt)
+  for imagefile, maskfile_pr, maskfile_gt in progressbar(entries):
 
     # Load masks and bring them to comparable form.
-    mask_gt = validateMask(maskread(maskfile_gt))
-    mask_pred = validateMask(maskread(maskfile_pred))
-    mask_pred = cv2.resize(mask_pred, (mask_gt.shape[1], mask_gt.shape[0]), cv2.INTER_NEAREST)
-    if args.debug_display:
-      if cv2.waitKey(-1) == 27:
-        args.debug_display = False
-      scale = float(args.debug_winwidth) / mask_pred.shape[1]
-      cv2.imshow('debug_display', cv2.resize(np.hstack((mask_gt, mask_pred)), dsize=(0,0), fx=scale, fy=scale))
+    mask_gt = imreader.maskread(maskfile_gt)
+    mask_pr = imreader.maskread(maskfile_pr)
+    mask_pr = cv2.resize(mask_pr, (mask_gt.shape[1], mask_gt.shape[0]), cv2.INTER_NEAREST)
 
     # Some printputs.
     gt_pos = np.count_nonzero(mask_gt == 255)
@@ -325,19 +417,24 @@ def evaluateSegmentationROC(c, args):
       # Use only relevant pixels (not the 'dontcare' class.)
       relevant = np.bitwise_or(mask_gt == 0, mask_gt == 255)
       mask_gt = mask_gt[relevant].flatten()
-      mask_pred = mask_pred[relevant].flatten()
-      mask_gt = torch.Tensor(mask_gt).cuda()
-      mask_pred = torch.Tensor(mask_pred).cuda()
+      mask_pr = mask_pr[relevant].flatten()
+      mask_gt = torch.Tensor(mask_gt)
+      mask_pr = torch.Tensor(mask_pr)
+      try:
+        mask_gt = mask_gt.cuda()
+        mask_pr = mask_pr.cuda()
+      except RuntimeError:
+        pass
 
       TP = np.zeros((256,), dtype=int)
       TN = np.zeros((256,), dtype=int)
       FP = np.zeros((256,), dtype=int)
       FN = np.zeros((256,), dtype=int)
       for val in range(256):
-        tp = torch.nonzero(torch.mul(mask_pred > val, mask_gt == 255)).size()[0]
-        fp = torch.nonzero(torch.mul(mask_pred > val, mask_gt != 255)).size()[0]
-        fn = torch.nonzero(torch.mul(mask_pred <= val, mask_gt == 255)).size()[0]
-        tn = torch.nonzero(torch.mul(mask_pred <= val, mask_gt != 255)).size()[0]
+        tp = torch.nonzero(torch.mul(mask_pr > val, mask_gt == 255)).size()[0]
+        fp = torch.nonzero(torch.mul(mask_pr > val, mask_gt != 255)).size()[0]
+        fn = torch.nonzero(torch.mul(mask_pr <= val, mask_gt == 255)).size()[0]
+        tn = torch.nonzero(torch.mul(mask_pr <= val, mask_gt != 255)).size()[0]
         TP[val] = tp
         FP[val] = fp
         TN[val] = tn
@@ -347,7 +444,7 @@ def evaluateSegmentationROC(c, args):
         TNs[val] += tn
         FNs[val] += fn
       ROC, area = getPrecRecall(TP, FP, TN, FN)
-      logging.info('%s\t%.2f' % (op.basename(imagefile_gt), area * 100.))
+      logging.info('%s\t%.2f' % (op.basename(imagefile), area * 100.))
 
     except ImportError:
       # TODO: write the same without torch, on CPU

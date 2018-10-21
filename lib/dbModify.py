@@ -11,7 +11,7 @@ from progressbar import progressbar
 
 from .backendDb import makeTimeString, deleteImage, objectField, createDb
 from .backendImages import getVideoLength, getPictureSize, ImageryReader, VideoWriter, PictureWriter
-from .utilities import drawScoredRoi, roi2bbox
+from .util import drawScoredRoi, roi2bbox
 from .utilExpandBoxes import expandRoiToRatio, expandRoi
 
 
@@ -474,11 +474,11 @@ def polygonsToMasks (c, args):
   c.execute('SELECT imagefile,width,height FROM images')
   image_entries = c.fetchall()
   in_image_video_file = '%s.avi' % op.dirname(image_entries[0][0])
-  out_mask_video_file = '%s/%s' % (op.dirname(in_image_video_file), args.mask_name)
+  out_video_file = '%s/%s' % (op.dirname(in_image_video_file), args.mask_name)
   logging.info ('polygonsToMasks: in_image_video_file: %s' % in_image_video_file)
-  logging.info ('polygonsToMasks: out_mask_video_file: %s' % out_mask_video_file)
+  logging.info ('polygonsToMasks: out_video_file: %s' % out_video_file)
 
-  video_writer = SimpleWriter(vmaskfile=out_mask_video_file, unsafe=args.overwrite_video)
+  video_writer = SimpleWriter(vmaskfile=out_video_file, unsafe=args.overwrite_video)
 
   count = 0
   for imagefile, width, height in ProgressBar()(image_entries):
@@ -514,9 +514,9 @@ def polygonsToMaskParser(subparsers):
     'a grayscale mask when there are multiple polygons.')
   parser.set_defaults(func=polygonsToMask)
   group = parser.add_mutually_exclusive_group()
-  group.add_argument('--out_mask_pictures_dir',
+  group.add_argument('--out_pictures_dir',
     help='the directory where to write mask pictures to.')
-  group.add_argument('--out_mask_video_file',
+  group.add_argument('--out_video_file',
     help='the video file where to write masks to.')
   parser.add_argument('--overwrite', action='store_true',
     help='overwrite images or video.')
@@ -526,12 +526,12 @@ def polygonsToMaskParser(subparsers):
 def polygonsToMask (c, args):
 
   # Create mask writer.
-  if args.out_mask_video_file:
-    imwriter = VideoWriter(rootdir=args.rootdir, vmaskfile=args.out_mask_video_file, overwrite=args.overwrite)
-  elif args.out_mask_pictures_dir:
+  if args.out_video_file:
+    imwriter = VideoWriter(rootdir=args.rootdir, vmaskfile=args.out_video_file, overwrite=args.overwrite)
+  elif args.out_pictures_dir:
     imwriter = PictureWriter(rootdir=args.rootdir)
   else:
-    logging.warning('Dumping mask images (dry run.)')
+    raise ValueError('Specify either "out_video_file" or "out_pictures_dir".')
 
   # Iterate images.
   c.execute('SELECT imagefile,width,height FROM images')
@@ -570,17 +570,12 @@ def polygonsToMask (c, args):
     if np.sum(mask_per_image) == 0 and args.skip_empty_masks:
       continue
 
-    if args.out_mask_video_file:
+    if args.out_video_file:
       maskfile = imwriter.maskwrite(mask_per_image)
-    elif args.out_mask_pictures_dir:
+    elif args.out_pictures_dir:
       maskname = '%s.png' % op.splitext(op.basename(imagefile))[0]
-      maskfile = op.join(args.out_mask_pictures_dir, maskname)
+      maskfile = op.join(args.out_pictures_dir, maskname)
       imwriter.maskwrite(maskfile, mask_per_image)
-    else:
-      maskfile = None  # During the dry run.
     c.execute('UPDATE images SET maskfile=? WHERE imagefile=?', (maskfile, imagefile))
 
-  try:
-    imwriter.close()
-  except:
-    pass
+  imwriter.close()

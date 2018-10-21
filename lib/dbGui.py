@@ -2,13 +2,14 @@ import os, sys, os.path as op
 import numpy as np
 import cv2
 import logging
-import ast
+from ast import literal_eval
 from pprint import pformat
-from .utilities import bbox2roi, drawScoredRoi, drawScoredPolygon
-from .utilities import FONT, SCALE, FONT_SIZE, THICKNESS
+
+from .util import bbox2roi, drawScoredRoi, drawScoredPolygon
+from .util import FONT, SCALE, FONT_SIZE, THICKNESS
 from .backendDb import deleteObject, objectField, polygonField
 from .backendImages import ImageryReader
-from .utilities import drawImageId, drawMaskOnImage
+from .util import drawImageId, drawMaskOnImage
 
 
 def add_parsers(subparsers):
@@ -29,7 +30,7 @@ class KeyReader:
     Returns:
       Parsed dict.
     '''
-    keysmap = ast.literal_eval(keysmap_str)
+    keysmap = literal_eval(keysmap_str)
     logging.info('Keys map was parsed as: %s' % pformat(keysmap))
     for value in ['exit', 'previous', 'next']:
       if not value in keysmap.values():
@@ -62,12 +63,12 @@ def examineImagesParser(subparsers):
     description='Loop through images. Possibly, assign names to images.')
   parser.set_defaults(func=examineImages)
   parser.add_argument('--mask_mapping_dict', 
-    help='How values in maskfile are displayed. E.g. "{0: [0,0,0], 255: [128,128,30]}"')
+    help='how values in maskfile are displayed. E.g. "{0: [0,0,0], 255: [128,128,30]}"')
   parser.add_argument('--mask_alpha', type=float, default=0.2,
-    help='Transparency to overlay the label mask with, 1 means cant see the image behind the mask.')
+    help='transparency to overlay the label mask with, 1 means cant see the image behind the mask.')
   parser.add_argument('--shuffle', action='store_true')
   parser.add_argument('--with_objects', action='store_true',
-    help='Draw all objects on top of the image.')
+    help='draw all objects on top of the image.')
   parser.add_argument('--winsize', type=int, default=500)
   parser.add_argument('--key_dict',
     default='{"-": "previous", "=": "next", " ": "next", 27: "exit"}')
@@ -91,7 +92,7 @@ def examineImages (c, args):
   key_reader = KeyReader(args.key_dict)
 
   # For overlaying masks.
-  labelmap = ast.literal_eval(args.mask_mapping_dict) if args.mask_mapping_dict else None
+  labelmap = literal_eval(args.mask_mapping_dict) if args.mask_mapping_dict else None
   logging.info('Parsed mask_mapping_dict to %s' % pformat(labelmap))
 
   index_image = 0

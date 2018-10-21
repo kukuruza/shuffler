@@ -9,7 +9,7 @@ from progressbar import progressbar
 
 from .backendDb import objectField, polygonField, deleteImage, deleteObject
 from .backendImages import ImageryReader
-from .utilities import drawScoredRoi, drawScoredPolygon, bbox2roi
+from .util import drawScoredRoi, drawScoredPolygon, bbox2roi
 
 def add_parsers(subparsers):
   filterImagesOfAnotherDbParser(subparsers)

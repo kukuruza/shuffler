@@ -6,7 +6,7 @@ import logging
 import numpy as np
 import unittest
 
-from lib import utilities
+from lib import util
 
 
 class TestCopyWithBackup (unittest.TestCase):
@@ -26,12 +26,12 @@ class TestCopyWithBackup (unittest.TestCase):
     from_path = op.join(self.WORK_DIR, 'not_exists.txt')
     to_path = op.join(self.WORK_DIR, 'to.txt')
     with self.assertRaises(FileNotFoundError):
-      utilities.copyWithBackup(from_path, to_path)
+      util.copyWithBackup(from_path, to_path)
 
   def test_copiesWithoutNeedForBackup(self):
     from_path = op.join(self.WORK_DIR, 'from.txt')
     to_path = op.join(self.WORK_DIR, 'to.txt')
-    utilities.copyWithBackup(from_path, to_path)
+    util.copyWithBackup(from_path, to_path)
     self.assertTrue(op.exists(from_path))
     self.assertTrue(op.exists(to_path))
 
@@ -42,7 +42,7 @@ class TestCopyWithBackup (unittest.TestCase):
     # Make an existing file.
     with open(to_path, 'w') as f:
       f.write('old')
-    utilities.copyWithBackup(from_path, to_path)
+    util.copyWithBackup(from_path, to_path)
     # Make sure the contents are overwritten.
     self.assertTrue(op.exists(to_path))
     with open(to_path) as f:
@@ -57,7 +57,7 @@ class TestCopyWithBackup (unittest.TestCase):
   def test_copiestoItself(self):
     from_path = op.join(self.WORK_DIR, 'from.txt')
     backup_path = op.join(self.WORK_DIR, 'from.backup.txt')
-    utilities.copyWithBackup(from_path, from_path)
+    util.copyWithBackup(from_path, from_path)
     # Make sure the contents are the same.
     self.assertTrue(op.exists(from_path))
     with open(from_path) as f:
@@ -73,61 +73,61 @@ class TestCopyWithBackup (unittest.TestCase):
 class TestBbox2roi (unittest.TestCase):
 
   def test_normal(self):
-    self.assertEqual(utilities.bbox2roi([1, 2, 3, 4]), [2, 1, 6, 4])
-    self.assertEqual(utilities.bbox2roi((1, 2, 3, 4)), [2, 1, 6, 4])
+    self.assertEqual(util.bbox2roi([1, 2, 3, 4]), [2, 1, 6, 4])
+    self.assertEqual(util.bbox2roi((1, 2, 3, 4)), [2, 1, 6, 4])
 
   def test_zeroDims(self):
-    self.assertEqual(utilities.bbox2roi([1, 2, 0, 0]), [2, 1, 2, 1])
+    self.assertEqual(util.bbox2roi([1, 2, 0, 0]), [2, 1, 2, 1])
 
   def test_notSequence(self):
     with self.assertRaises(TypeError):
-      utilities.bbox2roi(42)
+      util.bbox2roi(42)
 
   def test_LessThanFourNumbers(self):
     with self.assertRaises(ValueError):
-      utilities.bbox2roi([42])
+      util.bbox2roi([42])
 
   def test_MoreThanFourNumbers(self):
     with self.assertRaises(ValueError):
-      utilities.bbox2roi([42, 42, 42, 42, 42])
+      util.bbox2roi([42, 42, 42, 42, 42])
 
   def test_NotNumbers(self):
     with self.assertRaises(TypeError):
-      utilities.bbox2roi(['a', 'b', 'c', 'd'])
+      util.bbox2roi(['a', 'b', 'c', 'd'])
 
   def test_negativeDims(self):
     with self.assertRaises(ValueError):
-      utilities.bbox2roi([1, 2, 3, -1])
+      util.bbox2roi([1, 2, 3, -1])
 
 
 class TestRoi2Bbox (unittest.TestCase):
 
   def test_normal(self):
-    self.assertEqual(utilities.roi2bbox([2, 1, 6, 4]), [1, 2, 3, 4])
-    self.assertEqual(utilities.roi2bbox((2, 1, 6, 4)), [1, 2, 3, 4])
+    self.assertEqual(util.roi2bbox([2, 1, 6, 4]), [1, 2, 3, 4])
+    self.assertEqual(util.roi2bbox((2, 1, 6, 4)), [1, 2, 3, 4])
 
   def test_zeroDims(self):
-    self.assertEqual(utilities.roi2bbox([2, 1, 2, 1]), [1, 2, 0, 0])
+    self.assertEqual(util.roi2bbox([2, 1, 2, 1]), [1, 2, 0, 0])
 
   def test_notSequence(self):
     with self.assertRaises(TypeError):
-      utilities.roi2bbox(42)
+      util.roi2bbox(42)
 
   def test_LessThanFourNumbers(self):
     with self.assertRaises(ValueError):
-      utilities.roi2bbox([42])
+      util.roi2bbox([42])
 
   def test_MoreThanFourNumbers(self):
     with self.assertRaises(ValueError):
-      utilities.roi2bbox([42,42,42,42,42])
+      util.roi2bbox([42,42,42,42,42])
 
   def test_NotNumbers(self):
     with self.assertRaises(TypeError):
-      utilities.roi2bbox(['a', 'b', 'c', 'd'])
+      util.roi2bbox(['a', 'b', 'c', 'd'])
 
   def test_negativeDims(self):
     with self.assertRaises(ValueError):
-      utilities.roi2bbox([2, 1, 1, 2])
+      util.roi2bbox([2, 1, 1, 2])
 
 
 if __name__ == '__main__':

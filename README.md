@@ -182,7 +182,39 @@ filterObjectsByIntersection --with_display
 # Masks from polygons.
 ./shuffler.py --rootdir 'test' \
   --in_db_file 'test/cars/micro1_v4.db' \
-  polygonsToMask --out_mask_pictures_dir 'cars/mask_polygons' --skip_empty_masks
+  polygonsToMask --out_pictures_dir 'cars/mask_polygons' --skip_empty_masks
+```
+
+### Evaluation of ML tasks
+```bash
+# Evaluate semantic segmentation.
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/cars/micro1_v4.db' \
+  evaluateSegmentationIoU --gt_db_file 'test/cars/micro1_v4_polygons.db' \
+    --gt_mapping_dict '{0: "background", 255: "car"}' --out_dir 'test/testIoU'
+
+# Evaluate single-class detection (background vs foreground), 
+# where masks of current db are grayscale probabilities.
+./shuffler.py --rootdir 'test' --in_db_file 'test/cars/micro1_v4.db' \
+  evaluateBinarySegmentation --gt_db_file 'test/cars/micro1_v4_polygons.db'
+
+# Evaluate object detection.
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/cars/micro1_v4.db' \
+  evaluateDetection --gt_db_file 'test/cars/micro1_v4_singleim.db'
+```
+
+### Write a new image directory / video
+
+```bash
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/cars/micro1_v4.db' \
+  writeImages --out_pictures_dir 'cars/exported' --mask_alpha 0.5 --with_imageid
+
+./shuffler.py --rootdir 'test' \
+  --in_db_file 'test/cars/micro1_v4.db' \
+  cropObjects --image_pictures_dir 'cars/exported' --mask_pictures_dir 'cars/exportedmask' \
+  --target_width 64 --target_height 64
 ```
 
 
@@ -199,7 +231,7 @@ filterObjectsByIntersection --with_display
   --in_db_file 'test/cars/micro1_v4.db' \
   addDb --db_file 'test/cars/micro1_v4_singleim.db' \
   mergeObjectDuplicates \
-  polygonsToMask --out_mask_pictures_dir 'cars/mask_polygons' --skip_empty_masks \
+  polygonsToMask --out_pictures_dir 'cars/mask_polygons' --skip_empty_masks \
   dumpDb --tables images \
   examineImages 
 ```

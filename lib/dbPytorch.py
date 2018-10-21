@@ -5,21 +5,21 @@ import numpy as np
 import argparse
 import logging
 from torch.utils.data import Dataset
-from backendDb import imageField, carField, loadToMemory
-from backendVideo import VideoReader
+from backendDb import imageField, objectField
+from backendImages import ImageryReader
 
 
 class CityimagesDataset(Dataset):
-  def __init__(self, db_file, image_constraint='1', car_constraint='1'):
+  def __init__(self, db_file, where_image='TRUE', where_object='TRUE'):
     from torch.utils.data import Dataset
 
-    self.conn = loadToMemory(db_file)
+    self.conn = sqlite.connect(db_file)
     self.c = self.conn.cursor()
     self.c.execute('SELECT * FROM images WHERE %s ORDER BY imagefile' % image_constraint)
     self.image_entries = self.c.fetchall()
 
-    self.image_reader = VideoReader()
-    self.car_constraint = car_constraint
+    self.imreader = ImageryReader()
+    self.where_object = where_object
 
 
   def close(self):

@@ -108,7 +108,7 @@ class VideoReader:
 
 class VideoWriter:
 
-  def __init__(self, rootdir='.', vimagefile=None, vmaskfile=None, overwrite=False, fps=2, fourcc=1196444237):
+  def __init__(self, rootdir='.', vimagefile=None, vmaskfile=None, overwrite=False, fps=1, fourcc=1196444237):
     self.overwrite  = overwrite
     self.vimagefile = vimagefile
     self.vmaskfile = vmaskfile
