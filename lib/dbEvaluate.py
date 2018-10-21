@@ -55,6 +55,7 @@ def evaluateDetection (c, args):
   c.execute('ATTACH ? AS "gt"', (args.gt_db_file,))
   c.execute('SELECT DISTINCT(name) FROM gt.objects')
   names = [x for x, in c.fetchall()]
+  aps = []  # Average precision per class.
 
   for name in names:
 
@@ -147,6 +148,8 @@ def evaluateDetection (c, args):
     prec = tp / np.maximum(tp + fp, np.finfo(np.float64).eps)
     ap = _voc_ap(rec, prec)
     print ('Average precision for class "%s": %.3f' % (name, ap))
+    aps.append(ap)
+  print ('Mean average precision: %.3f' % np.array(aps).mean())
 
 
 
