@@ -246,7 +246,7 @@ filterObjectsByIntersection --with_display
   mergeObjectDuplicates \| \
   polygonsToMask --out_pictures_dir 'cars/mask_polygons' --skip_empty_masks \| \
   dumpDb --tables images \| \
-  examineImages 
+  examineImages --mask_alpha 0.5
 
 ./shuffler.py --rootdir '.' -i 'test/labelme/init.db' \
   importLabelmeObjects --annotations_dir 'test/labelme/w55-e04-objects1' \
@@ -259,7 +259,8 @@ filterObjectsByIntersection --with_display
   --keep_original_object_name --polygon_name objects4 \| \
   mergeObjectDuplicates \| \
   polygonsToMask --out_pictures_dir 'test/labelme/mask_polygons' --skip_empty_masks \| \
-  dumpDb --tables objects polygons
+  dumpDb --tables objects polygons \| \
+  examineImages --mask_aside
 ```
 
 

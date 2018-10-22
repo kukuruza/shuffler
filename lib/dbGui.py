@@ -5,11 +5,11 @@ import logging
 from ast import literal_eval
 from pprint import pformat
 
+from .util import drawImageId, drawMaskOnImage, drawMaskAside
 from .util import bbox2roi, drawScoredRoi, drawScoredPolygon
 from .util import FONT, SCALE, FONT_SIZE, THICKNESS
 from .backendDb import deleteObject, objectField, polygonField
 from .backendImages import ImageryReader
-from .util import drawImageId, drawMaskOnImage
 
 
 def add_parsers(subparsers):
@@ -64,8 +64,12 @@ def examineImagesParser(subparsers):
   parser.set_defaults(func=examineImages)
   parser.add_argument('--mask_mapping_dict', 
     help='how values in maskfile are displayed. E.g. "{0: [0,0,0], 255: [128,128,30]}"')
-  parser.add_argument('--mask_alpha', type=float, default=0.2,
-    help='transparency to overlay the label mask with, 1 means cant see the image behind the mask.')
+  group = parser.add_mutually_exclusive_group()
+  group.add_argument('--mask_aside', action='store_true',
+    help='Image and mask side by side.')
+  group.add_argument('--mask_alpha', type=float, default=0.2,
+    help='Mask will be overlaied on the image.' 
+    'Transparency to overlay the label mask with, 1 means cant see the image behind the mask.')
   parser.add_argument('--shuffle', action='store_true')
   parser.add_argument('--with_objects', action='store_true',
     help='draw all objects on top of the image.')
@@ -106,7 +110,10 @@ def examineImages (c, args):
     # Overlay the mask.
     if maskfile is not None:
       mask = imreader.maskread(maskfile)
-      image = drawMaskOnImage(image, mask, alpha=args.mask_alpha, labelmap=labelmap)
+      if args.mask_aside:  # Image and mask side by side
+        image = drawMaskAside(image, mask, labelmap=labelmap)
+      elif args.mask_alpha is not None:
+        image = drawMaskOnImage(image, mask, alpha=args.mask_alpha, labelmap=labelmap)
     else:
       logging.info('No mask for this image.')
 
@@ -136,7 +143,8 @@ def examineImages (c, args):
           raise Exception('Neither polygon, nor bbox is available for objectid %d' % objectid)
 
     # Display an image, wait for the key from user, and parse that key.
-    scale = float(args.winsize) / max(image.shape[0:2])
+    c.execute('SELECT height,width FROM images WHERE imagefile=?', (imagefile,))
+    scale = float(args.winsize) / max(c.fetchone())
     image = cv2.resize(image, dsize=(0,0), fx=scale, fy=scale)
     cv2.imshow('examineImages', image[:,:,::-1])
     action = key_reader.parse (cv2.waitKey(-1))

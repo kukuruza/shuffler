@@ -139,11 +139,9 @@ def drawImageId(img, imagefile):
   cv2.putText (img, imageid, (10, SCALE), FONT, FONT_SIZE, (255,255,255), THICKNESS-1)
 
 
-def drawMaskOnImage(img, mask, alpha=0.5, labelmap=None):
+def applyLabelMappingToMask(mask, labelmap):
   '''
-  Draw a mask on the image, with colors.
   Args:
-    img:      numpy array
     mask:     numpy 2-dim array, the same HxW as img.
     labelmap: dict from mask values to output values Key->Value, where:
               Key is scalar int in [0, 255].
@@ -151,50 +149,63 @@ def drawMaskOnImage(img, mask, alpha=0.5, labelmap=None):
               if Value is a tuple (r,g,b), the mask is transformed to color.
               Examples {1: 255, 2: 128} or {1: (255,255,255), 2: (128,255,0)}.
               If not specified, the mask is used as is.
-    alpha:    The mask is overlaid with "alpha" transparency.
-              alpha=0 means mask is not visible, alpha=1 means img is not visible.
+  Returns:
+    mask      Mapped mask.
+  '''
+  if len(mask.shape) == 3:
+    raise NotImplementedError('Color masks are not supported now.')
+
+  logging.debug('labelmap: %s' % labelmap)
+  if len(labelmap) is 0:
+    raise ValueError('"labelmap" is empty.')
+
+  dmask = None
+  for key, value in labelmap.items():
+    # Lazy initialization of dmask.
+    if dmask is None:
+      if isinstance(value, (list, tuple)) and len(value) == 3:
+        # Create a dmask of shape (3, H, W)
+        dmask = np.zeros((3, mask.shape[0], mask.shape[1]), dtype=np.uint8)
+      elif isinstance(value, int):
+        # Create a dmask of shape (H, W)
+        dmask = np.zeros(mask.shape[0:2], dtype=np.uint8)
+      else:
+        raise TypeError('Values of "labelmap" are neither a collection of length 3, not a number.')
+    # For grayscale target.
+    if len(dmask.shape) == 2 and isinstance(value, int):
+      dmask[mask == key] = value
+    # For color target.
+    elif len(dmask.shape) == 3 and isinstance(value, (list, tuple)) and len(value) == 3:
+      dmask[0][mask == key] = value[0]
+      dmask[1][mask == key] = value[1]
+      dmask[2][mask == key] = value[2]
+    else:
+      raise ValueError('"labelmap" value %s mismatches dmask\'s shape %s' % (value, dmask.shape))
+    logging.debug('key: %d, value: %s, numpixels: %d.' %
+      (key, value, np.count_nonzero(mask == key)))
+  if len(dmask.shape) == 3:
+    # From (3, H, W) to (H, W, 3)
+    dmask = np.transpose(dmask, (1, 2, 0))
+  mask = dmask
+
+
+
+def drawMaskOnImage(img, mask, alpha=0.5, labelmap=None):
+  '''
+  Draw a mask on the image, with colors.
+  Args:
+    img:      numpy array
+    mask:     numpy 2-dim array, the same HxW as img.
+    labelmap: same as arguments of applyLabelMappingToMask
+    alpha:    float, alpha=0 means mask is not visible, alpha=1 means img is not visible.
   Returns:
     Output image.
   '''
   if not len(img.shape) == 3:
     raise NotImplementedError('Only color images are supported now.')
 
-  if len(mask.shape) == 3:
-    raise NotImplementedError('Color masks are not supported now.')
-
   if labelmap is not None:
-    logging.debug('labelmap: %s' % labelmap)
-    if len(labelmap) is 0:
-      raise ValueError('"labelmap" is empty.')
-
-    dmask = None
-    for key, value in labelmap.items():
-      # Lazy initialization of dmask.
-      if dmask is None:
-        if isinstance(value, (list, tuple)) and len(value) == 3:
-          # Create a dmask of shape (3, H, W)
-          dmask = np.zeros((3, mask.shape[0], mask.shape[1]), dtype=np.uint8)
-        elif isinstance(value, int):
-          # Create a dmask of shape (H, W)
-          dmask = np.zeros(mask.shape[0:2], dtype=np.uint8)
-        else:
-          raise TypeError('Values of "labelmap" are neither a collection of length 3, not a number.')
-      # For grayscale target.
-      if len(dmask.shape) == 2 and isinstance(value, int):
-        dmask[mask == key] = value
-      # For color target.
-      elif len(dmask.shape) == 3 and isinstance(value, (list, tuple)) and len(value) == 3:
-        dmask[0][mask == key] = value[0]
-        dmask[1][mask == key] = value[1]
-        dmask[2][mask == key] = value[2]
-      else:
-        raise ValueError('"labelmap" value %s mismatches dmask\'s shape %s' % (value, dmask.shape))
-      logging.debug('key: %d, value: %s, numpixels: %d.' %
-        (key, value, np.count_nonzero(mask == key)))
-    if len(dmask.shape) == 3:
-      # From (3, H, W) to (H, W, 3)
-      dmask = np.transpose(dmask, (1, 2, 0))
-    mask = dmask
+    mask = applyLabelMappingToMask(mask, labelmap)
 
   if len(mask.shape) == 2:
     mask = cv2.cvtColor (mask, cv2.COLOR_GRAY2RGB)
@@ -208,6 +219,30 @@ def drawMaskOnImage(img, mask, alpha=0.5, labelmap=None):
   img = cv2.addWeighted(src1=img, alpha=1-alpha, src2=mask, beta=alpha, gamma=0)
   return img
 
+
+def drawMaskAside(img, mask, labelmap=None):
+  '''
+  Draw a mask on the image, with colors.
+  Args:
+    img:      numpy array
+    mask:     numpy array, the same HxW as img.
+    labelmap: see arguments for applyLabelMappingToMask.
+  Returns:
+    Output image.
+  '''
+  if labelmap is not None:
+    mask = applyLabelMappingToMask(mask, labelmap)
+
+  if len(mask.shape) == 2 and len(img.shape) == 3 and img.shape[2] == 3:
+    mask = cv2.cvtColor (mask, cv2.COLOR_GRAY2RGB)
+  if img.shape[:2] != mask.shape[:2]:
+    logging.warning('Image shape %s mismatches mask shape %s.' % (img.shape, mask.shape))
+    mask = cv2.resize(mask, (img.shape[1], img.shape[0]), cv2.INTER_NEAREST)
+  assert img.shape == mask.shape, (img.shape, mask.shape)
+
+  # Draw mask aside.
+  img = np.hstack([img, mask])
+  return img
 
 
 def cropPatch(image, roi, target_height, target_width, edge):
