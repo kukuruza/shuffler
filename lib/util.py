@@ -68,6 +68,21 @@ def roi2bbox (roi):
   return [roi[1], roi[0], roi[3]-roi[1], roi[2]-roi[0]]
 
 
+def overlapRatio (roi1, roi2):
+    assert (len(roi1) == 4 and len(roi2) == 4)
+    if roi1 == roi2: return 1  # same object
+    dy = min(roi1[2], roi2[2]) - max(roi1[0], roi2[0])
+    dx = min(roi1[3], roi2[3]) - max(roi1[1], roi2[1])
+    if dy <= 0 or dx <= 0: return 0
+    area1 = (roi1[2] - roi1[0]) * (roi1[3] - roi1[1])
+    area2 = (roi2[2] - roi2[0]) * (roi2[3] - roi2[1])
+    inters = dx * dy
+    union  = area1 + area2 - inters
+    logging.debug('inters: ' + str(inters) + ', union: ' +  str(union))
+    assert (union >= inters and inters > 0)
+    return float(inters) / union
+
+
 def drawScoredPolygon (img, polygon, label=None, score=None):
   '''
   Args:
@@ -86,7 +101,7 @@ def drawScoredPolygon (img, polygon, label=None, score=None):
   color = tuple([int(x * 255) for x in plt.cm.jet(float(score))][0:3][::-1])
   for i1 in range(len(polygon)):
     i2 = (i1 + 1) % len(polygon)
-    cv2.line(img, polygon[i1], polygon[i2], color, THICKNESS)
+    cv2.line(img, tuple(polygon[i1]), tuple(polygon[i2]), color, THICKNESS)
   # Draw a label.
   xmin = polygon[0][0]
   ymin = polygon[0][1]
@@ -114,6 +129,7 @@ def drawImageId(img, imagefile):
   Returns:
     Nothing. Input "img" is changed in place.
   '''
+  img = img.copy()  # If order was reversed.
   imheight, imwidth = img.shape[0:2]
   fontscale = float(imheight) / 700
   thickness = min(imheight // 700, 1)

@@ -253,6 +253,8 @@ class ImageryReader:
 
   def __init__(self, rootdir):  # TODO: pass kwargs to self.reader.__init__
     self.rootdir = rootdir
+    if not isinstance(rootdir, str):
+      raise ValueError('rootdir must be a string, got "%s"' % str(rootdir))
     self.reader = None  # Lazy ionitialization.
 
   def close(self):
@@ -260,6 +262,7 @@ class ImageryReader:
       self.reader.close()
 
   def imread(self, image_id):
+    logging.debug('Try to read image_id "%s"' % image_id)
     if self.reader is not None:
       return self.reader.imread(image_id)
 
@@ -275,7 +278,8 @@ class ImageryReader:
     except Exception as e:
       logging.debug('Seems like it is not a video. Exception: "%s"' % e)
 
-    raise TypeError('The provided image_id does not seem to refer to either picture file or video frame.')
+    raise TypeError('The provided image_id "%s" does not seem to refer to '
+      'either picture file or video frame.' % image_id)
 
   def maskread(self, mask_id):
     if self.reader is not None:

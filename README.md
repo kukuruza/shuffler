@@ -217,23 +217,49 @@ filterObjectsByIntersection --with_display
   --target_width 64 --target_height 64
 ```
 
+### Imports
 
-#### Chaining commands
+#### Import labelme
 ```bash
-./shuffler.py --rootdir 'test' \
-  --in_db_file 'test/cars/micro1_v4.db' \
-  addVideo --image_video_path 'test/moon/images.avi' --mask_video_path 'test/moon/masks.avi' \
-  printInfo \
-  moveDir --image_dir 'test/cars/images' --where_image 'imagefile LIKE "cars/images/%"' \
-  dumpTables --tables 'images' 'objects'
+./shuffler.py --rootdir '.' \
+  -i 'test/labelme/init.db' \
+  importLabelmeImages --annotations_dir 'test/labelme/w55-e04-images1'
 
-./shuffler.py --rootdir 'test' \
-  --in_db_file 'test/cars/micro1_v4.db' \
-  addDb --db_file 'test/cars/micro1_v4_singleim.db' \
-  mergeObjectDuplicates \
-  polygonsToMask --out_pictures_dir 'cars/mask_polygons' --skip_empty_masks \
-  dumpDb --tables images \
+./shuffler.py --rootdir '.' \
+  -i test/labelme/init.db \
+  importLabelmeObjects --annotations_dir test/labelme/w55-e04-objects1 \
+  --keep_original_object_name --polygon_name objects1
+```
+
+
+
+### Chaining commands
+```bash
+./shuffler.py --rootdir 'test' --in_db_file 'test/cars/micro1_v4.db' \
+  addVideo --image_video_path 'test/moon/images.avi' --mask_video_path 'test/moon/masks.avi' \| \
+  printInfo \| \
+  moveDir --image_dir 'test/cars/images' --where_image 'imagefile LIKE "cars/images/%"' \| \
+  dumpDb --tables 'images' 'objects'
+
+./shuffler.py --rootdir 'test' --in_db_file 'test/cars/micro1_v4.db' \
+  addDb --db_file 'test/cars/micro1_v4_singleim.db' \| \
+  mergeObjectDuplicates \| \
+  polygonsToMask --out_pictures_dir 'cars/mask_polygons' --skip_empty_masks \| \
+  dumpDb --tables images \| \
   examineImages 
+
+./shuffler.py --rootdir '.' -i 'test/labelme/init.db' \
+  importLabelmeObjects --annotations_dir 'test/labelme/w55-e04-objects1' \
+  --keep_original_object_name --polygon_name objects1 \| \
+  importLabelmeObjects --annotations_dir 'test/labelme/w55-e04-objects2' \
+  --keep_original_object_name --polygon_name objects2 \| \
+  importLabelmeObjects --annotations_dir 'test/labelme/w55-e04-objects3' \
+  --keep_original_object_name --polygon_name objects3 \| \
+  importLabelmeObjects --annotations_dir 'test/labelme/w55-e04-objects4' \
+  --keep_original_object_name --polygon_name objects4 \| \
+  mergeObjectDuplicates \| \
+  polygonsToMask --out_pictures_dir 'test/labelme/mask_polygons' --skip_empty_masks \| \
+  dumpDb --tables objects polygons
 ```
 
 

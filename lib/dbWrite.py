@@ -6,7 +6,7 @@ from progressbar import progressbar
 from pprint import pformat
 from ast import literal_eval
 
-from .backendDb import objectField, polygonField
+from .backendDb import objectField, polygonField, deleteImage
 from .backendImages import ImageryReader, VideoWriter, PictureWriter
 from .util import drawImageId, drawMaskOnImage, cropPatch, bbox2roi
 
@@ -103,6 +103,24 @@ def add_parsers(subparsers):
 
 
 
+def _createImageryWriter(image_video_file, image_pictures_dir, 
+  mask_video_file, mask_pictures_dir, rootdir, overwrite=None):
+  ''' Based on which arguments are None and whioch are not,
+  create either a PicturesWriter or VideoWriter.
+  '''
+  if image_video_file and mask_pictures_dir or image_pictures_dir and mask_video_file:
+    raise ValueError('Images and masks have to be the same media -- pictures or video')
+  elif image_video_file:
+    return VideoWriter(rootdir=rootdir,
+      vimagefile=image_video_file, 
+      vmaskfile=mask_video_file,
+      overwrite=overwrite)
+  elif image_pictures_dir:
+    return PictureWriter(rootdir=rootdir)
+  else:
+    raise ValueError('Specify either "image_video_file" or "image_pictures_dir".')
+
+
 def cropObjectsParser(subparsers):
   parser = subparsers.add_parser('cropObjects',
     description='Crops object patches to pictures or video and saves their info as a db. '
@@ -129,6 +147,9 @@ def cropObjectsParser(subparsers):
 
 def cropObjects(c, args):
   imreader = ImageryReader(rootdir=args.rootdir)
+
+  imwriter = _createImageryWriter(args.image_video_file, args.image_pictures_dir, 
+    args.mask_video_file, args.mask_pictures_dir, args.rootdir, args.overwrite)
 
   # Create image writer.
   if args.image_video_file and args.mask_pictures_dir or args.image_pictures_dir and args.mask_video_file:
@@ -187,12 +208,23 @@ def cropObjects(c, args):
 
 def writeImagesParser(subparsers):
   parser = subparsers.add_parser('writeImages',
-    description='Export images as a directory with pictures or as a video.')
+    description='Export images as a directory with pictures or as a video, '
+    'and change the database imagefiles and maskfiles to match the recordings.')
+  parser.add_argument('--out_rootdir',
+    help='Specify, if rootdir changed for the output imagery.')
   group = parser.add_mutually_exclusive_group()
-  group.add_argument('--out_pictures_dir',
-    help='the directory where to write image pictures to.')
-  group.add_argument('--out_video_file',
-    help='the video file where to write images to.')
+  group.add_argument('--where_image', default='TRUE',
+    help='SQL where clause for the "images" table.')
+  imgroup = parser.add_mutually_exclusive_group()
+  imgroup.add_argument('--image_pictures_dir',
+    help='the directory where to write mask crop pictures to.')
+  imgroup.add_argument('--image_video_file',
+    help='the video file where to write image crops to.')
+  maskgroup = parser.add_mutually_exclusive_group()
+  maskgroup.add_argument('--mask_pictures_dir',
+    help='the directory where to write mask crop pictures to.')
+  maskgroup.add_argument('--mask_video_file',
+    help='the video file where to write mask crops to.')
   parser.add_argument('--mask_mapping_dict', 
     help='how values in maskfile are drawn. E.g. "{0: [0,0,0], 255: [128,128,30]}"')
   parser.add_argument('--mask_alpha', type=float, default=0.2,
@@ -209,16 +241,21 @@ def writeImages (c, args):
   labelmap = literal_eval(args.mask_mapping_dict) if args.mask_mapping_dict else None
   logging.info('Parsed mask_mapping_dict to %s' % pformat(labelmap))
 
-  # Create writer.
-  if args.out_video_file:
-    imwriter = VideoWriter(rootdir=args.rootdir, vimagefile=args.out_video_file, overwrite=args.overwrite)
-  elif args.out_pictures_dir:
-    imwriter = PictureWriter(rootdir=args.rootdir)
-  else:
-    raise ValueError('Specify either "out_video_file" or "out_pictures_dir".')
+  # Create a writer. Rootdir may be changed.
+  out_rootdir = args.out_rootdir if args.out_rootdir else args.rootdir
+  imwriter = _createImageryWriter(args.image_video_file, args.image_pictures_dir, 
+    args.mask_video_file, args.mask_pictures_dir, out_rootdir, args.overwrite)
 
-  c.execute('SELECT imagefile,maskfile FROM images')
-  for imagefile, maskfile in progressbar(c.fetchall()):
+  c.execute('SELECT imagefile,maskfile FROM images WHERE %s' % args.where_image)
+  entries = c.fetchall()
+
+  logging.info('Deleting entries which are not in "where_image".')
+  c.execute('SELECT imagefile FROM images WHERE NOT %s' % args.where_image)
+  for imagefile, in c.fetchall():
+    deleteImage(c, imagefile)
+
+  logging.info('Writing imagery and updating the database.')
+  for imagefile, maskfile in progressbar(entries):
 
     logging.info ('Imagefile "%s"' % imagefile)
     image = imreader.imread(imagefile)
@@ -228,6 +265,7 @@ def writeImages (c, args):
       mask = imreader.maskread(maskfile)
       image = drawMaskOnImage(image, mask, alpha=args.mask_alpha, labelmap=labelmap)
     else:
+      mask = None
       logging.info('No mask for this image.')
 
     # Overlay imagefile.
@@ -253,9 +291,36 @@ def writeImages (c, args):
         else:
           raise Exception('Neither polygon, nor bbox is available for objectid %d' % objectid)
 
-    if args.out_video_file:
-      imwriter.imwrite(image)
-    elif args.out_pictures_dir:
-      imagefile = op.join(args.out_pictures_dir, op.basename(imagefile))
-      imwriter.imwrite(imagefile, image)
+    # Write an image.
+    if args.image_video_file:
+      imagefile_new = imwriter.imwrite(image)
+    elif args.image_pictures_dir:
+      imagename = op.basename(imagefile)
+      if not op.splitext(imagename)[1]:  # Add the extension, if there was None.
+        imagename = '%s.jpg' % imagename
+      imagefile_new = op.join(args.image_pictures_dir, imagename)
+      imwriter.imwrite(imagefile_new, image)
+
+    # Write mask.
+    if mask is not None and args.mask_video_file:
+      new_maskfile = imwriter.maskwrite(mask)
+    elif mask is not None and args.mask_pictures_dir:
+      maskname = op.basename(maskfile)
+      if not op.splitext(maskname)[1]:  # Add the extension, if there was None.
+        maskname = '%s.png' % maskname
+      new_maskfile = op.join(args.mask_pictures_dir, maskname)
+      imwriter.imwrite(maskfile, mask)
+    else:
+      new_maskfile = None
+
+    # Update the database entry.
+    if new_maskfile is not None:
+      c.execute('UPDATE images SET imagefile=?, maskfile=? WHERE imagefile=?',
+        (imagefile_new,maskfile_new,imagefile))
+    else:
+      c.execute('UPDATE images SET imagefile=? WHERE imagefile=?',
+        (imagefile_new,imagefile))
+    c.execute('UPDATE objects SET imagefile=? WHERE imagefile=?',
+      (imagefile_new,imagefile))
+
   imwriter.close()
