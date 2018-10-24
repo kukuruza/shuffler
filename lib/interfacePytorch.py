@@ -16,7 +16,11 @@ class ImagesDataset(Dataset):
   def __init__(self, db_file, rootdir='.', where_image='TRUE', where_object='TRUE'):
     from torch.utils.data import Dataset
 
-    self.conn = sqlite3.connect('file:%s?mode=ro' % db_file, uri=True)
+    try:
+      self.conn = sqlite3.connect('file:%s?mode=ro' % db_file, uri=True)
+    except TypeError:
+      logging.info('This Python version does not support connecting to SQLite by uri.')
+      self.conn = sqlite3.connect(db_file)
     self.c = self.conn.cursor()
     self.c.execute('SELECT * FROM images WHERE %s ORDER BY imagefile' % where_image)
     self.image_entries = self.c.fetchall()
@@ -67,7 +71,11 @@ class ObjectsDataset:
 
   def __init__(self, db_file, rootdir='.', where_object='TRUE'):
 
-    self.conn = sqlite3.connect('file:%s?mode=ro' % db_file, uri=True)
+    try:
+      self.conn = sqlite3.connect('file:%s?mode=ro' % db_file, uri=True)
+    except TypeError:
+      logging.info('This Python version does not support connecting to SQLite by uri.')
+      self.conn = sqlite3.connect(db_file)
     self.c = self.conn.cursor()
     self.c.execute('SELECT * FROM objects WHERE %s ORDER BY objectid' % where_object)
     self.object_entries = self.c.fetchall()

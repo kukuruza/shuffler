@@ -100,7 +100,7 @@ class TestVideoReader (unittest.TestCase):
       self.reader.imread('cars/images/video.avi/dummy')
 
   def test_imread_non_exist (self):
-    with self.assertRaises(FileNotFoundError):
+    with self.assertRaises(ValueError):
       self.reader.imread('cars/images/dummy.avi/000000')
 
   def test_maskread (self):
@@ -111,7 +111,7 @@ class TestVideoReader (unittest.TestCase):
     self.assertLess(_diff(mask, mask_gt), 0.01)
 
   def test_maskreadNonExist (self):
-    with self.assertRaises(FileNotFoundError):
+    with self.assertRaises(ValueError):
       self.reader.maskread('cars/masks/dummy.avi/000000')
 
   def test_maskreadBadImage (self):
@@ -213,7 +213,7 @@ class TestPictureReader (unittest.TestCase):
     self.assertTrue((img == img_gt).all())
 
   def test_imreadNonExist (self):
-    with self.assertRaises(FileNotFoundError):
+    with self.assertRaises(ValueError):
       self.reader.imread('cars/images/dummy.jpg')
 
   def test_imreadBadImage (self):
@@ -226,10 +226,11 @@ class TestPictureReader (unittest.TestCase):
     mask = self.reader.maskread('cars/masks/000000.png')
     self.assertEqual(len(mask.shape), 2)
     self.assertEqual(mask.shape, mask_gt.shape)
-    self.assertTrue((mask == mask_gt).all())
+    self.assertLess(_diff(mask, mask_gt), 0.02)
+    #self.assertTrue((mask == mask_gt).all())
 
   def test_maskreadNonExist (self):
-    with self.assertRaises(FileNotFoundError):
+    with self.assertRaises(ValueError):
       self.reader.maskread('cars/images/dummy.png')
 
   def test_maskreadBadImage (self):
@@ -321,18 +322,21 @@ class TestImreader (unittest.TestCase):
     mask_gt = skimage.io.imread('cars/masks/000000.png')
     mask = reader.maskread('cars/masks/000000.png')
     self.assertEqual(mask.shape, mask_gt.shape)
-    self.assertTrue((mask == mask_gt).all())
+    self.assertLess(_diff(mask, mask_gt), 0.02)
+    #self.assertTrue((mask == mask_gt).all())
     # Second read.
     mask = reader.imread('cars/masks/000000.png')
     self.assertEqual(mask.shape, mask_gt.shape)
-    self.assertTrue((mask == mask_gt).all())
+    self.assertLess(_diff(mask, mask_gt), 0.02)
+    #self.assertTrue((mask == mask_gt).all())
 
   def test_maskreadPictureRootdir (self):
     reader = backendImages.ImageryReader(rootdir='cars')
     mask_gt = skimage.io.imread('cars/masks/000000.png')
     mask = reader.maskread('masks/000000.png')
     self.assertEqual(mask.shape, mask_gt.shape)
-    self.assertTrue((mask == mask_gt).all())
+    self.assertLess(_diff(mask, mask_gt), 0.02)
+    #self.assertTrue((mask == mask_gt).all())
 
   def test_imreadNotExisting (self):
     reader = backendImages.ImageryReader(rootdir='.')
