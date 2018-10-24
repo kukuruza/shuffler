@@ -97,7 +97,7 @@ def drawScoredPolygon (img, polygon, label=None, score=None):
   
   if label is None: label = ''
   if score is None:
-    score = 0
+    score = 1
   color = tuple([int(x * 255) for x in plt.cm.jet(float(score))][0:3][::-1])
   for i1 in range(len(polygon)):
     i2 = (i1 + 1) % len(polygon)
@@ -116,7 +116,7 @@ def drawScoredRoi (img, roi, label=None, score=None):
   assert score is None or score >= 0 and score <= 1
   if label is None: label = ''
   if score is None:
-    score = 0
+    score = 1
   color = tuple([int(x * 255) for x in plt.cm.jet(float(score))][0:3][::-1])
   cv2.rectangle (img, (roi[1], roi[0]), (roi[3], roi[2]), color, THICKNESS)
   cv2.putText (img, label, (roi[1], roi[0] - SCALE), FONT, FONT_SIZE, (0,0,0), THICKNESS)
@@ -230,11 +230,18 @@ def drawMaskAside(img, mask, labelmap=None):
   Returns:
     Output image.
   '''
+  logging.debug('Image shape: %s, image dtype: %s' % (img.shape, img.dtype))
+  logging.debug('Mask shape: %s, mask dtype: %s' % (mask.shape, mask.dtype))
   if labelmap is not None:
     mask = applyLabelMappingToMask(mask, labelmap)
 
+  if len(mask.shape) == 3 and mask.shape[2] == 4 and len(img.shape) == 3 and img.shape[2] == 3:
+    logging.debug('Mask has alpha channel, but image does not. Add it to image.')
+    img = np.concatenate([img, np.ones((img.shape[0],img.shape[1],1), dtype=np.uint8) * 255], axis=2)
   if len(mask.shape) == 2 and len(img.shape) == 3 and img.shape[2] == 3:
     mask = cv2.cvtColor (mask, cv2.COLOR_GRAY2RGB)
+  if mask.dtype == np.uint16:  # 16 bit is transferred to 8 bit.
+    mask = (mask // 256).astype(np.uint8)
   if img.shape[:2] != mask.shape[:2]:
     logging.warning('Image shape %s mismatches mask shape %s.' % (img.shape, mask.shape))
     mask = cv2.resize(mask, (img.shape[1], img.shape[0]), cv2.INTER_NEAREST)

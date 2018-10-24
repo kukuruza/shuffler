@@ -10,7 +10,7 @@ from itertools import groupby
 from lib.util import copyWithBackup
 from lib.backendDb import createDb
 from lib import dbGui, dbInfo, dbFilter, dbModify, dbWrite, dbEvaluate
-from lib import dbLabelme
+from lib import dbLabelme, dbKitti, dbPascal
 
 
 def connect (in_db_path=None, out_db_path=None):
@@ -92,6 +92,8 @@ dbInfo.add_parsers(subparsers)
 dbWrite.add_parsers(subparsers)
 dbEvaluate.add_parsers(subparsers)
 dbLabelme.add_parsers(subparsers)
+dbKitti.add_parsers(subparsers)
+dbPascal.add_parsers(subparsers)
 
 # Split command-line arguments into subcommands by special symbol "|".
 argv_splits = [list(group) for k, group in groupby(sys.argv[1:], lambda x: x == '|') if not k]
@@ -110,13 +112,15 @@ conn = connect(args.in_db_file, args.out_db_file)
 cursor = conn.cursor()
 
 # Go thourgh the pipeline.
+print(args.func.__name__)
 args.func(cursor, args)
 for argv_split in argv_splits[1:]:
   args = parser.parse_args(argv_split)
   args.rootdir = rootdir  # This is the only argument that is used in all subcommands.
+  print(args.func.__name__)
   args.func(cursor, args)
 
 if do_commit:
   conn.commit()
-  logging.info('Commited.')
+  logging.info('Committed.')
 conn.close()

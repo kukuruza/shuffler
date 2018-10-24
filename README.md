@@ -182,7 +182,7 @@ filterObjectsByIntersection --with_display
 # Masks from polygons.
 ./shuffler.py --rootdir 'test' \
   --in_db_file 'test/cars/micro1_v4.db' \
-  polygonsToMask --out_pictures_dir 'cars/mask_polygons' --skip_empty_masks
+  polygonsToMask --mask_pictures_dir 'cars/mask_polygons' --skip_empty_masks
 ```
 
 #### Evaluation of ML tasks
@@ -219,11 +219,26 @@ filterObjectsByIntersection --with_display
 
 ### Imports
 
-#### Import labelme
+#### Import KITTI
+```bash
+./shuffler.py --rootdir ${KITTI} \
+  -o '/tmp/kitti.db' \
+  importKitti \
+  --images_dir=${KITTI}/data_semantics/training/image_2  \
+  --segmentation_dir=${KITTI}/data_semantics/training/instance
+
+./shuffler.py --rootdir ${KITTI} \
+  -o '/tmp/kitti.db' \
+  importKitti \
+  --images_dir=${KITTI}/data_semantics/training/image_2  \
+  --detection_dir=${KITTI}/data_object_image_2/training/label_2
+```
+
+#### Import LabelMe
 ```bash
 ./shuffler.py --rootdir '.' \
   -i 'test/labelme/init.db' \
-  importLabelmeImages --annotations_dir 'test/labelme/w55-e04-images1'
+  importLabelme --annotations_dir 'test/labelme/w55-e04-images1'
 
 ./shuffler.py --rootdir '.' \
   -i test/labelme/init.db \
@@ -231,9 +246,20 @@ filterObjectsByIntersection --with_display
   --keep_original_object_name --polygon_name objects1
 ```
 
-
+### Import Pascal
+```bash
+./shuffler.py --rootdir ${VOC2012} \
+  -o '/tmp/pascal.db' \
+  importPascalVoc2012 \
+  --images_dir ${VOC2012}/JPEGImages \
+  --detection_dir ${VOC2012}/Annotations \
+  --segmentation_dir ${VOC2012}/SegmentationClass
+```
 
 ### Chaining commands
+
+Sub-commands can be chained via the special symbol "\|" (here, the backslash escapes the following vertical bar from a Unix shell.)
+
 ```bash
 ./shuffler.py --rootdir 'test' --in_db_file 'test/cars/micro1_v4.db' \
   addVideo --image_video_path 'test/moon/images.avi' --mask_video_path 'test/moon/masks.avi' \| \
@@ -244,21 +270,21 @@ filterObjectsByIntersection --with_display
 ./shuffler.py --rootdir 'test' --in_db_file 'test/cars/micro1_v4.db' \
   addDb --db_file 'test/cars/micro1_v4_singleim.db' \| \
   mergeObjectDuplicates \| \
-  polygonsToMask --out_pictures_dir 'cars/mask_polygons' --skip_empty_masks \| \
+  polygonsToMask --mask_pictures_dir 'cars/mask_polygons' --skip_empty_masks \| \
   dumpDb --tables images \| \
   examineImages --mask_alpha 0.5
 
 ./shuffler.py --rootdir '.' -i 'test/labelme/init.db' \
   importLabelmeObjects --annotations_dir 'test/labelme/w55-e04-objects1' \
-  --keep_original_object_name --polygon_name objects1 \| \
+  --keep_original_object_name --polygon_name annotator1 \| \
   importLabelmeObjects --annotations_dir 'test/labelme/w55-e04-objects2' \
-  --keep_original_object_name --polygon_name objects2 \| \
+  --keep_original_object_name --polygon_name annotator2 \| \
   importLabelmeObjects --annotations_dir 'test/labelme/w55-e04-objects3' \
-  --keep_original_object_name --polygon_name objects3 \| \
+  --keep_original_object_name --polygon_name annotator3 \| \
   importLabelmeObjects --annotations_dir 'test/labelme/w55-e04-objects4' \
-  --keep_original_object_name --polygon_name objects4 \| \
+  --keep_original_object_name --polygon_name annotator4 \| \
   mergeObjectDuplicates \| \
-  polygonsToMask --out_pictures_dir 'test/labelme/mask_polygons' --skip_empty_masks \| \
+  polygonsToMask --mask_pictures_dir 'test/labelme/mask_polygons' --skip_empty_masks \| \
   dumpDb --tables objects polygons \| \
   examineImages --mask_aside
 ```

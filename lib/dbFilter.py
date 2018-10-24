@@ -157,11 +157,11 @@ def filterObjectsByIntersectionParser(subparsers):
   parser.add_argument('--with_display', action='store_true',
     help='Until <Esc> key, display how each object intersects others. '
     'Bad objects are shown as as red, good as blue, while the others as green.')
+  #If 'expand_bboxes' is set to True, a car is removed if the intersection
+  # of its expanded box and original boxes of other cars is too high.
 
 def filterObjectsByIntersection (c, args):
-  '''If 'expand_bboxes' is set to True, a car is removed if the intersection
-     of its expanded box and original boxes of other cars is too high.
-  '''
+
   def getRoiIntesection(rioi1, roi2):
     dy = min(roi1[2], roi2[2]) - max(roi1[0], roi2[0])
     dx = min(roi1[3], roi2[3]) - max(roi1[1], roi2[1])

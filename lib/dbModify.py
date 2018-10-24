@@ -468,7 +468,6 @@ def polygonsToMasksParser(subparsers):
     help='Overwrte mask video istead of throwing an exception.')
     
 def polygonsToMasks (c, args):
-  logging.info ('==== polygonsToMasks ====')
 
   # Assume mask field is null. Deduce the out mask name from imagefile.
   c.execute('SELECT imagefile,width,height FROM images')
@@ -514,9 +513,9 @@ def polygonsToMaskParser(subparsers):
     'a grayscale mask when there are multiple polygons.')
   parser.set_defaults(func=polygonsToMask)
   group = parser.add_mutually_exclusive_group()
-  group.add_argument('--out_pictures_dir',
+  group.add_argument('--mask_pictures_dir',
     help='the directory where to write mask pictures to.')
-  group.add_argument('--out_video_file',
+  group.add_argument('--mask_video_file',
     help='the video file where to write masks to.')
   parser.add_argument('--overwrite', action='store_true',
     help='overwrite images or video.')
@@ -526,12 +525,12 @@ def polygonsToMaskParser(subparsers):
 def polygonsToMask (c, args):
 
   # Create mask writer.
-  if args.out_video_file:
-    imwriter = VideoWriter(rootdir=args.rootdir, vmaskfile=args.out_video_file, overwrite=args.overwrite)
-  elif args.out_pictures_dir:
+  if args.mask_video_file:
+    imwriter = VideoWriter(rootdir=args.rootdir, vmaskfile=args.mask_video_file, overwrite=args.overwrite)
+  elif args.mask_pictures_dir:
     imwriter = PictureWriter(rootdir=args.rootdir)
   else:
-    raise ValueError('Specify either "out_video_file" or "out_pictures_dir".')
+    raise ValueError('Specify either "mask_video_file" or "mask_pictures_dir".')
 
   # Iterate images.
   c.execute('SELECT imagefile,width,height FROM images')
@@ -570,9 +569,9 @@ def polygonsToMask (c, args):
     if np.sum(mask_per_image) == 0 and args.skip_empty_masks:
       continue
 
-    if args.out_video_file:
+    if args.mask_video_file:
       maskfile = imwriter.maskwrite(mask_per_image)
-    elif args.out_pictures_dir:
+    elif args.mask_pictures_dir:
       maskname = '%s.png' % op.splitext(op.basename(imagefile))[0]
       maskfile = op.join(args.out_pictures_dir, maskname)
       imwriter.maskwrite(maskfile, mask_per_image)

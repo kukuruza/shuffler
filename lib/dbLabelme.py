@@ -9,30 +9,16 @@ import shutil
 import sqlite3
 from progressbar import progressbar
 from pprint import pformat
+import re
 
 from .backendImages import ImageryReader
 from .util import drawScoredPolygon
 
 
 def add_parsers(subparsers):
-  importLabelmeImagesParser(subparsers)
+  importLabelmeParser(subparsers)
   importLabelmeObjectsParser(subparsers)
 
-
-def _getAnnotationPath(name, annotations_dir):
-  # Both files below may exist because of some bug in Labelme.
-  for name_template in ['*%s.xml', '*%s..xml']:
-    logging.debug('Trying to match name_template: %s' % name_template)
-    pattern = op.join(annotations_dir, name_template % name)
-    logging.debug('Will look for pattern: %s' % pattern)
-    annotation_files = glob(pattern)
-    if len(annotation_files) > 1:
-      logging.warning('found multiple files: %s' % pformat(annotation_files))
-    if len(annotation_files) >= 1:
-      logging.debug('Found annotation_file: %s for %s' % (annotation_files[0], name))
-      return annotation_files[0]
-
-  return None
 
 
 def _pointsOfPolygon (annotation):
@@ -49,19 +35,18 @@ def _isPolygonDegenerate(xs, ys):
   assert len(xs) == len(ys), (len(xs), len(ys))
   return len(xs) == 1 or len(xs) == 2 or min(xs) == max(xs) or min(ys) == max(ys)
 
-def _isOutOfBorders(roi, shape):
-  ''' For some reason, width+1, height+1 happens. '''
-  return roi[0] < 0 or roi[1] < 0 or roi[2] >= shape[0]+1 or roi[3] >= shape[1]+1
 
-def importLabelmeImagesParser(subparsers):
-  parser = subparsers.add_parser('importLabelmeImages',
-    description='Import labelme annotations for a db.')
-  parser.set_defaults(func=importLabelmeImages)
+
+def importLabelmeParser(subparsers):
+  parser = subparsers.add_parser('importLabelme',
+    description='Import LabelMe annotations for a db.')
+  parser.set_defaults(func=importLabelme)
   parser.add_argument('--annotations_dir', required=True,
-      help='Directory with xml files.')
+      help='Directory with xml files. '
+      'Images should be already imported with "addPictures" or "addImages".')
   parser.add_argument('--with_display', action='store_true')
 
-def importLabelmeImages (c, args):
+def importLabelme (c, args):
   if args.with_display:
     imreader = ImageryReader(args.rootdir)
 
@@ -69,16 +54,23 @@ def importLabelmeImages (c, args):
   imagefiles = c.fetchall()
   logging.info('Found %d images' % len(imagefiles))
 
+  annotations_paths = os.listdir(args.annotations_dir)
+
   for imagefile, in progressbar(imagefiles):
     logging.info ('Processing imagefile: "%s"' % imagefile)
 
-    imagename = op.splitext(op.basename(jpgpath))[0]
-    annotation_file = _getAnnotationPath(imagename, args.annotations_dir)
-    if annotation_file is None:
-      logging.error('Annotation file does not exist: "%s". Skip image.' % annotation_file)
+    # Find annotation files that match the imagefile.
+    # There may be 1 or 2 dots because of some bug/feature in LabelMe.
+    imagename = re.compile('0*%s[\.]{1,2}xml' % op.splitext(op.basename(jpgpath))[0])
+    logging.debug('Will try to match %s' % regex)
+    matches = [f for f in annotations_paths if re.match(regex, f)]
+    if len(matches) == 0:
+      logging.info('Annotation file does not exist: "%s". Skip image.' % annotation_file)
       continue
-
-    tree = ET.parse(annotation_file)
+    elif len(matches) > 1:
+      logging.warning('Found multiple files: %s' % pformat(matches))
+    annotation_file = op.join(args.annotations_dir, matches[0])
+    logging.info('Got a match %s' % annotation_file)
 
     # get dimensions
     c.execute('SELECT height,width FROM images WHERE imagefile=?', (imagefile,))
@@ -87,6 +79,7 @@ def importLabelmeImages (c, args):
     if args.with_display:
       img = imreader.imread(imagefile)
 
+    tree = ET.parse(annotation_file)
     for object_ in tree.getroot().findall('object'):
 
       # skip if it was deleted
@@ -101,13 +94,8 @@ def importLabelmeImages (c, args):
 
       # filter out degenerate polygons
       if _isPolygonDegenerate(xs, ys):
-        logging.info('Degenerate polygon %s,%s in %s' % (str(xs), str(ys), annotation_name))
+        logging.warning('Degenerate polygon %s,%s in %s' % (str(xs), str(ys), annotation_name))
         continue
-
-      # Validate roi.
-      roi = [min(ys), min(xs), max(ys), max(xs)]
-      if _isOutOfBorders(roi, sz):
-        logging.warning ('roi %s out of borders: %s' % (str(roi), str(sz)))
 
       c.execute('INSERT INTO objects(imagefile,name) VALUES (?,?)', (imagefile, name))
       objectid = c.lastrowid
@@ -120,7 +108,7 @@ def importLabelmeImages (c, args):
         drawScoredPolygon (img, pts, name, score=1)
 
     if args.with_display: 
-      cv2.imshow('importLabelmeImages', img)
+      cv2.imshow('importLabelmeImages', img[:,:,::-1])
       if cv2.waitKey(-1) == 27:
         args.with_display = False
         cv2.destroyWindow('importLabelmeImages')
@@ -129,7 +117,7 @@ def importLabelmeImages (c, args):
 
 def importLabelmeObjectsParser(subparsers):
   parser = subparsers.add_parser('importLabelmeObjects',
-    description='Import labelme annotations of objects. '
+    description='Import LabelMe annotations of objects. '
     'For each objectid in the db, will look for annotation in the form objectid.xml')
   parser.set_defaults(func=importLabelmeObjects)
   parser.add_argument('--annotations_dir', required=True,
@@ -144,14 +132,24 @@ def importLabelmeObjects(c, args):
   if args.with_display:
     imreader = ImageryReader(rootdir=args.rootdir)
 
+  annotations_paths = os.listdir(args.annotations_dir)
+
   c.execute('SELECT objectid,imagefile FROM objects')
   for objectid, imagefile in progressbar(c.fetchall()):
     logging.debug ('Processing object: %d' % objectid)
 
-    annotation_file = _getAnnotationPath(str(objectid), args.annotations_dir)
-    if annotation_file is None:
-      logging.error('Annotation file does not exist: "%s". Skip image.' % annotation_file)
+    # Find annotation files that match the object.
+    # There may be 1 or 2 dots because of some bug/feature in LabelMe.
+    regex = re.compile('0*%s[\.]{1,2}xml' % str(objectid))
+    logging.debug('Will try to match %s' % regex)
+    matches = [f for f in annotations_paths if re.match(regex, f)]
+    if len(matches) == 0:
+      logging.info('Annotation file does not exist: "%s". Skip image.' % annotation_file)
       continue
+    elif len(matches) > 1:
+      logging.warning('Found multiple files: %s' % pformat(matches))
+    annotation_file = op.join(args.annotations_dir, matches[0])
+    logging.info('Got a match %s' % annotation_file)
 
     tree = ET.parse(annotation_file)
     objects_ = tree.getroot().findall('object')
@@ -192,7 +190,7 @@ def importLabelmeObjects(c, args):
       img = imreader.imread(imagefile)
       pts = np.array([xs, ys], dtype=np.int32).transpose()
       drawScoredPolygon (img, pts, name, score=1)
-      cv2.imshow('importLabelmeObjects', img)
+      cv2.imshow('importLabelmeObjects', img[:,:,::-1])
       if cv2.waitKey(-1) == 27:
         args.with_display = False
         cv2.destroyWindow('importLabelmeObjects')
