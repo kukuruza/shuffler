@@ -89,6 +89,7 @@ class ObjectsDataset:
       mask:       np.uint8 array corresponding to a mask if exists, or None
       class:      a string with object class name
       imagefile:  the image id
+      all key-value pairs from the "properties" table
     '''
     object_entry = self.object_entries[index]
 
@@ -108,7 +109,14 @@ class ObjectsDataset:
     img = img[roi[0]:roi[2], roi[1]:roi[3]]
     mask = mask[roi[0]:roi[2], roi[1]:roi[3]] if mask is not None else None
 
-    return {'image': img, 'mask': mask, 'class': name, 'imagefile': imagefile}
+    item = {'image': img, 'mask': mask, 'class': name, 'imagefile': imagefile}
+
+    # Add properties.
+    self.c.execute('SELECT key,value FROM properties WHERE objectid=?', (objectid,))
+    for key, value in self.c.fetchall():
+      item[key] = value
+
+    return item
     
 
 

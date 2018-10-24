@@ -111,13 +111,16 @@ logging.basicConfig(level=args.logging, format=FORMAT)
 conn = connect(args.in_db_file, args.out_db_file)
 cursor = conn.cursor()
 
+if not hasattr(args, 'func'):
+  raise ValueError('Provide a sub-command. Use "./shuffler.py -h" for options.')
+
 # Go thourgh the pipeline.
-print(args.func.__name__)
+print('=== %s ===' % args.func.__name__)
 args.func(cursor, args)
 for argv_split in argv_splits[1:]:
   args = parser.parse_args(argv_split)
   args.rootdir = rootdir  # This is the only argument that is used in all subcommands.
-  print(args.func.__name__)
+  print('=== %s ===' % args.func.__name__)
   args.func(cursor, args)
 
 if do_commit:
