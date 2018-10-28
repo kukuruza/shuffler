@@ -120,6 +120,7 @@ class VideoWriter:
     self.fps = fps
     self.fourcc = fourcc
     self.rootdir = rootdir
+    logging.info('Rootdir set to "%s"' % rootdir)
 
   def _openVideo (self, ref_frame, ismask):
     ''' open a video for writing with parameters from the reference video (from reader) '''
@@ -164,7 +165,7 @@ class VideoWriter:
     self.image_writer.write(image[:,:,::-1])
     # return recorded imagefile
     self.image_current_frame += 1
-    return '%s/%06d' % (op.splitext(self.vimagefile)[0], self.image_current_frame)
+    return op.relpath('%s/%06d' % (op.splitext(self.vimagefile)[0], self.image_current_frame), self.rootdir)
 
   def maskwrite (self, mask):
     assert self.vmaskfile is not None
@@ -180,7 +181,7 @@ class VideoWriter:
     self.mask_writer.write(mask)
     # return recorded imagefile
     self.mask_current_frame += 1
-    return '%s/%06d' % (op.splitext(self.vmaskfile)[0], self.mask_current_frame)
+    return op.relpath('%s/%06d' % (op.splitext(self.vmaskfile)[0], self.mask_current_frame), self.rootdir)
 
   def close (self):
     if self.image_writer is not None: 

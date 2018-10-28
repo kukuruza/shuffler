@@ -259,13 +259,18 @@ def dumpDbParser(subparsers):
     choices=['images', 'objects', 'properties', 'polygons', 'matches'],
     default=['images', 'objects', 'properties', 'polygons', 'matches'],
     help='Tables to print out, all by default.')
+  parser.add_argument('--limit', type=int,
+    help='How many entries.')
   parser.set_defaults(func=dumpDb)
 
 def dumpDb (c, args):
   
   def _dumpTable(tablename):
     print('Table: "%s":' % tablename)
-    c.execute('SELECT * FROM %s' % tablename)
+    if args.limit:
+      c.execute('SELECT * FROM %s LIMIT %d' % (tablename, args.limit))
+    else:
+      c.execute('SELECT * FROM %s' % tablename)
     for entry in c.fetchall():
       print(entry)
 

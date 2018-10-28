@@ -132,7 +132,7 @@ def objectField (entry, field):
       return None
     else:
       bbox = list(entry[2:6])
-      return [bbox[1], bbox[0], bbox[3]+bbox[1]-1, bbox[2]+bbox[0]-1]
+      return [bbox[1], bbox[0], bbox[3]+bbox[1], bbox[2]+bbox[0]]
   raise KeyError('No field "%s" in object entry %s' % (field, entry))
 
 def imageField (entry, field):

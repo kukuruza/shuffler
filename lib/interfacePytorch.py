@@ -114,6 +114,7 @@ class ObjectsDataset:
     mask = self.imreader.maskread(maskfile) if maskfile is not None else None
 
     roi = objectField(object_entry, 'roi')
+    logging.debug('Roi: %s' % roi)
     img = img[roi[0]:roi[2], roi[1]:roi[3]]
     mask = mask[roi[0]:roi[2], roi[1]:roi[3]] if mask is not None else None
 
