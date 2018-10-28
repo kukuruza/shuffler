@@ -10,7 +10,7 @@ from pkg_resources import parse_version
 
 def getPictureSize(imagepath):
   if not op.exists (imagepath):
-    raise FileNotFoundError ('Image does not exist at path: "%s"' % imagepath)
+    raise ValueError('Image does not exist at path: "%s"' % imagepath)
   im = Image.open(imagepath)
   width, height = im.size
   return height, width
@@ -41,7 +41,7 @@ class VideoReader:
     logging.debug ('opening video: %s' % videopath)
     videopath = op.join(self.rootdir, videopath)
     if not op.exists(videopath):
-      raise FileNotFoundError('videopath does not exist: %s' % videopath)
+      raise ValueError('videopath does not exist: %s' % videopath)
     handle = cv2.VideoCapture(videopath)  # open video
     if not handle.isOpened():
         raise ValueError('video failed to open: %s' % videopath)
@@ -120,6 +120,7 @@ class VideoWriter:
     self.fps = fps
     self.fourcc = fourcc
     self.rootdir = rootdir
+    logging.info('Rootdir set to "%s"' % rootdir)
 
   def _openVideo (self, ref_frame, ismask):
     ''' open a video for writing with parameters from the reference video (from reader) '''
@@ -164,7 +165,7 @@ class VideoWriter:
     self.image_writer.write(image[:,:,::-1])
     # return recorded imagefile
     self.image_current_frame += 1
-    return '%s/%06d' % (op.splitext(self.vimagefile)[0], self.image_current_frame)
+    return op.relpath('%s/%06d' % (op.splitext(self.vimagefile)[0], self.image_current_frame), self.rootdir)
 
   def maskwrite (self, mask):
     assert self.vmaskfile is not None
@@ -180,7 +181,7 @@ class VideoWriter:
     self.mask_writer.write(mask)
     # return recorded imagefile
     self.mask_current_frame += 1
-    return '%s/%06d' % (op.splitext(self.vmaskfile)[0], self.mask_current_frame)
+    return op.relpath('%s/%06d' % (op.splitext(self.vmaskfile)[0], self.mask_current_frame), self.rootdir)
 
   def close (self):
     if self.image_writer is not None: 
@@ -200,7 +201,7 @@ class PictureReader:
     imagepath = op.join(self.rootdir, image_id)
     logging.debug ('imagepath: %s, rootdir: %s' % (imagepath, self.rootdir))
     if not op.exists (imagepath):
-      raise FileNotFoundError ('Image does not exist at path: "%s"' % imagepath)
+      raise ValueError('Image does not exist at path: "%s"' % imagepath)
     try:
       return imageio.imread(imagepath)
     except ValueError:
@@ -278,8 +279,8 @@ class ImageryReader:
     except Exception as e:
       logging.debug('Seems like it is not a video. Exception: "%s"' % e)
 
-    raise TypeError('The provided image_id "%s" does not seem to refer to '
-      'either picture file or video frame.' % image_id)
+    raise TypeError('The provided image_id "%s" with rootdir "%s" does not seem to refer to '
+      'either picture file or video frame.' % (image_id, self.rootdir))
 
   def maskread(self, mask_id):
     if self.reader is not None:

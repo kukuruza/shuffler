@@ -3,9 +3,12 @@ A toolbox for manipulating image annotations in computer vision
 
 ## Installation (using conda)
 
+Shuffler is written in Python3. The installation instructions assume Conda package management system.
+
 ```bash
 conda install imageio matplotlib lxml simplejson progressbar2 Pillow scipy
-conda install -c menpo opencv
+conda install -c conda-forge ffmpeg=4.0  # If you want the support of datasets stored as video.
+conda install opencv=3.4.2  # Require opencv3.
 ```
 
 #### Add support for plotting commands
@@ -17,6 +20,35 @@ conda install pandas seaborn
 ```bash
 conda install nose scikit-image
 ```
+
+
+
+## Use cases
+
+
+#### Want to combine ITTI and PASCAL VOC 2012 datasets into one
+
+We work on object detection task, and want to use as many annotated images as possible. Therefore, we want to combine available datasets.
+
+#### Import from Labelme, multiple annotators worked on the same object
+
+We had images with objects. Images were given out to annotators who use LabelMeAnootationTool. Each object was annotated with polygons by multiple annotator (for cross-validation). The task is to 1) import labels from all annotators, 2) cluster polygons into a single object, 3) make grayscale image masks, where gray area is inside some polygons, but outside others.
+
+#### Evaluate semantic segmentation
+
+A neural network was trained to perform a semantic segmentation of images. We have a directory with ground truth masks and a directory with predicted masks. We would like to 1) evaluate the results, 2) write a video with images and their predicted segmentation masks side-by-side.
+
+#### Prepare a subset of objects for training for object detection
+
+We have a dataset with objects given as bounding boxes. We would like to remove objects on image boundary, expand bounding boxes by 10% for better training, remove objects of all types except "car", "bus", and "truck", and to remove objects smaller than 30 pixels wide. We would lile to use that subset for training.
+
+#### Evaluate object detection on a subset of objects
+
+In the previous use case we removed some objects for our object detection training task. Now we want to evaluate the trained model. We expect our model to detect only big objects, but we don't want to count it as a false positive if it detects a tiny object either.
+
+#### Writing images with image crops of individual object
+
+We have images with objects. Images have masks with those objects. We would like to crop out objects with name "car" bigger than 32 pixels wide, stretch the crops to 64x64 pixels and write a new dataset of images (and the correspodning masks)
 
 
 
@@ -288,30 +320,6 @@ Sub-commands can be chained via the special symbol "\|" (here, the backslash esc
   dumpDb --tables objects polygons \| \
   examineImages --mask_aside
 ```
-
-
-### Use cases
-
-
-#### Import from Labelme, multiple annotators worked on the same object
-
-We had images with objects. Images were given out to annotators who use LabelMeAnootationTool. Each object was annotated with polygons by multiple annotator (for cross-validation). The task is to 1) import labels from all annotators, 2) cluster polygons into a single object, 3) make grayscale image masks, where gray area is inside some polygons, but outside others.
-
-#### Evaluate semantic segmentation
-
-A neural network was trained to perform a semantic segmentation of images. We have a directory with ground truth masks and a directory with predicted masks. We would like to 1) evaluate the results, 2) write a video with images and their predicted segmentation masks side-by-side.
-
-#### Prepare a subset of objects for training for object detection
-
-We have a dataset with objects given as bounding boxes. We would like to remove objects on image boundary, expand bounding boxes by 10% for better training, remove objects of all types except "car", "bus", and "truck", and to remove objects smaller than 30 pixels wide. We would lile to use that subset for training.
-
-#### Evaluate object detection on a subset of objects
-
-In the previous use case we removed some objects for our object detection training task. Now we want to evaluate the trained model. We expect our model to detect only big objects, but we don't want to count it as a false positive if it detects a tiny object either.
-
-#### Writing images with image crops of individual object
-
-We have images with objects. Images have masks with those objects. We would like to crop out objects with name "car" bigger than 32 pixels wide, stretch the crops to 64x64 pixels and write a new dataset of images (and the correspodning masks)
 
 
 ## Testing code

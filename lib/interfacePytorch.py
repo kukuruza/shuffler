@@ -16,7 +16,11 @@ class ImagesDataset(Dataset):
   def __init__(self, db_file, rootdir='.', where_image='TRUE', where_object='TRUE'):
     from torch.utils.data import Dataset
 
-    self.conn = sqlite3.connect('file:%s?mode=ro' % db_file, uri=True)
+    try:
+      self.conn = sqlite3.connect('file:%s?mode=ro' % db_file, uri=True)
+    except TypeError:
+      logging.info('This Python version does not support connecting to SQLite by uri.')
+      self.conn = sqlite3.connect(db_file)
     self.c = self.conn.cursor()
     self.c.execute('SELECT * FROM images WHERE %s ORDER BY imagefile' % where_image)
     self.image_entries = self.c.fetchall()
@@ -67,7 +71,11 @@ class ObjectsDataset:
 
   def __init__(self, db_file, rootdir='.', where_object='TRUE'):
 
-    self.conn = sqlite3.connect('file:%s?mode=ro' % db_file, uri=True)
+    try:
+      self.conn = sqlite3.connect('file:%s?mode=ro' % db_file, uri=True)
+    except TypeError:
+      logging.info('This Python version does not support connecting to SQLite by uri.')
+      self.conn = sqlite3.connect(db_file)
     self.c = self.conn.cursor()
     self.c.execute('SELECT * FROM objects WHERE %s ORDER BY objectid' % where_object)
     self.object_entries = self.c.fetchall()
@@ -106,6 +114,7 @@ class ObjectsDataset:
     mask = self.imreader.maskread(maskfile) if maskfile is not None else None
 
     roi = objectField(object_entry, 'roi')
+    logging.debug('Roi: %s' % roi)
     img = img[roi[0]:roi[2], roi[1]:roi[3]]
     mask = mask[roi[0]:roi[2], roi[1]:roi[3]] if mask is not None else None
 
