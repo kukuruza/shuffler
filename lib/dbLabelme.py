@@ -173,8 +173,6 @@ def importLabelmeObjects(c, args):
     c.execute('SELECT height,width FROM images WHERE imagefile=?', (imagefile,))
     shape = (height,width) = c.fetchone()
     roi = [min(ys), min(xs), max(ys), max(xs)]
-    if _isOutOfBorders(roi, shape):
-      logging.warning ('roi %s out of borders: %s' % (str(roi), str(shape)))
 
     # Filter out degenerate polygons
     if _isPolygonDegenerate(xs, ys):

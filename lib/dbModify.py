@@ -318,7 +318,7 @@ def splitDbParser(subparsers):
   parser.add_argument('--out_dir', default='.',
     help='Common directory for all output databases')
   parser.add_argument('--out_names', required=True, nargs='+',
-    help='Output database names.')
+    help='Output database names with ".db" extension.')
   parser.add_argument('--out_fractions', required=True, nargs='+', type=float,
     help='Fractions to put to each output db. '
     'If sums to >1, last databases will be underfilled.')
@@ -342,7 +342,7 @@ def splitDb (c, args):
     # Create a database, and connect to it.
     # Not using ATTACH, because I don't want to commit to the open database.
     logging.info('Writing %d images to %s' % (num_images_in_set, db_out_name))
-    db_out_path = op.join(args.out_dir, '%s.db' % db_out_name)
+    db_out_path = op.join(args.out_dir, db_out_name)
     if op.exists(db_out_path):
       os.remove(db_out_path)
     conn_out = sqlite3.connect(db_out_path)
@@ -453,55 +453,6 @@ def mergeObjectDuplicates (c, args):
       if c.fetchone()[0] > 0:
         raise NotImplementedError('Marging matches table not implemented yet.')
 
-
-
-def polygonsToMasksParser(subparsers):
-  parser = subparsers.add_parser('polygonsToMasks',
-    description='Convert polygons in db to mask video.' +
-    'If there is not polygons for any car in an image, an empty mask is written.')
-  parser.set_defaults(func=polygonsToMasks)
-  parser.add_argument('--mask_name', default='mask-poly.avi')
-  parser.add_argument('--normalize_if_multiple_polygons', action='store_true')
-  parser.add_argument('--write_null_mask_entries', action='store_true',
-    help='Write null when there is no new mask.')
-  parser.add_argument('--overwrite_video', action='store_true',
-    help='Overwrte mask video istead of throwing an exception.')
-    
-def polygonsToMasks (c, args):
-
-  # Assume mask field is null. Deduce the out mask name from imagefile.
-  c.execute('SELECT imagefile,width,height FROM images')
-  image_entries = c.fetchall()
-  in_image_video_file = '%s.avi' % op.dirname(image_entries[0][0])
-  out_video_file = '%s/%s' % (op.dirname(in_image_video_file), args.mask_name)
-  logging.info ('polygonsToMasks: in_image_video_file: %s' % in_image_video_file)
-  logging.info ('polygonsToMasks: out_video_file: %s' % out_video_file)
-
-  video_writer = SimpleWriter(vmaskfile=out_video_file, unsafe=args.overwrite_video)
-
-  count = 0
-  for imagefile, width, height in ProgressBar()(image_entries):
-    
-    logging.debug('imagefile: "%s"' % imagefile)
-    mask = np.zeros((height, width), dtype=np.uint8)
-    c.execute('SELECT id FROM cars WHERE imagefile=? INTERSECT SELECT carid FROM polygons', (imagefile,))
-    carids = c.fetchall()
-    logging.debug('found %d cars with polygons for this imagefile' % len(carids))
-    for carid, in carids:
-      c.execute('SELECT x,y FROM polygons WHERE carid = ?', (carid,))
-      polygon_entries = c.fetchall()
-      pts = [[pt[0], pt[1]] for pt in polygon_entries]
-      cv2.fillConvexPoly(mask, np.asarray(pts, dtype=np.int32), 255)
-    mask = mask > 0
-    maskfile = video_writer.maskwrite (mask)
-    if len(carids) > 0:
-      logging.debug('imagefile has polygons: "%s"' % imagefile)
-      count += 1
-      c.execute('UPDATE images SET maskfile=? WHERE imagefile=?', (maskfile, imagefile))
-    elif args.write_null_mask_entries:
-      c.execute('UPDATE images SET maskfile=? WHERE imagefile=?', (None, imagefile))
-  
-  logging.info('Found %d images with polygons.' % count)
 
 
 def polygonsToMaskParser(subparsers):
