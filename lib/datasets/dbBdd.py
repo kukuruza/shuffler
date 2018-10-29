@@ -102,6 +102,7 @@ def importBdd (c, args):
   if args.detection_json:
     if not op.exists(args.detection_json):
       raise FileNotFoundError('Annotation file not found at "%s".' % args.detection_json)
+    logging.info('Loading the json with annotations. This may take a few seconds.')
     with open(args.detection_json) as f:
       detections = json.load(f)
       detections = {d['name']: d for d in detections}  # Dict with image name as the key.
@@ -123,13 +124,16 @@ def importBdd (c, args):
     if args.detection_json:
       imagename = op.basename(imagefile)
       if imagename not in detections:
-        raise ValueError('Cant find image name "%s" in detection json.' % imagename)
+        logging.error('Cant find image name "%s" in detection json.' % imagename)
+        continue
+
       detections_for_image = detections[imagename]
       image_properties = detections_for_image['attributes']
       for object_ in detections_for_image['labels']:
+
         object_bddid = object_['id']
         object_name = object_['category']
-        object_properties = object_['attributes']
+        object_properties = {key: value for key, value in object_['attributes'].items() if value != 'none'}
         object_properties.update(image_properties)
 
         # Skip 3d object. TODO: import it to properties.

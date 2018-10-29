@@ -8,6 +8,7 @@ from glob import glob
 from pprint import pformat
 from datetime import datetime
 from progressbar import progressbar
+from ast import literal_eval
 
 from .backendDb import makeTimeString, deleteImage, objectField, createDb
 from .backendImages import getVideoLength, getPictureSize, ImageryReader, VideoWriter, PictureWriter
@@ -26,6 +27,7 @@ def add_parsers(subparsers):
   addDbParser(subparsers)
   splitDbParser(subparsers)
   mergeObjectDuplicatesParser(subparsers)
+  renameObjectsParser(subparsers)
   polygonsToMaskParser(subparsers)
 
 
@@ -452,6 +454,36 @@ def mergeObjectDuplicates (c, args):
       c.execute('SELECT COUNT(1) FROM matches WHERE objectid IN (%s)' % objectids_list_but1)
       if c.fetchone()[0] > 0:
         raise NotImplementedError('Marging matches table not implemented yet.')
+
+
+
+def renameObjectsParser(subparsers):
+  parser = subparsers.add_parser('renameObjects',
+    description='Map object names. '
+    'Can be used to make an imported dataset compatible with the database.')
+  parser.set_defaults(func=renameObjects)
+  parser.add_argument('--names_dict', required=True,
+    help='Map from old names to new names. E.g. {"Car": "car", "Truck": "car"}')
+  parser.add_argument('--where_object', default='TRUE',
+    help='SQL "where" clause for the "objects" table.')
+  parser.add_argument('--discard_other_objects', action='store_true',
+    help='Discard objects with names not in the keys or the values of "names_dict".')
+
+def renameObjects (c, args):
+  namesmap = literal_eval(args.names_dict)
+
+  # Maybe delete other objects.
+  if args.discard_other_objects:
+    c.execute('SELECT objectid FROM objects WHERE name NOT IN (%s) AND (%s)' %
+      (namesmap.keys() + namesmap.values(), args.where_object))
+    other_objectids = c.fetchall()
+    logging.info('Will delete %d objects with names not in the map.')
+    for objectid, in other_objectids:
+      deleteObject(c, objectid)
+
+  # Remap the rest.
+  for key, value in namesmap.items():
+    c.execute('UPDATE objects SET name=? WHERE name=? AND (%s)' % args.where_object, (value, key))
 
 
 

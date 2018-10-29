@@ -241,7 +241,7 @@ def filterObjectsByNameParser(subparsers):
 
 def filterObjectsByName (c, args):
   good_names = ','.join(['"%s"' % x for x in args.good_names])
-  logging.info('Will keep the folllowing object names: %s' % pformat(good_names))
+  logging.info('Will keep the following object names: %s' % pformat(good_names))
   c.execute('SELECT objectid FROM objects WHERE name NOT IN (%s)' % good_names)
   for objectid, in progressbar(c.fetchall()):
     deleteObject(c, objectid)

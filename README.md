@@ -266,24 +266,31 @@ filterObjectsByIntersection --with_display
 
 #### Import LabelMe
 ```bash
+# Import LabelMe.
 ./shuffler.py --rootdir '.' \
   -i 'test/labelme/init.db' \
   importLabelme --annotations_dir 'test/labelme/w55-e04-images1'
 
+# Import LabelMe, objects by ids.
 ./shuffler.py --rootdir '.' \
   -i test/labelme/init.db \
   importLabelmeObjects --annotations_dir test/labelme/w55-e04-objects1 \
   --keep_original_object_name --polygon_name objects1
-```
 
-### Import Pascal
-```bash
-./shuffler.py --rootdir ${VOC2012} \
+# Import Pascal.
+./shuffler.py --rootdir '.' \
   -o '/tmp/pascal.db' \
   importPascalVoc2012 \
   --images_dir ${VOC2012}/JPEGImages \
   --detection_dir ${VOC2012}/Annotations \
   --segmentation_dir ${VOC2012}/SegmentationClass
+
+# Import BDD.
+./shuffler.py  --rootdir '.' \
+  -o '/tmp/bdd100k_train.db' \
+  importBdd \
+  --images_dir ${BDD}/bdd100k/images/100k/train \
+  --detection_json ${BDD}/bdd100k/labels/bdd100k_labels_images_train.json
 ```
 
 ### Chaining commands
