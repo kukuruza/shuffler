@@ -11,8 +11,8 @@ from progressbar import progressbar
 from pprint import pformat
 import re
 
-from .backendImages import ImageryReader, getPictureSize
-from .util import drawScoredRoi, drawScoredPolygon, drawMaskAside, bbox2roi
+from ..backendImages import ImageryReader, getPictureSize
+from ..util import drawScoredRoi, drawScoredPolygon, drawMaskAside, bbox2roi
 
 
 def add_parsers(subparsers):

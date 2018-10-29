@@ -93,8 +93,6 @@ def drawScoredPolygon (img, polygon, label=None, score=None):
   Returns:
     Nothing, img is changed in-place
   '''
-  assert len(polygon) > 2, polygon
-  
   if label is None: label = ''
   if score is None:
     score = 1

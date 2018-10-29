@@ -1,38 +1,17 @@
 # shuffler
-A toolbox for manipulating image annotations in computer vision
-
-## Installation (using conda)
-
-Shuffler is written in Python3. The installation instructions assume Conda package management system.
-
-```bash
-conda install imageio matplotlib lxml simplejson progressbar2 Pillow scipy
-conda install -c conda-forge ffmpeg=4.0  # If you want the support of datasets stored as video.
-conda install opencv=3.4.2  # Require opencv3.
-```
-
-#### Add support for plotting commands
-```bash
-conda install pandas seaborn
-```
-
-#### With support for unit tests
-```bash
-conda install nose scikit-image
-```
+A toolbox for manipulating image annotations in computer vision. Example use cases below.
 
 
+## Example use cases
 
-## Use cases
 
+#### A user wants to combine [KITTI](http://www.cvlibs.net/datasets/kitti), [BDD](https://bair.berkeley.edu/blog/2018/05/30/bdd), and [PASCAL VOC 2012](http://host.robots.ox.ac.uk/pascal/VOC) datasets into one.
 
-#### Want to combine ITTI and PASCAL VOC 2012 datasets into one
+A user works on object detection tasks for the autonomous car scenario, and would like to use as many annotated images as possible. In particular, they aim to combine certain classes from the datasets KITTI, BDD, and PASCAL VOC 2012. Then the combined dataset should be exported to a TF-friendly format.
 
-We work on object detection task, and want to use as many annotated images as possible. Therefore, we want to combine available datasets.
+#### Import from [LabelMe](http://labelme.csail.mit.edu/Release3.0), each image is labelled by multiple annotators. [Go to code.](#import-from-labelme)
 
-#### Import from Labelme, multiple annotators worked on the same object
-
-We had images with objects. Images were given out to annotators who use LabelMeAnootationTool. Each object was annotated with polygons by multiple annotator (for cross-validation). The task is to 1) import labels from all annotators, 2) cluster polygons into a single object, 3) make grayscale image masks, where gray area is inside some polygons, but outside others.
+A user has collected a dataset of images with objects. Images were handed out to annotators who use LabelMeAnootationTool. Each image was annotated with polygons by multiple annotators for the purposes of cross-validation. A user would like to to 1) import labels from all annotators, 2) merge polygons corresponding to the same object, 3) make black-gray-white image masks, where the gray area marks the inconsistency among annotators.
 
 #### Evaluate semantic segmentation
 
@@ -50,6 +29,25 @@ In the previous use case we removed some objects for our object detection traini
 
 We have images with objects. Images have masks with those objects. We would like to crop out objects with name "car" bigger than 32 pixels wide, stretch the crops to 64x64 pixels and write a new dataset of images (and the correspodning masks)
 
+
+
+## Installation (using conda)
+
+Shuffler is written in Python3. The installation instructions assume Conda package management system.
+
+```bash
+conda install imageio matplotlib lxml simplejson progressbar2 Pillow scipy
+conda install opencv=3.4.2  # Require opencv3.
+
+# Add support for datasets stored as video.
+conda install -c conda-forge ffmpeg=4.0
+
+# Add support for plotting commands
+conda install pandas seaborn
+
+# Add support for unit tests
+conda install nose scikit-image
+```
 
 
 ## Commands
@@ -305,7 +303,13 @@ Sub-commands can be chained via the special symbol "\|" (here, the backslash esc
   polygonsToMask --mask_pictures_dir 'cars/mask_polygons' --skip_empty_masks \| \
   dumpDb --tables images \| \
   examineImages --mask_alpha 0.5
+```
 
+## Code for the use cases
+
+#### <a import-from-labelme>Import from LabelMe, each image is labelled by multiple annotators.</a>
+
+```bash
 ./shuffler.py --rootdir '.' -i 'test/labelme/init.db' \
   importLabelmeObjects --annotations_dir 'test/labelme/w55-e04-objects1' \
   --keep_original_object_name --polygon_name annotator1 \| \

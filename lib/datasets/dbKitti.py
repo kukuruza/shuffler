@@ -9,9 +9,9 @@ import sqlite3
 from progressbar import progressbar
 from pprint import pformat
 
-from .backendDb import objectField
-from .backendImages import ImageryReader, getPictureSize
-from .util import drawScoredRoi, drawMaskAside
+from ..backendDb import objectField
+from ..backendImages import ImageryReader, getPictureSize
+from ..util import drawScoredRoi, drawMaskAside
 
 
 def add_parsers(subparsers):
@@ -150,7 +150,7 @@ def _parseObject(c, line, imagefile):
 
 def importKittiParser(subparsers):
   parser = subparsers.add_parser('importKitti',
-    description='Import labelme annotations for a db. '
+    description='Import KITTI annotations into a db. '
     'Note that the bounding box is stored as integer, and the decimal part is lost.')
   parser.set_defaults(func=importKitti)
   parser.add_argument('--images_dir', required=True,

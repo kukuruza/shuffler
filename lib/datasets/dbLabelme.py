@@ -11,8 +11,8 @@ from progressbar import progressbar
 from pprint import pformat
 import re
 
-from .backendImages import ImageryReader
-from .util import drawScoredPolygon
+from ..backendImages import ImageryReader
+from ..util import drawScoredPolygon
 
 
 def add_parsers(subparsers):
