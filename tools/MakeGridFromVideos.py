@@ -35,14 +35,15 @@ def MakeGridFromVideos(args):
     image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB) if len(image.shape) == 2 else image
     scale = float(args.imwidth) / image.shape[1]
     image = cv2.resize(image, dsize=(0,0), fx=scale, fy=scale)
+    image = image[:,:,::-1]  # VideoWriter changes RGB to GBR.
     return image
 
   handles = [cv2.VideoCapture(path) for path in args.in_video_paths]
-  num_frames = 0
+  num_frames = 100000000
   for i, handle in enumerate(handles):
     if not handle:
       raise ValueError('Video failed to open: "%s"' % args.in_video_paths[i])
-    num_frames = max(num_frames, getVideoLength(handle))
+    num_frames = min(num_frames, getVideoLength(handle))
 
   for i in progressbar.progressbar(range(num_frames)):
     rets, images = zip(*[handle.read() for handle in handles])

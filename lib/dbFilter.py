@@ -19,6 +19,7 @@ def add_parsers(subparsers):
   filterEmptyImagesParser(subparsers)
   filterObjectsByScoreParser(subparsers)
   filterObjectsSQLParser(subparsers)
+  filterImagesSQLParser(subparsers)
 
 
 def filterImagesOfAnotherDbParser(subparsers):
@@ -272,7 +273,7 @@ def filterObjectsByScore (c, args):
 
 def filterObjectsSQLParser(subparsers):
   parser = subparsers.add_parser('filterObjectsSQL',
-    description='Delete objects not matching image_constraint and car_constraint.')
+    description='Delete objects based on the SQL "where" clause.')
   parser.set_defaults(func=filterObjectsSQL)
   group = parser.add_mutually_exclusive_group()
   group.add_argument('--where',
@@ -282,16 +283,40 @@ def filterObjectsSQLParser(subparsers):
 
 def filterObjectsSQL (c, args):
   c.execute('SELECT COUNT(1) FROM objects')
-  logging.info('Before filtering have %d objects.' % len(c.fetchall()))
+  logging.info('Before filtering have %d objects.' % c.fetchone()[0])
 
   if args.where:
     c.execute('SELECT objects.objectid FROM objects '
               'INNER JOIN images ON images.imagefile=objects.imagefile '
               'INNER JOIN properties ON objects.objectid=properties.objectid '
               'WHERE (%s)' % args.where)
-  if args.sql:
+  elif args.sql:
     c.execute(args.sql)
 
   objectids = c.fetchall()
   for objectid, in progressbar(objectids):
     deleteObject(c, objectid)
+
+
+def filterImagesSQLParser(subparsers):
+  parser = subparsers.add_parser('filterImagesSQL',
+    description='Delete images (and their objects) based on the SQL "where_image" clause.')
+  parser.set_defaults(func=filterImagesSQL)
+  group = parser.add_mutually_exclusive_group()
+  group.add_argument('--where_image',
+    help='the SQL "where_image" clause for the image table.')
+  group.add_argument('--sql',
+    help='an arbitrary SQL clause that should query "imagefile"')
+
+def filterImagesSQL (c, args):
+  c.execute('SELECT COUNT(1) FROM images')
+  logging.info('Before filtering have %d images.' % c.fetchone()[0])
+
+  if args.where_image:
+    c.execute('SELECT imagefile FROM images WHERE (%s)' % args.where_image)
+  elif args.sql:
+    c.execute(args.sql)
+
+  imagefiles = c.fetchall()
+  for imagefile, in progressbar(imagefiles):
+    deleteImage(c, imagefile)

@@ -227,7 +227,7 @@ def writeImagesParser(subparsers):
     help='the video file where to write mask crops to.')
   parser.add_argument('--mask_mapping_dict', 
     help='how values in maskfile are drawn. E.g. "{0: [0,0,0], 255: [128,128,30]}"')
-  parser.add_argument('--mask_alpha', type=float, default=0.2,
+  parser.add_argument('--mask_alpha', type=float, default=0.0,
     help='transparency to overlay the label mask with, 1 means cant see the image behind the mask.')
   parser.add_argument('--with_imageid', action='store_true', help='print frame number.')
   parser.add_argument('--with_objects', action='store_true', help='draw objects on top.')
@@ -257,7 +257,7 @@ def writeImages (c, args):
   logging.info('Writing imagery and updating the database.')
   for imagefile, maskfile in progressbar(entries):
 
-    logging.info ('Imagefile "%s"' % imagefile)
+    logging.debug ('Imagefile "%s"' % imagefile)
     image = imreader.imread(imagefile)
 
     # Overlay the mask.
@@ -266,7 +266,7 @@ def writeImages (c, args):
       image = drawMaskOnImage(image, mask, alpha=args.mask_alpha, labelmap=labelmap)
     else:
       mask = None
-      logging.info('No mask for this image.')
+      logging.debug('No mask for this image.')
 
     # Overlay imagefile.
     if args.with_imageid:
@@ -303,18 +303,18 @@ def writeImages (c, args):
 
     # Write mask.
     if mask is not None and args.mask_video_file:
-      new_maskfile = imwriter.maskwrite(mask)
+      maskfile_new = imwriter.maskwrite(mask)
     elif mask is not None and args.mask_pictures_dir:
       maskname = op.basename(maskfile)
       if not op.splitext(maskname)[1]:  # Add the extension, if there was None.
         maskname = '%s.png' % maskname
-      new_maskfile = op.join(args.mask_pictures_dir, maskname)
+      maskfile_new = op.join(args.mask_pictures_dir, maskname)
       imwriter.imwrite(maskfile, mask)
     else:
-      new_maskfile = None
+      maskfile_new = None
 
     # Update the database entry.
-    if new_maskfile is not None:
+    if maskfile_new is not None:
       c.execute('UPDATE images SET imagefile=?, maskfile=? WHERE imagefile=?',
         (imagefile_new,maskfile_new,imagefile))
     else:
