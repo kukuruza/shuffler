@@ -5,11 +5,11 @@ A toolbox for manipulating image annotations in computer vision. Example use cas
 ## Example use cases
 
 
-#### A user wants to combine [KITTI](http://www.cvlibs.net/datasets/kitti), [BDD](https://bair.berkeley.edu/blog/2018/05/30/bdd), and [PASCAL VOC 2012](http://host.robots.ox.ac.uk/pascal/VOC) datasets into one.
+#### A user wants to combine [KITTI](http://www.cvlibs.net/datasets/kitti), [BDD](https://bair.berkeley.edu/blog/2018/05/30/bdd), and [PASCAL VOC 2012](http://host.robots.ox.ac.uk/pascal/VOC) datasets into one ([link to code](#combine-datasets).)
 
 A user works on object detection tasks for the autonomous car scenario, and would like to use as many annotated images as possible. In particular, they aim to combine certain classes from the datasets KITTI, BDD, and PASCAL VOC 2012. Then the combined dataset should be exported to a TF-friendly format.
 
-#### Import from [LabelMe](http://labelme.csail.mit.edu/Release3.0), each image is labelled by multiple annotators. [Go to code.](#import-from-labelme)
+#### Import from [LabelMe](http://labelme.csail.mit.edu/Release3.0), each image is labelled by multiple annotators ([link to code](#import-from-labelme).)
 
 A user has collected a dataset of images with objects. Images were handed out to annotators who use LabelMeAnootationTool. Each image was annotated with polygons by multiple annotators for the purposes of cross-validation. A user would like to to 1) import labels from all annotators, 2) merge polygons corresponding to the same object, 3) make black-gray-white image masks, where the gray area marks the inconsistency among annotators.
 
@@ -314,7 +314,20 @@ Sub-commands can be chained via the special symbol "\|" (here, the backslash esc
 
 ## Code for the use cases
 
-#### <a import-from-labelme>Import from LabelMe, each image is labelled by multiple annotators.</a>
+#### <a name="combine-datasets">Combine KITTI, BDD, and PASCAL VOC 2012 datasets into one</a>
+
+```bash
+KITTI=/path/to/directory/KITTI
+VOC2012=/path/to/directory/VOC2012
+
+./shuffler.py --rootdir ${KITTI} \
+  -o '/tmp/kitti.db' \
+  importKitti \
+  --images_dir=${KITTI}/data_semantics/training/image_2  \
+  --detection_dir=${KITTI}/data_object_image_2/training/label_2
+```
+
+#### <a name="import-from-labelme">Import from LabelMe, each image is labelled by multiple annotators.</a>
 
 ```bash
 ./shuffler.py --rootdir '.' -i 'test/labelme/init.db' \
@@ -331,6 +344,8 @@ Sub-commands can be chained via the special symbol "\|" (here, the backslash esc
   dumpDb --tables objects polygons \| \
   examineImages --mask_aside
 ```
+
+
 
 
 ## Testing code
