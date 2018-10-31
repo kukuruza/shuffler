@@ -239,7 +239,16 @@ def _relabelMask(mask, labelmap):
   out = np.empty(shape=mask.shape, dtype=np.uint8)
   out[:] = np.nan
   for key in labelmap:
-    out[mask == key] = labelmap[key]
+    # Parse "<N" and ">N" (undocumented feature.)
+    if isinstance(key, str):
+      if key[0] == '<':
+        for k in range(int(key[1:])):
+          out[mask == k] = labelmap[key]
+      if key[0] == '>':
+        for k in range(int(key[1:]), 256):
+          out[mask == k] = labelmap[key]
+    else:
+      out[mask == key] = labelmap[key]
   return out
 
 def evaluateSegmentationIoUParser(subparsers):
