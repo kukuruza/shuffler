@@ -4,6 +4,8 @@ import imageio
 import logging
 import struct
 import cv2
+import traceback
+from pprint import pformat
 from PIL import Image
 from pkg_resources import parse_version
 
@@ -42,9 +44,7 @@ class VideoReader:
     videopath = op.join(self.rootdir, videopath)
     if not op.exists(videopath):
       raise ValueError('videopath does not exist: %s' % videopath)
-    handle = cv2.VideoCapture(videopath)  # open video
-    if not handle.isOpened():
-        raise ValueError('video failed to open: %s' % videopath)
+    handle = imageio.get_reader(videopath)
     return handle
 
   def readImpl (self, image_id, ismask):
@@ -64,13 +64,9 @@ class VideoReader:
       raise ValueError('frame_id is %d, but can not be negative.' % frame_id)
     logging.debug ('from image_id %s, got frame_id %d' % (image_id, frame_id))
     # read the frame
-    video_dict[videopath].set(capPropId('POS_FRAMES'), frame_id)
-    retval, img = video_dict[videopath].read()
-    if not retval:
-      if frame_id >= video_dict[videopath].get(capPropId('FRAME_COUNT')):
-        raise ValueError('frame_id %d exceeds the video length' % frame_id)
-      else:
-        raise Exception('could not read image_id %s' % image_id)
+    if frame_id >= video_dict[videopath].get_length():
+      raise ValueError('frame_id %d exceeds the video length' % frame_id)
+    img = video_dict[videopath].get_data(frame_id)
     # assign the dict back to where it was taken from
     if ismask: self.mask_video = video_dict 
     else: self.image_video = video_dict
@@ -270,14 +266,18 @@ class ImageryReader:
     try:
       self.reader = PictureReader(rootdir=self.rootdir)
       return self.reader.imread(image_id)
-    except Exception as e:
-      logging.debug('Seems like it is not a picture. Exception: "%s"' % e)
+    except Exception:
+      exc_type, exc_value, exc_traceback = sys.exc_info()
+      logging.debug(pformat(traceback.format_exception(exc_type, exc_value, exc_traceback)))
+      logging.debug('Seems like it is not a picture.')
 
     try:
       self.reader = VideoReader(rootdir=self.rootdir)
       return self.reader.imread(image_id)
-    except Exception as e:
-      logging.debug('Seems like it is not a video. Exception: "%s"' % e)
+    except Exception:
+      exc_type, exc_value, exc_traceback = sys.exc_info()
+      logging.debug(pformat(traceback.format_exception(exc_type, exc_value, exc_traceback)))
+      logging.debug('Seems like it is not a video.')
 
     raise TypeError('The provided image_id "%s" with rootdir "%s" does not seem to refer to '
       'either picture file or video frame.' % (image_id, self.rootdir))
