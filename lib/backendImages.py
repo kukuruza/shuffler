@@ -67,6 +67,7 @@ class VideoReader:
     if frame_id >= video_dict[videopath].get_length():
       raise ValueError('frame_id %d exceeds the video length' % frame_id)
     img = video_dict[videopath].get_data(frame_id)
+    img = np.asarray(img)
     # assign the dict back to where it was taken from
     if ismask: self.mask_video = video_dict 
     else: self.image_video = video_dict
