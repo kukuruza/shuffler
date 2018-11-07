@@ -78,7 +78,7 @@ class VideoReader:
     if image_id in self.image_cache: 
         logging.debug ('imread: found image in cache')
         return self.image_cache[image_id]  # get cached image if possible
-    image = self.readImpl (image_id, ismask=False)[:,:,::-1]
+    image = self.readImpl (image_id, ismask=False)
     logging.debug ('imread: new image, updating cache')
     self.image_cache = {image_id: image}   # currently only 1 image in the cache
     return image
