@@ -5,120 +5,33 @@ import logging
 from progressbar import progressbar
 from pprint import pformat
 from ast import literal_eval
+from datetime import timedelta
+from math import sqrt
 
-from .backendDb import objectField, polygonField, deleteImage
+from .backendDb import objectField, polygonField, deleteImage, parseTimeString, makeTimeString
 from .backendImages import ImageryReader, VideoWriter, PictureWriter
-from .util import drawImageId, drawMaskOnImage, cropPatch, bbox2roi
+from .util import drawTextOnImage, drawMaskOnImage, cropPatch, bbox2roi
 
 
 def add_parsers(subparsers):
   writeImagesParser(subparsers)
   cropObjectsParser(subparsers)
-
-
-# class DatasetWriter:
-#   ''' Write a new dataset (db and videos/pictures). '''
-
-#   def __init__(self, out_db_file, overwrite=False):
-
-#     db_name = op.splitext(op.basename(out_db_file))[0]
-#     if op.isabs(out_db_file):
-#       logging.info('DatasetWriter: considering "%s" as absolute path.' % out_db_file)
-#       out_dir = op.dirname(out_db_file)
-#       self.imagedir = db_name
-#       self.maskdir = self.imagedir + 'mask'
-#       vimagefile = op.join(out_dir, self.imagedir + '.avi')
-#       vmaskfile = op.join(out_dir, self.maskdir + '.avi')
-#       logging.info('DatasetWriter: imagedir is relative to db path: "%s"' % self.imagedir)
-#     else:
-#       logging.info('DatasetWriter: considering "%s" as relative to CITY_PATH.' % out_db_file)
-#       out_db_file = atcity(out_db_file)
-#       out_dir = op.dirname(out_db_file)
-#       self.imagedir = op.join(op.relpath(out_dir, os.getenv('CITY_PATH')), db_name)
-#       self.maskdir = self.imagedir + 'mask'
-#       vimagefile = op.abspath(op.join(os.getenv('CITY_PATH'), self.imagedir + '.avi'))
-#       vmaskfile = op.abspath(op.join(os.getenv('CITY_PATH'), self.maskdir + '.avi'))
-#       logging.info('DatasetWriter: imagedir is relative to CITY_PATH: "%s"' % self.imagedir)
-
-#     if not op.exists(out_dir):
-#       os.makedirs(out_dir)
-
-#     self.video_writer = SimpleWriter(vimagefile=vimagefile, vmaskfile=vmaskfile,
-#                                      unsafe=overwrite)
-
-#     if op.exists(out_db_file):
-#       if overwrite:
-#         os.remove(out_db_file)
-#       else:
-#         raise Exception('%s already exists. A mistake?' % out_db_file)
-#     self.conn = sqlite3.connect(out_db_file)
-#     self.c = self.conn.cursor()
-#     createDb(self.conn)
-
-#     self.i_image = -1
-
-#   def add_image(self, image, mask=None, timestamp=None):
-#     self.i_image += 1
-#     imagefile = op.join(self.imagedir, '%06d' % self.i_image)
-#     height, width = image.shape[0:2]
-#     if timestamp is None: timestamp = makeTimeString(datetime.now())
-#     maskfile = None if mask is None else op.join(self.maskdir, '%06d' % self.i_image)
-#     image_entry = (imagefile, width, height, maskfile, timestamp)
-
-#     s = 'images(imagefile,width,height,maskfile,time)'
-#     self.c.execute('INSERT INTO %s VALUES (?,?,?,?,?)' % s, image_entry)
-
-#     self.video_writer.imwrite(image)
-#     if mask is not None: self.video_writer.maskwrite(mask)
-
-#     return imagefile
-
-#   def add_car(self, car_entry):
-#     if len(car_entry) == 10:
-#       s = 'cars(imagefile,name,x1,y1,width,height,score,yaw,pitch,color)'
-#       logging.debug('Adding a new car %s' % str(car_entry))
-#       self.c.execute('INSERT INTO %s VALUES (?,?,?,?,?,?,?,?,?,?);' % s, car_entry)
-#       return self.c.lastrowid
-#     elif len(car_entry) == 11:
-#       s = 'cars(id,imagefile,name,x1,y1,width,height,score,yaw,pitch,color)'
-#       logging.debug('Adding a new car %s' % str(car_entry))
-#       self.c.execute('INSERT INTO %s VALUES (?,?,?,?,?,?,?,?,?,?,?);' % s, car_entry)
-#       return
-#     else:
-#       raise Exception('Wrong format of car_entry.')
-
-#   def add_match(self, car_id, match=None):
-#     if match is None:
-#       self.c.execute('SELECT MAX(match) FROM matches')
-#       match = self.c.fetchone()[0]
-#       match = match + 1 if match is not None else 0
-#     s = 'matches(match,carid)'
-#     logging.debug('Adding a new match %d for car_id %d' % (match, car_id))
-#     self.c.execute('INSERT INTO %s VALUES (?,?);' % s, (match, car_id))
-#     return match
-
-#   def close(self):
-#     self.conn.commit()
-#     self.conn.close()
+  imageGridByTimeParser(subparsers)
 
 
 
-def _createImageryWriter(image_video_file, image_pictures_dir, 
-  mask_video_file, mask_pictures_dir, rootdir, overwrite=None):
-  ''' Based on which arguments are None and whioch are not,
-  create either a PicturesWriter or VideoWriter.
+def _createImageryWriter(image_path, mask_path, media, rootdir, overwrite=None):
+  ''' Based on "media", create either a PicturesWriter or VideoWriter.
   '''
-  if image_video_file and mask_pictures_dir or image_pictures_dir and mask_video_file:
-    raise ValueError('Images and masks have to be the same media -- pictures or video')
-  elif image_video_file:
+  if media == 'video':
     return VideoWriter(rootdir=rootdir,
-      vimagefile=image_video_file, 
-      vmaskfile=mask_video_file,
+      vimagefile=image_path, 
+      vmaskfile=mask_path,
       overwrite=overwrite)
-  elif image_pictures_dir:
+  elif media == 'pictures':
     return PictureWriter(rootdir=rootdir)
   else:
-    raise ValueError('Specify either "image_video_file" or "image_pictures_dir".')
+    raise ValueError('"media" must be either "video" or "pictures", not %s' % media)
 
 
 def cropObjectsParser(subparsers):
@@ -126,16 +39,14 @@ def cropObjectsParser(subparsers):
     description='Crops object patches to pictures or video and saves their info as a db. '
     'All imagefiles and maskfiles in the db will be replaced with the crops, one per object.')
   parser.set_defaults(func=cropObjects)
-  imgroup = parser.add_mutually_exclusive_group()
-  imgroup.add_argument('--image_pictures_dir',
-    help='the directory where to write mask crop pictures to.')
-  imgroup.add_argument('--image_video_file',
-    help='the video file where to write image crops to.')
-  maskgroup = parser.add_mutually_exclusive_group()
-  maskgroup.add_argument('--mask_pictures_dir',
-    help='the directory where to write mask crop pictures to.')
-  maskgroup.add_argument('--mask_video_file',
-    help='the video file where to write mask crops to.')
+  parser.add_argument('--out_rootdir',
+    help='Specify, if rootdir changed for the output imagery.')
+  parser.add_argument('--media', choices=['pictures', 'video'], required=True,
+    help='output either a directory with pictures or a video file.')
+  parser.add_argument('--image_path', required=True,
+    help='the directory for pictures OR video file, where to write mask crop pictures.')
+  parser.add_argument('--mask_path',
+    help='the directory for pictures OR video file, where to write mask crop pictures.')
   parser.add_argument('--target_width', required=True, type=int)
   parser.add_argument('--target_height', required=True, type=int)
   parser.add_argument('--edges', default='distort',
@@ -148,21 +59,8 @@ def cropObjectsParser(subparsers):
 def cropObjects(c, args):
   imreader = ImageryReader(rootdir=args.rootdir)
 
-  imwriter = _createImageryWriter(args.image_video_file, args.image_pictures_dir, 
-    args.mask_video_file, args.mask_pictures_dir, args.rootdir, args.overwrite)
-
-  # Create image writer.
-  if args.image_video_file and args.mask_pictures_dir or args.image_pictures_dir and args.mask_video_file:
-    raise ValueError('Images and masks have to be the same media -- pictures or video')
-  elif args.image_video_file:
-    imwriter = VideoWriter(rootdir=args.rootdir,
-      vimagefile=args.image_video_file, 
-      vmaskfile=args.mask_video_file,
-      overwrite=args.overwrite)
-  elif args.image_pictures_dir:
-    imwriter = PictureWriter(rootdir=args.rootdir)
-  else:
-    raise ValueError('Specify either "image_video_file" or "image_pictures_dir".')
+  imwriter = _createImageryWriter(args.image_path, args.mask_path,
+    args.media, args.out_rootdir, args.overwrite)
 
   c.execute('SELECT o.objectid,o.imagefile,o.x1,o.y1,o.width,o.height,o.name,o.score,i.maskfile,i.timestamp '
     'FROM objects AS o INNER JOIN images AS i ON i.imagefile = o.imagefile ORDER BY objectid')
@@ -172,33 +70,31 @@ def cropObjects(c, args):
   c.execute('DELETE FROM images')
 
   for objectid,imagefile,x1,y1,width,height,name,score,maskfile,timestamp in progressbar(entries):
-    logging.info ('Processing object %d from imagefile %s.' % (objectid, imagefile))
+    logging.debug ('Processing object %d from imagefile %s.' % (objectid, imagefile))
     roi = bbox2roi((x1,y1,width,height))
 
     # Write image.
     image = imreader.imread(imagefile)
     image = cropPatch(image, roi, args.target_height, args.target_width, args.edges)
-    if args.image_video_file:
+    if args.media == 'video':
       imagefile = imwriter.imwrite(image)
-    elif args.image_pictures_dir:
-      imagefile = op.join(args.image_pictures_dir, '%09d.jpg' % objectid)
+    elif args.media == 'pictures':
+      imagefile = op.join(args.image_path, '%09d.jpg' % objectid)
       imwriter.imwrite(imagefile, image)
-    else:
-      assert False
 
     # Write mask.
-    if maskfile is not None:
+    if args.mask_path is not None and maskfile is not None:
       mask = imreader.maskread(maskfile)
       mask = cropPatch(mask, roi, args.target_height, args.target_width, args.edges)
-      if args.mask_video_file:
+      if args.media == 'video':
         maskfile = imwriter.maskwrite(mask)
-      elif args.mask_pictures_dir:
-        maskfile = op.join(args.mask_pictures_dir, '%09d.png' % objectid)
+      elif args.media == 'pictures':
+        maskfile = op.join(args.mask_path, '%09d.png' % objectid)
         imwriter.imwrite(maskfile, mask)
-      else:
-        maskfile = None
+    elif args.mask_path is None:
+      maskfile = None
 
-    logging.info('Recording imagefile %s and maskfile %s.' % (imagefile, maskfile))
+    logging.debug('Recording imagefile %s and maskfile %s.' % (imagefile, maskfile))
     c.execute('INSERT INTO images VALUES (?,?,?,?,?,?,?)',
       (imagefile, args.target_width, args.target_height, maskfile, timestamp, name, score))
     
@@ -212,19 +108,14 @@ def writeImagesParser(subparsers):
     'and change the database imagefiles and maskfiles to match the recordings.')
   parser.add_argument('--out_rootdir',
     help='Specify, if rootdir changed for the output imagery.')
-  group = parser.add_mutually_exclusive_group()
-  group.add_argument('--where_image', default='TRUE',
+  parser.add_argument('--where_image', default='TRUE',
     help='SQL where clause for the "images" table.')
-  imgroup = parser.add_mutually_exclusive_group()
-  imgroup.add_argument('--image_pictures_dir',
-    help='the directory where to write mask crop pictures to.')
-  imgroup.add_argument('--image_video_file',
-    help='the video file where to write image crops to.')
-  maskgroup = parser.add_mutually_exclusive_group()
-  maskgroup.add_argument('--mask_pictures_dir',
-    help='the directory where to write mask crop pictures to.')
-  maskgroup.add_argument('--mask_video_file',
-    help='the video file where to write mask crops to.')
+  parser.add_argument('--media', choices=['pictures', 'video'], required=True,
+    help='output either a directory with pictures or a video file.')
+  parser.add_argument('--image_path', required=True,
+    help='the directory for pictures OR video file, where to write mask crop pictures.')
+  parser.add_argument('--mask_path',
+    help='the directory for pictures OR video file, where to write mask crop pictures.')
   parser.add_argument('--mask_mapping_dict', 
     help='how values in maskfile are drawn. E.g. "{0: [0,0,0], 255: [128,128,30]}"')
   parser.add_argument('--mask_alpha', type=float, default=0.0,
@@ -243,8 +134,8 @@ def writeImages (c, args):
 
   # Create a writer. Rootdir may be changed.
   out_rootdir = args.out_rootdir if args.out_rootdir else args.rootdir
-  imwriter = _createImageryWriter(args.image_video_file, args.image_pictures_dir, 
-    args.mask_video_file, args.mask_pictures_dir, out_rootdir, args.overwrite)
+  imwriter = _createImageryWriter(args.image_path, args.mask_path,
+    args.media, args.out_rootdir, args.overwrite)
 
   c.execute('SELECT imagefile,maskfile FROM images WHERE %s' % args.where_image)
   entries = c.fetchall()
@@ -270,7 +161,7 @@ def writeImages (c, args):
 
     # Overlay imagefile.
     if args.with_imageid:
-      drawImageId(image, imagefile)
+      drawTextOnImage(image, op.basename(imagefile))
 
     # Draw objects as polygons (preferred) or ROI.
     if args.with_objects:
@@ -292,25 +183,26 @@ def writeImages (c, args):
           raise Exception('Neither polygon, nor bbox is available for objectid %d' % objectid)
 
     # Write an image.
-    if args.image_video_file:
+    if args.media == 'video':
       imagefile_new = imwriter.imwrite(image)
-    elif args.image_pictures_dir:
+    elif args.media == 'pictures':
       imagename = op.basename(imagefile)
       if not op.splitext(imagename)[1]:  # Add the extension, if there was None.
         imagename = '%s.jpg' % imagename
-      imagefile_new = op.join(args.image_pictures_dir, imagename)
+      imagefile_new = op.join(args.image_path, imagename)
       imwriter.imwrite(imagefile_new, image)
 
     # Write mask.
-    if mask is not None and args.mask_video_file:
-      maskfile_new = imwriter.maskwrite(mask)
-    elif mask is not None and args.mask_pictures_dir:
-      maskname = op.basename(maskfile)
-      if not op.splitext(maskname)[1]:  # Add the extension, if there was None.
-        maskname = '%s.png' % maskname
-      maskfile_new = op.join(args.mask_pictures_dir, maskname)
-      imwriter.imwrite(maskfile, mask)
-    else:
+    if args.mask_path is not None and maskfile is not None:
+      if args.media == 'video':
+        maskfile_new = imwriter.maskwrite(mask)
+      elif args.media == 'pictures':
+        maskname = op.basename(maskfile)
+        if not op.splitext(maskname)[1]:  # Add the extension, if there was None.
+          maskname = '%s.png' % maskname
+        maskfile_new = op.join(args.mask_path, maskname)
+        imwriter.imwrite(maskfile_new, mask)
+    elif args.mask_path is None:
       maskfile_new = None
 
     # Update the database entry.
@@ -322,5 +214,116 @@ def writeImages (c, args):
         (imagefile_new,imagefile))
     c.execute('UPDATE objects SET imagefile=? WHERE imagefile=?',
       (imagefile_new,imagefile))
+
+  imwriter.close()
+
+
+def imageGridByTimeParser(subparsers):
+  parser = subparsers.add_parser('imageGridByTime',
+    description='Export images, arranged in a grid, as a directory with pictures or as a video. '
+    'Grid arranged by directory of imagefile (imagedir), and can be set manually.')
+  parser.add_argument('--media', choices=['pictures', 'video'], required=True,
+    help='output either a directory with pictures or a video file.')
+  parser.add_argument('--image_path', required=True,
+    help='the directory for pictures OR video file, where to write mask crop pictures.')
+  parser.add_argument('--winwidth', type=int, default=360,
+    help='target output width of each video in a grid.')
+  parser.add_argument('--fps', type=int, default=5)
+  parser.add_argument('--gridY', type=int,
+    help='if specified, use the grid of "gridY" cells wide. Infer gridX.')
+  parser.add_argument('--imagedirs', nargs='+',
+    help='if specified, use these imagedirs instead of inferring from imagefile.')
+  parser.add_argument('--num_seconds', type=int,
+    help='If specified, stop there.')
+  parser.add_argument('--with_timestamp', action='store_true',
+    help='Draw time on top.')
+  parser.add_argument('--overwrite', action='store_true',
+    help='overwrite video if it exists.')
+  parser.set_defaults(func=imageGridByTime)
+
+def imageGridByTime (c, args):
+  imreader = ImageryReader(rootdir=args.rootdir)
+
+  if args.media == 'video':
+    imwriter = VideoWriter(rootdir='', vimagefile=args.image_path, overwrite=args.overwrite,
+      fourcc=cv2.VideoWriter_fourcc(*'XVID'), fps=args.fps)
+  elif args.media == 'pictures':
+    imwriter = PictureWriter(rootdir='')
+
+  if not args.imagedirs:
+    c.execute("SELECT DISTINCT(rtrim(imagefile, replace(imagefile, '/', ''))) FROM images")
+    imagedirs = c.fetchall()
+    imagedirs = [x.strip('/') for x, in imagedirs]
+  else:
+    imagedirs = args.imagedirs
+
+  logging.info('Found %d distinct image directories/videos:\n%s' %
+    (len(imagedirs), pformat(imagedirs)))
+  num_cells = len(imagedirs)
+  gridY = int(sqrt(num_cells)) if args.gridY is None else args.gridY
+  gridX = num_cells // gridY
+  logging.info('Will use grid %d x %d' % (gridY, gridX))
+  
+  # Currently will use the first image to find the target height from args.winwidth.
+  # "width" and "height" are the target dimensions.
+  c.execute('SELECT width,height FROM images')
+  width, height = c.fetchone()
+  height = height * args.winwidth // width
+  width = args.winwidth
+
+  c.execute('SELECT imagefile,timestamp FROM images')
+  image_entries = c.fetchall()
+  image_entries = [(imagefile, parseTimeString(timestamp)) for imagefile, timestamp in image_entries]
+  image_entries = sorted(image_entries, key=lambda x: x[1])
+
+  time_min = min(image_entries, key=lambda x: x[1])[1]
+  time_max = max(image_entries, key=lambda x: x[1])[1]
+  logging.info ('Min time: "%s", max time: "%s".' % (time_min, time_max))
+  delta_seconds = (time_max - time_min).total_seconds()
+  # User may limit the time to write.
+  if args.num_seconds is not None:
+    delta_seconds = min(delta_seconds, args.num_seconds)
+
+  ientry = 0
+  seconds_offsets = np.arange(0, int(delta_seconds), 1.0 / args.fps).tolist()
+
+  for seconds_offset in progressbar(seconds_offsets):
+
+    out_time = time_min + timedelta(seconds=seconds_offset)
+    logging.debug('Out-time=%s, in-time=%s' % (out_time, image_entries[ientry][1]))
+
+    # For all the entries that happened before the frame.
+    while image_entries[ientry][1] < out_time:
+
+      imagefile, in_time = image_entries[ientry]
+      logging.debug('Image entry %d.' % ientry)
+      ientry += 1
+      # Skip those of no interest.
+      if op.dirname(imagefile) not in imagedirs:
+        logging.debug('Image dir %s not in %s' % (op.dirname(imagefile), imagedirs))
+        continue
+      gridid = imagedirs.index(op.dirname(imagefile))
+
+      # Read and scale.
+      image = imreader.imread(imagefile)
+      image = cv2.resize(image, dsize=(width,height))
+      assert len(image.shape) == 3  # Now only color images.
+      if args.with_timestamp:
+        drawTextOnImage(image, makeTimeString(in_time))
+      #drawTextOnImage(image, op.basename(op.dirname(imagefile)))
+
+      # Lazy initialization.
+      if 'grid' not in locals():
+        grid = np.zeros((height * gridY, width * gridX, 3), dtype=np.uint8)
+
+      logging.debug('Writing %s into gridid %d' % (imagefile, gridid))
+      grid[height * (gridid // gridX) : height * (gridid // gridX + 1),
+           width  * (gridid % gridX)  : width  * (gridid % gridX + 1),
+           :] = image.copy()
+      
+      if args.media == 'video':
+        imwriter.imwrite(grid)
+      elif args.media == 'pictures':
+        imwriter.imwrite(op.join(args.image_path, '%06d.jpg' % iframe), grid)
 
   imwriter.close()

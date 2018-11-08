@@ -276,24 +276,24 @@ def filterObjectsSQLParser(subparsers):
     description='Delete objects based on the SQL "where" clause.')
   parser.set_defaults(func=filterObjectsSQL)
   group = parser.add_mutually_exclusive_group()
-  group.add_argument('--where',
-    help='the SQL "where" clause for the JOIN of "images", "objects", and "properties" table.')
   group.add_argument('--sql',
-    help='an arbitrary SQL clause that should query "objectid"')
+    help='an arbitrary SQL clause that should query "objectid". E.g.'
+    '"SELECT objects.objectid FROM objects '
+    'INNER JOIN properties ON objects.objectid=properties.objectid '
+    'WHERE properties.value=\'blue\' AND objects.score > 0.8"')
 
 def filterObjectsSQL (c, args):
   c.execute('SELECT COUNT(1) FROM objects')
   logging.info('Before filtering have %d objects.' % c.fetchone()[0])
 
-  if args.where:
-    c.execute('SELECT objects.objectid FROM objects '
-              'INNER JOIN images ON images.imagefile=objects.imagefile '
-              'INNER JOIN properties ON objects.objectid=properties.objectid '
-              'WHERE (%s)' % args.where)
-  elif args.sql:
-    c.execute(args.sql)
+  # s = 'SELECT objects.objectid FROM objects ' \
+  #     'INNER JOIN images ON images.imagefile=objects.imagefile ' \
+  #     'INNER JOIN properties ON objects.objectid=properties.objectid ' \
+  #     'WHERE (%s)' % args.where
+  c.execute(args.sql)
 
   objectids = c.fetchall()
+  logging.info('Going to remove %d objects.' % len(objectids))
   for objectid, in progressbar(objectids):
     deleteObject(c, objectid)
 

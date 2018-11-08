@@ -13,7 +13,7 @@ from lib import dbGui, dbInfo, dbFilter, dbModify, dbWrite, dbEvaluate
 from lib.datasets import dbLabelme, dbKitti, dbPascal, dbBdd
 
 
-def connect (in_db_path=None, out_db_path=None, copy_to_memory=False):
+def connect (in_db_path=None, out_db_path=None):
   ''' Connect to a new or existing database.
   Args:
     in_db_path:     If None, create a new database.
@@ -21,8 +21,6 @@ def connect (in_db_path=None, out_db_path=None, copy_to_memory=False):
     out_db_path:    If None, NOT commit (lose transactions).
                     Otherwise, back up out_db_path, if exists. Then commit.
                     Same logic applies when in_db_path==out_db_path.
-    copy_to_memory: When "out_db_path" is not specified, copy the db to memory,
-                    instead of opening it in the read-only mode.
   Returns:
     sqlite3.Connection
   '''
@@ -50,14 +48,7 @@ def connect (in_db_path=None, out_db_path=None, copy_to_memory=False):
   elif in_db_path is not None and out_db_path is None:
     # Load db from in_db_path as read-only.
     logging.info('will load existing database from %s, but will not commit.' % in_db_path)
-    if copy_to_memory:
-      conn_in = sqlite3.connect(in_db_path)
-      conn = sqlite3.connect(':memory:')  # Create a memory database.
-      query = ''.join(line for line in conn_in.iterdump())
-      conn.executescript(query)  # Dump input database in the one in memory.
-    else:
-      # One can't modify the database even without committing it in the end.
-      conn = sqlite3.connect('file:%s?mode=ro' % in_db_path, uri=True)
+    conn = sqlite3.connect(in_db_path)
 
   elif in_db_path is None and out_db_path is None:
     # Create a db and discard it in the end.
@@ -84,9 +75,6 @@ parser.add_argument('-o', '--out_db_file', required=False,
     help='If specified, commit to this file. Otherwise, do not commit.')
 parser.add_argument('--rootdir', default='.',
     help='If specified, images paths are relative to this dir.')
-parser.add_argument('--copy_to_memory', action='store_true',
-    help='When "-o" is not specified, copy to memory instead of opening in the read-only mode. '
-    'Useful to do a dry-run of a modifying operation.')
 parser.add_argument('--logging', default=20, type=int, choices={10, 20, 30, 40},
     help='Log debug (10), info (20), warning (30), error (40).')
 subparsers = parser.add_subparsers()
@@ -114,7 +102,7 @@ progressbar.streams.wrap_stderr()
 FORMAT = '[%(filename)s:%(lineno)s - %(funcName)s() %(levelname)s]: %(message)s'
 logging.basicConfig(level=args.logging, format=FORMAT)
 
-conn = connect(args.in_db_file, args.out_db_file, args.copy_to_memory)
+conn = connect(args.in_db_file, args.out_db_file)
 cursor = conn.cursor()
 
 if not hasattr(args, 'func'):

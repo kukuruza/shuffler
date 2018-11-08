@@ -145,15 +145,17 @@ filterObjectsByIntersection --with_display
 # Filter objects with an SQL query
 ./shuffler.py --rootdir 'test' \
   --in_db_file 'test/cars/micro1_v4.db' \
-  filterObjectsSQL --where 'properties.value="blue" AND objects.score > 0.8'
+  filterObjectsSQL --sql 'SELECT objects.objectid FROM objects ' \
+    'INNER JOIN properties ON objects.objectid=properties.objectid ' \
+    'WHERE properties.value="blue" AND objects.score > 0.8'
 # or
 ./shuffler.py --rootdir 'test' \
   --in_db_file 'test/cars/micro1_v4.db' \
   filterObjectsSQL \
-  --sql 'SELECT objects.objectid FROM objects \
-    INNER JOIN properties p1 ON objects.objectid=p1.objectid 
-    INNER JOIN properties p2 ON objects.objectid=p2.objectid 
-    WHERE p1.value="blue" AND p2.key="pitch"'
+  --sql 'SELECT objects.objectid FROM objects ' \
+    'INNER JOIN properties p1 ON objects.objectid=p1.objectid ' \
+    'INNER JOIN properties p2 ON objects.objectid=p2.objectid ' \
+    'WHERE p1.value="blue" AND p2.key="pitch"'
 ```
 
 #### Modifications
@@ -239,11 +241,11 @@ filterObjectsByIntersection --with_display
 ```bash
 ./shuffler.py --rootdir 'test' \
   --in_db_file 'test/cars/micro1_v4.db' \
-  writeImages --out_pictures_dir 'cars/exported' --mask_alpha 0.5 --with_imageid
+  writeImages --media 'pictures' --image_path 'cars/exported' --mask_alpha 0.5 --with_imageid
 
 ./shuffler.py --rootdir 'test' \
   --in_db_file 'test/cars/micro1_v4.db' \
-  cropObjects --image_pictures_dir 'cars/exported' --mask_pictures_dir 'cars/exportedmask' \
+  cropObjects --media 'pictures' --image_path 'cars/exported' --mask_path 'cars/exportedmask' \
   --target_width 64 --target_height 64
 ```
 
@@ -251,21 +253,20 @@ filterObjectsByIntersection --with_display
 
 #### Import KITTI
 ```bash
+# Import KITTI segmentation
 ./shuffler.py --rootdir ${KITTI} \
   -o '/tmp/kitti.db' \
   importKitti \
   --images_dir=${KITTI}/data_semantics/training/image_2  \
   --segmentation_dir=${KITTI}/data_semantics/training/instance
 
+# Import KITTI detection (does not share images with segmentation)
 ./shuffler.py --rootdir ${KITTI} \
   -o '/tmp/kitti.db' \
   importKitti \
   --images_dir=${KITTI}/data_semantics/training/image_2  \
   --detection_dir=${KITTI}/data_object_image_2/training/label_2
-```
 
-#### Import LabelMe
-```bash
 # Import LabelMe.
 ./shuffler.py --rootdir '.' \
   -i 'test/labelme/init.db' \

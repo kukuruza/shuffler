@@ -121,20 +121,18 @@ def drawScoredRoi (img, roi, label=None, score=None):
   cv2.putText (img, label, (roi[1], roi[0] - SCALE), FONT, FONT_SIZE, (255,255,255), THICKNESS-1)
 
 
-def drawImageId(img, imagefile):
+def drawTextOnImage(img, text):
   '''
-  Draw the image name in the corner of the image.
+  Draw text on image in the corner of the image.
   Returns:
     Nothing. Input "img" is changed in place.
   '''
-  img = img.copy()  # If order was reversed.
   imheight, imwidth = img.shape[0:2]
-  fontscale = float(imheight) / 700
-  thickness = min(imheight // 700, 1)
-  offsety = imheight // 30
-  imageid = op.basename(imagefile)
-  cv2.putText (img, imageid, (10, SCALE), FONT, FONT_SIZE, (0,0,0), THICKNESS)
-  cv2.putText (img, imageid, (10, SCALE), FONT, FONT_SIZE, (255,255,255), THICKNESS-1)
+  fontscale = float(imheight) / 500
+  thickness = min(imheight // 100, 2)
+  offsety = int(fontscale * 40)
+  cv2.putText (img, text, (5, offsety), FONT, fontscale, (0,0,0), thickness)
+  cv2.putText (img, text, (5, offsety), FONT, fontscale, (255,255,255), thickness-1)
 
 
 def applyLabelMappingToMask(mask, labelmap):

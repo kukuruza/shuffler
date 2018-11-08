@@ -277,7 +277,8 @@ def addDb (c, args):
 
   # Copy images.
   c_add.execute('SELECT * FROM images')
-  for image_entry in c_add.fetchall():
+  logging.info('Copying images.')
+  for image_entry in progressbar(c_add.fetchall()):
     c.execute('INSERT OR REPLACE INTO images VALUES (?,?,?,?,?,?,?)', image_entry)
 
   # Find the max "match" in "matches" table. New matches will go after that value.
@@ -286,6 +287,7 @@ def addDb (c, args):
   
   # Copy all other tables.
   c_add.execute('SELECT * FROM objects')
+  logging.info('Copying objects.')
   for object_entry_add in progressbar(c_add.fetchall()):
     objectid_add = objectField(object_entry_add, 'objectid')
 

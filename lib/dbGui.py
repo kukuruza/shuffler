@@ -5,7 +5,7 @@ import logging
 from ast import literal_eval
 from pprint import pformat
 
-from .util import drawImageId, drawMaskOnImage, drawMaskAside
+from .util import drawTextOnImage, drawMaskOnImage, drawMaskAside
 from .util import bbox2roi, drawScoredRoi, drawScoredPolygon
 from .util import FONT, SCALE, FONT_SIZE, THICKNESS
 from .backendDb import deleteObject, objectField, polygonField
@@ -118,7 +118,7 @@ def examineImages (c, args):
       logging.info('No mask for this image.')
 
     # Overlay imagefile.
-    drawImageId(image, imagefile)
+    drawTextOnImage(image, op.basename(imagefile))
 
     # Put the objects on top of the image.
     if args.with_objects:
