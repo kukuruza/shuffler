@@ -1,39 +1,72 @@
 # shuffler
-A toolbox for manipulating image annotations in computer vision. Example use cases below.
+
+Toolbox for manipulating image annotations in computer vision.
+
+- [Motivation](#motivation)
+- [Functionality](#functionality)
+- [Example use cases](#example-use-cases)
+- [Installation](#installation)
+- [Gentle introduction](#gentle-introduction)
+
+
+## Motivation
+
+![data preparation pipeline](fig/data-preparation-pipeline.png)
+
+Experts in computer vision train machine learning models to tackle practical problems, such as detecting vehicles in the autonomous car scenario or find faces in Facebook pictures. In order to train a model, researchers either use public datasets of annotated images or collect their own. In the process of fighting for better model performance, a researcher may want to change or filter image annotations, or to add another public dataset. Currently, each small group of researchers writes their own sripts to load, change, and save annotations. As the number of experiments grows, these custom scripts become more and more difficult to maintain. These project eliminates the need for much of custom scrpting by providing a multipurpose tool to import, modify, visualize, export, and evaluate annotations for some common computer vision tasks.
+
+
+## Functionality
+
+The toolbox supports datasets which have 1) images and masks, 2) objects annotated with masks, polygons, and bounding boxes, and 3) matches between objects.
+
+- [Import](#import) most common computer vision datasets. The list of supported datasets is growing.
+- [Aggregate information](#info) about a dataset. Print basic statistics, plot histograms, and scatter plots.
+- [GUI](#gui) lets a user to manually loop through a dataset, visualize, modify, and delete entries.
+- [Filter](#filter) annotations, e.g. small objects, objects at image boundary, or objects without a color.
+- [Modify](#modify) a dataset, e.g. increase bounding boxes by 20% or split a dataset into "train" and "test" subsets.
+- [Evaluate](#evaluate). Given ground truth and predictions, evaluate performance of object detection or semantic segmentation.
+- Export. We provide a [PyTorch Dataset class](https://pytorch.org/tutorials/beginner/data_loading_tutorial.html#dataset-class) to directly load data from PyTorch. I plan to implement [Keras Dataset class](https://keras.io/utils/#sequence) and export to popular formats such as PASCAL.
 
 
 ## Example use cases
 
-
-#### A user wants to combine [KITTI](http://www.cvlibs.net/datasets/kitti), [BDD](https://bair.berkeley.edu/blog/2018/05/30/bdd), and [PASCAL VOC 2012](http://host.robots.ox.ac.uk/pascal/VOC) datasets into one ([link to code](#combine-datasets).)
+#### Combine [KITTI](http://www.cvlibs.net/datasets/kitti), [BDD](https://bair.berkeley.edu/blog/2018/05/30/bdd), and [PASCAL VOC 2012](http://host.robots.ox.ac.uk/pascal/VOC) datasets into one ([link to code](#combine-datasets).)
 
 A user works on object detection tasks for the autonomous car scenario, and would like to use as many annotated images as possible. In particular, they aim to combine certain classes from the datasets KITTI, BDD, and PASCAL VOC 2012. Then the combined dataset should be exported to a TF-friendly format.
 
-#### Import from [LabelMe](http://labelme.csail.mit.edu/Release3.0), each image is labelled by multiple annotators ([link to code](#import-from-labelme).)
+#### Import annotations from [LabelMe](http://labelme.csail.mit.edu/Release3.0). Each image is labelled by multiple annotators ([link to code](#import-from-labelme))
 
 A user has collected a dataset of images with objects. Images were handed out to annotators who use LabelMeAnootationTool. Each image was annotated with polygons by multiple annotators for the purposes of cross-validation. A user would like to to 1) import labels from all annotators, 2) merge polygons corresponding to the same object, 3) make black-gray-white image masks, where the gray area marks the inconsistency among annotators.
 
-#### Evaluate semantic segmentation
-
-A neural network was trained to perform a semantic segmentation of images. We have a directory with ground truth masks and a directory with predicted masks. We would like to 1) evaluate the results, 2) write a video with images and their predicted segmentation masks side-by-side.
-
-#### Prepare a subset of objects for training for object detection
+#### Train object detection with only big objects. Then evaluate properly.
 
 We have a dataset with objects given as bounding boxes. We would like to remove objects on image boundary, expand bounding boxes by 10% for better training, remove objects of all types except "car", "bus", and "truck", and to remove objects smaller than 30 pixels wide. We would lile to use that subset for training.
 
-#### Evaluate object detection on a subset of objects
-
 In the previous use case we removed some objects for our object detection training task. Now we want to evaluate the trained model. We expect our model to detect only big objects, but we don't want to count it as a false positive if it detects a tiny object either.
 
-#### Writing images with image crops of individual object
+#### Evaluate results of semantic segmentation
+
+A neural network was trained to perform a semantic segmentation of images. We have a directory with ground truth masks and a directory with predicted masks. We would like to 1) evaluate the results, 2) write a video with images and their predicted segmentation masks side-by-side.
+
+#### Write a dataset with image croppings of individual objects
 
 We have images with objects. Images have masks with those objects. We would like to crop out objects with name "car" bigger than 32 pixels wide, stretch the crops to 64x64 pixels and write a new dataset of images (and the correspodning masks)
 
 
 
-## Installation (using conda)
 
-Shuffler is written in Python3. The installation instructions assume Conda package management system.
+## Gentle introduction
+
+
+
+
+
+## Installation 
+
+#### Using conda
+
+Shuffler requires Python3. The installation instructions assume Conda package management system.
 
 ```bash
 # If desired, add support for datasets stored as video (needs to go first).
@@ -52,7 +85,54 @@ conda install nose scikit-image
 
 ## Commands
 
-#### Info
+### <a name="import">Imports
+ 
+Import](#import) most common computer vision datasets. Currently support formats of [KITTI](http://www.cvlibs.net/datasets/kitti), [BDD](https://bair.berkeley.edu/blog/2018/05/30/bdd), and [PASCAL VOC 2012](http://host.robots.ox.ac.uk/pascal/VOC), and LabelMe. The list is growing, pull requests are welcome.
+
+#### Import KITTI
+```bash
+# Import KITTI segmentation
+./shuffler.py --rootdir ${KITTI} \
+  -o '/tmp/kitti.db' \
+  importKitti \
+  --images_dir=${KITTI}/data_semantics/training/image_2  \
+  --segmentation_dir=${KITTI}/data_semantics/training/instance
+
+# Import KITTI detection (does not share images with segmentation)
+./shuffler.py --rootdir ${KITTI} \
+  -o '/tmp/kitti.db' \
+  importKitti \
+  --images_dir=${KITTI}/data_semantics/training/image_2  \
+  --detection_dir=${KITTI}/data_object_image_2/training/label_2
+
+# Import LabelMe.
+./shuffler.py --rootdir '.' \
+  -i 'test/labelme/init.db' \
+  importLabelme --annotations_dir 'test/labelme/w55-e04-images1'
+
+# Import LabelMe, objects by ids.
+./shuffler.py --rootdir '.' \
+  -i test/labelme/init.db \
+  importLabelmeObjects --annotations_dir test/labelme/w55-e04-objects1 \
+  --keep_original_object_name --polygon_name objects1
+
+# Import Pascal.
+./shuffler.py --rootdir '.' \
+  -o '/tmp/pascal.db' \
+  importPascalVoc2012 \
+  --images_dir ${VOC2012}/JPEGImages \
+  --detection_dir ${VOC2012}/Annotations \
+  --segmentation_dir ${VOC2012}/SegmentationClass
+
+# Import BDD.
+./shuffler.py  --rootdir '.' \
+  -o '/tmp/bdd100k_train.db' \
+  importBdd \
+  --images_dir ${BDD}/bdd100k/images/100k/train \
+  --detection_json ${BDD}/bdd100k/labels/bdd100k_labels_images_train.json
+```
+
+#### <a name="info">Info
 
 ```bash
 # Print general info. Info about objects are grouped by image.
@@ -95,7 +175,7 @@ conda install nose scikit-image
   --xlabel yaw --ylabel pitch --display
 ```
 
-#### GUI
+#### <a name="gui">GUI
 
 ```bash
 # Examine images.
@@ -114,7 +194,7 @@ conda install nose scikit-image
   examineMatches
 ```
 
-#### Filtering
+#### <a name="filter">Filtering
 
 ```bash
 # Filter images that are present another .
@@ -158,7 +238,7 @@ filterObjectsByIntersection --with_display
     'WHERE p1.value="blue" AND p2.key="pitch"'
 ```
 
-#### Modifications
+#### <a name="modify">Modifications
 
 ```bash
 # Add a video of images and a video of masks.
@@ -217,7 +297,7 @@ filterObjectsByIntersection --with_display
   polygonsToMask --mask_pictures_dir 'cars/mask_polygons' --skip_empty_masks
 ```
 
-#### Evaluation of ML tasks
+#### <a name="evaluate">Evaluation of ML tasks
 ```bash
 # Evaluate semantic segmentation.
 ./shuffler.py --rootdir 'test' \
@@ -236,7 +316,7 @@ filterObjectsByIntersection --with_display
   evaluateDetection --gt_db_file 'test/cars/micro1_v4_singleim.db'
 ```
 
-#### Write a new image directory / video
+#### <a name="write">Write a new image directory / video
 
 ```bash
 ./shuffler.py --rootdir 'test' \
@@ -249,50 +329,6 @@ filterObjectsByIntersection --with_display
   --target_width 64 --target_height 64
 ```
 
-### Imports
-
-#### Import KITTI
-```bash
-# Import KITTI segmentation
-./shuffler.py --rootdir ${KITTI} \
-  -o '/tmp/kitti.db' \
-  importKitti \
-  --images_dir=${KITTI}/data_semantics/training/image_2  \
-  --segmentation_dir=${KITTI}/data_semantics/training/instance
-
-# Import KITTI detection (does not share images with segmentation)
-./shuffler.py --rootdir ${KITTI} \
-  -o '/tmp/kitti.db' \
-  importKitti \
-  --images_dir=${KITTI}/data_semantics/training/image_2  \
-  --detection_dir=${KITTI}/data_object_image_2/training/label_2
-
-# Import LabelMe.
-./shuffler.py --rootdir '.' \
-  -i 'test/labelme/init.db' \
-  importLabelme --annotations_dir 'test/labelme/w55-e04-images1'
-
-# Import LabelMe, objects by ids.
-./shuffler.py --rootdir '.' \
-  -i test/labelme/init.db \
-  importLabelmeObjects --annotations_dir test/labelme/w55-e04-objects1 \
-  --keep_original_object_name --polygon_name objects1
-
-# Import Pascal.
-./shuffler.py --rootdir '.' \
-  -o '/tmp/pascal.db' \
-  importPascalVoc2012 \
-  --images_dir ${VOC2012}/JPEGImages \
-  --detection_dir ${VOC2012}/Annotations \
-  --segmentation_dir ${VOC2012}/SegmentationClass
-
-# Import BDD.
-./shuffler.py  --rootdir '.' \
-  -o '/tmp/bdd100k_train.db' \
-  importBdd \
-  --images_dir ${BDD}/bdd100k/images/100k/train \
-  --detection_json ${BDD}/bdd100k/labels/bdd100k_labels_images_train.json
-```
 
 ### Chaining commands
 
