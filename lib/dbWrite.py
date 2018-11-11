@@ -20,14 +20,15 @@ def add_parsers(subparsers):
 
 
 
-def _createImageryWriter(image_path, mask_path, media, rootdir, overwrite=None):
+def _createImageryWriter(image_path, mask_path, media, rootdir, overwrite=None, middleware=None):
   ''' Based on "media", create either a PicturesWriter or VideoWriter.
   '''
   if media == 'video':
     return VideoWriter(rootdir=rootdir,
       vimagefile=image_path, 
       vmaskfile=mask_path,
-      overwrite=overwrite)
+      overwrite=overwrite,
+      middleware=middleware)
   elif media == 'pictures':
     return PictureWriter(rootdir=rootdir)
   else:
@@ -126,7 +127,7 @@ def writeImagesParser(subparsers):
   parser.set_defaults(func=writeImages)
 
 def writeImages (c, args):
-  imreader = ImageryReader(rootdir=args.rootdir)
+  imreader = ImageryReader(rootdir=args.rootdir, middleware=args.video_middleware)
 
   # For overlaying masks.
   labelmap = literal_eval(args.mask_mapping_dict) if args.mask_mapping_dict else None
@@ -135,7 +136,7 @@ def writeImages (c, args):
   # Create a writer. Rootdir may be changed.
   out_rootdir = args.out_rootdir if args.out_rootdir else args.rootdir
   imwriter = _createImageryWriter(args.image_path, args.mask_path,
-    args.media, args.out_rootdir, args.overwrite)
+    args.media, args.out_rootdir, args.overwrite, middleware=args.video_middleware)
 
   c.execute('SELECT imagefile,maskfile FROM images WHERE %s' % args.where_image)
   entries = c.fetchall()
@@ -201,7 +202,7 @@ def writeImages (c, args):
         if not op.splitext(maskname)[1]:  # Add the extension, if there was None.
           maskname = '%s.png' % maskname
         maskfile_new = op.join(args.mask_path, maskname)
-        imwriter.imwrite(maskfile_new, mask)
+        imwriter.maskwrite(maskfile_new, mask)
     elif args.mask_path is None:
       maskfile_new = None
 

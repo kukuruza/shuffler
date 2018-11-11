@@ -19,32 +19,51 @@ def getPictureSize(imagepath):
 
 
 # returns OpenCV VideoCapture property id given, e.g., "FPS"
-def capPropId(prop):
+def capOpencvPropId(prop):
   OPCV3 = parse_version(cv2.__version__) >= parse_version('3')
   return getattr(cv2 if OPCV3 else cv2.cv, ("" if OPCV3 else "CV_") + "CAP_PROP_" + prop)
 
-def getVideoLength(video_cv2):
-  return int(video_cv2.get(capPropId('FRAME_COUNT')))
+def _getOpencvVideoLength(video_cv2):
+  return int(video_cv2.get(capOpencvPropId('FRAME_COUNT')))
 
 
 class VideoReader:
-  '''Implementation based on Image <-> Frame in video.'''
+  '''Implementation of imagery reader based on "Image" <-> "Frame in video".'''
 
-  def __init__ (self, rootdir):
+  def __init__ (self, rootdir, middleware='imageio'):
+    '''
+    Args:
+      rootdir:     imagefile and maskfile are considered paths relative to rootdir.
+      middleware:  a layer between this class and ffmpeg.
+                   "opencv":   pros: can have any number of open videos
+                               cons: does not support huffyuv codec, dumps ffmpeg warning logs.
+                   "imageio":  pros: supports huffyuv codec, can control the verbosity of ffmpeg logs.
+                               cons: allows only a limited number of open videos.
+    '''
     self.rootdir = rootdir
     logging.info('Root is set to %s' % self.rootdir)
     self.image_cache = {}    # cache of previously read image(s)
     self.mask_cache = {}     # cache of previously read mask(s)
     self.image_video = {}    # map from image video name to VideoCapture object
     self.mask_video = {}     # map from mask  video name to VideoCapture object
+    if middleware not in ['opencv', 'imageio']:
+      raise ValueError('Only "opencv" and "imageio" for middleware are supported.')
+    self.middleware = middleware
 
-  def _openVideoCapture (self, videopath):
+  def _openVideo (self, videopath):
     ''' Open video and set up bookkeeping '''
     logging.debug ('opening video: %s' % videopath)
     videopath = op.join(self.rootdir, videopath)
     if not op.exists(videopath):
       raise ValueError('videopath does not exist: %s' % videopath)
-    handle = imageio.get_reader(videopath)
+    if self.middleware == 'imageio':
+      handle = imageio.get_reader(videopath)
+    elif self.middleware == 'opencv':
+      handle = cv2.VideoCapture(videopath)  # open video
+      if not handle.isOpened():
+          raise ValueError('video failed to open: %s' % videopath)
+    else:
+      assert False
     return handle
 
   def readImpl (self, image_id, ismask):
@@ -53,7 +72,7 @@ class VideoReader:
     # video id set up
     videopath = op.dirname(image_id)
     if videopath not in video_dict:
-      video_dict[videopath] = self._openVideoCapture (videopath)
+      video_dict[videopath] = self._openVideo (videopath)
     # frame id
     frame_name = op.basename(image_id)
     try:
@@ -64,10 +83,22 @@ class VideoReader:
       raise ValueError('frame_id is %d, but can not be negative.' % frame_id)
     logging.debug ('from image_id %s, got frame_id %d' % (image_id, frame_id))
     # read the frame
-    if frame_id >= video_dict[videopath].get_length():
-      raise ValueError('frame_id %d exceeds the video length' % frame_id)
-    img = video_dict[videopath].get_data(frame_id)
-    img = np.asarray(img)
+    if self.middleware == 'imageio':
+      if frame_id >= video_dict[videopath].get_length():
+        raise ValueError('frame_id %d exceeds the video length' % frame_id)
+      img = video_dict[videopath].get_data(frame_id)
+      img = np.asarray(img)
+    elif self.middleware == 'opencv':
+      video_dict[videopath].set(capOpencvPropId('POS_FRAMES'), frame_id)
+      retval, img = video_dict[videopath].read()
+      if not retval:
+        # Trying this after reading to save time while not storing video lengths.
+        if frame_id >= video_dict[videopath].get(capOpencvPropId('FRAME_COUNT')):
+          raise ValueError('frame_id %d exceeds the video length' % frame_id)
+        else:
+          raise Exception('could not read image_id %s' % image_id)
+      img = img[:,:,::-1].copy()  # Copy needed to fix the order.
+
     # assign the dict back to where it was taken from
     if ismask: self.mask_video = video_dict 
     else: self.image_video = video_dict
@@ -106,7 +137,20 @@ class VideoReader:
 class VideoWriter:
 
   def __init__(self, rootdir='.', vimagefile=None, vmaskfile=None, overwrite=False, fps=1,
-               imagecodec='mjpeg', maskcodec='huffyuv'):
+               middleware='imageio', imagecodec=None, maskcodec=None):
+    '''
+    Args:
+      rootdir:     imagefile and maskfile are considered paths relative to rootdir.
+      middleware:  a layer between this class and ffmpeg.
+                   "opencv":   pros: can have any number of open videos
+                               cons: does not support huffyuv codec, dumps ffmpeg warning logs.
+                   "imageio":  pros: supports huffyuv codec, can control the verbosity of ffmpeg logs.
+                               cons: allows only a limited number of open videos.
+      imagecodec:  codec for image video.
+      maskcodec:   codec for mask video. "Huffyuv" is a good choice for PNG-like masks.
+         For "opencv" middleware, a codec must be a 4-letter string, e.g. "MJPG".
+         For "imageio" middleware, a codec must be as it seen by ffmpeg, e.g. "mjpeg" or "huffyuv"
+    '''
     self.overwrite  = overwrite
     self.vimagefile = vimagefile
     self.vmaskfile = vmaskfile
@@ -116,10 +160,22 @@ class VideoWriter:
     self.mask_current_frame = -1
     self.frame_size = None        # used for checks
     self.fps = fps
-    self.imagecodec = imagecodec
-    self.maskcodec = maskcodec
     self.rootdir = rootdir
     logging.info('Rootdir set to "%s"' % rootdir)
+    self.middleware = middleware
+    if self.middleware == 'imageio':
+      self.imagecodec = imagecodec if imagecodec is not None else 'mjpeg'
+      self.maskcodec = maskcodec if maskcodec is not None else 'huffyuv'
+    elif self.middleware == 'opencv':
+      def getFourcc(name):
+        if len(name) is not 4:
+          raise ValueError('For opencv middleware, the codec name must be of 4 letters.')
+        return cv2.VideoWriter_fourcc(*name.upper())
+      self.imagecodec = getFourcc(imagecodec if imagecodec is not None else 'mjpg')
+      self.maskcodec = getFourcc(maskcodec if maskcodec is not None else 'mjpg')
+    else:
+      raise ValueError('Only "opencv" and "imageio" for middleware are supported.')
+    
 
   def _openVideo (self, ref_frame, ismask):
     ''' open a video for writing with parameters from the reference video (from reader) '''
@@ -146,24 +202,39 @@ class VideoWriter:
     if not op.exists(op.dirname(vpath)):
       os.makedirs(op.dirname(vpath))
 
-    if ismask:
-      self.mask_writer = imageio.get_writer(vpath, codec=self.maskcodec, fps=self.fps, quality=10)
+    if self.middleware == 'imageio':
+      if ismask:
+        self.mask_writer = imageio.get_writer(vpath, codec=self.maskcodec, fps=self.fps, quality=10, pixelformat='gray')
+      else:
+        self.image_writer = imageio.get_writer(vpath, codec=self.imagecodec, fps=self.fps, quality=10, pixelformat='yuvj444p')
+    elif self.middleware == 'opencv':
+      if ismask:
+        self.mask_writer = cv2.VideoWriter (vpath, self.maskcodec, self.fps, self.frame_size, isColor=True)
+      else:
+        self.image_writer = cv2.VideoWriter (vpath, self.imagecodec, self.fps, self.frame_size, isColor=True)
     else:
-      self.image_writer = imageio.get_writer(vpath, codec=self.imagecodec, fps=self.fps)
+      assert False
 
   def imwrite (self, image):
+    # Multiple checks and lazy init.
     assert self.vimagefile is not None
     if self.image_writer is None:
       self._openVideo (image, ismask=False)
     assert len(image.shape) == 3 and image.shape[2] == 3, image.shape
-    # write
     assert (image.shape[1], image.shape[0]) == self.frame_size
-    self.image_writer.append_data(image)
-    # return recorded imagefile
+    # Write.
+    if self.middleware == 'opencv':
+      self.image_writer.write(image[:,:,::-1])
+    elif self.middleware == 'imageio':
+      self.image_writer.append_data(image)
+    else:
+      assert False
+    # Return recorded imagefile.
     self.image_current_frame += 1
     return op.relpath('%s/%06d' % (op.splitext(self.vimagefile)[0], self.image_current_frame), self.rootdir)
 
   def maskwrite (self, mask):
+    # Multiple checks and lazy init.
     assert self.vmaskfile is not None
     assert len(mask.shape) == 2
     if self.mask_writer is None:
@@ -171,23 +242,34 @@ class VideoWriter:
     assert mask.dtype == np.uint8
     if len(mask.shape) == 2:
       mask = np.stack((mask, mask, mask), axis=-1)  # Otherwise mask is not written well.
-    # write
     assert len(mask.shape) == 3 and mask.shape[2] == 3, mask.shape
     assert (mask.shape[1], mask.shape[0]) == self.frame_size
-    self.mask_writer.append_data(image)
-    # return recorded imagefile
+    # write.
+    if self.middleware == 'opencv':
+      self.mask_writer.write(mask)
+    elif self.middleware == 'imageio':
+      self.mask_writer.append_data(mask)
+    else:
+      assert False
+    # Return recorded maskfile.
     self.mask_current_frame += 1
     return op.relpath('%s/%06d' % (op.splitext(self.vmaskfile)[0], self.mask_current_frame), self.rootdir)
 
   def close (self):
-    if self.image_writer is not None: 
-      self.image_writer.close()
-    if self.mask_writer is not None: 
-      self.mask_writer.close()
+    if self.middleware == 'imageio':
+      if self.image_writer is not None: 
+        self.image_writer.close()
+      if self.mask_writer is not None: 
+        self.mask_writer.close()
+    elif self.middleware == 'opencv':
+      if self.image_writer is not None: 
+        self.image_writer.release()
+      if self.mask_writer is not None: 
+        self.mask_writer.release()
 
 
 class PictureReader:
-  ''' Implementation based on Image <-> Picture file (.jpg, .png, etc).'''
+  ''' Implementation of imagery reader based on "Image" <-> "Picture file (.jpg, .png, etc)". '''
 
   def __init__(self, rootdir):
     logging.debug('Creating PictureReader with rootdir: %s' % rootdir)
@@ -248,10 +330,11 @@ class ImageryReader:
   If it is a picture, create PictureReader. If it is a video frame, create VideoReader.
   '''
 
-  def __init__(self, rootdir):  # TODO: pass kwargs to self.reader.__init__
+  def __init__(self, rootdir, middleware=None):  # TODO: pass kwargs to self.reader.__init__
     self.rootdir = rootdir
     if not isinstance(rootdir, str):
       raise ValueError('rootdir must be a string, got "%s"' % str(rootdir))
+    self.middleware = middleware
     self.reader = None  # Lazy ionitialization.
 
   def close(self):
@@ -272,7 +355,7 @@ class ImageryReader:
       logging.debug('Seems like it is not a picture.')
 
     try:
-      self.reader = VideoReader(rootdir=self.rootdir)
+      self.reader = VideoReader(rootdir=self.rootdir, middleware=self.middleware)
       return self.reader.imread(image_id)
     except Exception:
       exc_type, exc_value, exc_traceback = sys.exc_info()

@@ -3,6 +3,7 @@ import numpy as np
 import cv2
 import logging
 import sqlite3
+import imageio
 from math import ceil
 from glob import glob
 from pprint import pformat
@@ -11,7 +12,7 @@ from progressbar import progressbar
 from ast import literal_eval
 
 from .backendDb import makeTimeString, deleteImage, objectField, createDb
-from .backendImages import getVideoLength, getPictureSize, ImageryReader, VideoWriter, PictureWriter
+from .backendImages import getPictureSize, ImageryReader, VideoWriter, PictureWriter
 from .util import drawScoredRoi, roi2bbox
 from .utilExpandBoxes import expandRoiToRatio, expandRoi
 
@@ -47,19 +48,21 @@ def addVideo (c, args):
   if args.mask_video_path is not None and not op.exists(args.mask_video_path):
     raise FileNotFoundError('Mask video does not exist at: %s' % args.mask_video_path)
 
-  # Check the length of image video.
-  image_video = cv2.VideoCapture(args.image_video_path)
-  ret, image = image_video.read()
-  image_length = getVideoLength(image_video) if ret else 0
+  # Check the length of image video with imageio
+  image_video = imageio.get_reader(args.image_video_path)
+  image_length = image_video.get_length()
+  image = image_video.get_data(0)
+  image_video.close()
   logging.info('Video has %d frames' % image_length)
   if image_length == 0:
     raise ValueError('The image video is empty.')
 
   # Check if masks agree with images.
   if args.mask_video_path is not None:
-    mask_video = cv2.VideoCapture(args.mask_video_path)
-    ret, mask = mask_video.read()
-    mask_length = getVideoLength(mask_video) if ret else 0
+    mask_video = imageio.get_reader(args.image_video_path)
+    mask_length = mask_video.get_length()
+    mask = mask_video.get_data(0)
+    mask_video.close()
     if image_length != mask_length:
       raise ValueError('Image length %d mask video length %d mismatch' % (image_length, mask_length))
     if image.shape[0:2] != mask.shape[0:2]:
@@ -69,7 +72,7 @@ def addVideo (c, args):
   # Get the paths.
   image_video_rel_path = op.relpath(op.abspath(args.image_video_path), args.rootdir)
   if args.mask_video_path is not None:
-    mask_video_rel_path = op.relpath(op.abspath(args.image_video_path), args.rootdir)
+    mask_video_rel_path = op.relpath(op.abspath(args.mask_video_path), args.rootdir)
 
   # Write to db.
   for iframe in progressbar(range(image_length)):
