@@ -105,7 +105,8 @@ class VideoReader:
 
 class VideoWriter:
 
-  def __init__(self, rootdir='.', vimagefile=None, vmaskfile=None, overwrite=False, fps=1, fourcc=1196444237):
+  def __init__(self, rootdir='.', vimagefile=None, vmaskfile=None, overwrite=False, fps=1,
+               imagecodec='mjpeg', maskcodec='huffyuv'):
     self.overwrite  = overwrite
     self.vimagefile = vimagefile
     self.vmaskfile = vmaskfile
@@ -115,7 +116,8 @@ class VideoWriter:
     self.mask_current_frame = -1
     self.frame_size = None        # used for checks
     self.fps = fps
-    self.fourcc = fourcc
+    self.imagecodec = imagecodec
+    self.maskcodec = maskcodec
     self.rootdir = rootdir
     logging.info('Rootdir set to "%s"' % rootdir)
 
@@ -144,13 +146,10 @@ class VideoWriter:
     if not op.exists(op.dirname(vpath)):
       os.makedirs(op.dirname(vpath))
 
-    handler = cv2.VideoWriter (vpath, self.fourcc, self.fps, self.frame_size, isColor=True)
-    if not handler.isOpened():
-        raise Exception('Video failed to open: %s' % videopath)
     if ismask:
-        self.mask_writer  = handler
+      self.mask_writer = imageio.get_writer(vpath, codec=self.maskcodec, fps=self.fps, quality=10)
     else:
-        self.image_writer = handler
+      self.image_writer = imageio.get_writer(vpath, codec=self.imagecodec, fps=self.fps)
 
   def imwrite (self, image):
     assert self.vimagefile is not None
@@ -159,7 +158,7 @@ class VideoWriter:
     assert len(image.shape) == 3 and image.shape[2] == 3, image.shape
     # write
     assert (image.shape[1], image.shape[0]) == self.frame_size
-    self.image_writer.write(image[:,:,::-1])
+    self.image_writer.append_data(image)
     # return recorded imagefile
     self.image_current_frame += 1
     return op.relpath('%s/%06d' % (op.splitext(self.vimagefile)[0], self.image_current_frame), self.rootdir)
@@ -175,16 +174,16 @@ class VideoWriter:
     # write
     assert len(mask.shape) == 3 and mask.shape[2] == 3, mask.shape
     assert (mask.shape[1], mask.shape[0]) == self.frame_size
-    self.mask_writer.write(mask)
+    self.mask_writer.append_data(image)
     # return recorded imagefile
     self.mask_current_frame += 1
     return op.relpath('%s/%06d' % (op.splitext(self.vmaskfile)[0], self.mask_current_frame), self.rootdir)
 
   def close (self):
     if self.image_writer is not None: 
-      self.image_writer.release()
+      self.image_writer.close()
     if self.mask_writer is not None: 
-      self.mask_writer.release()
+      self.mask_writer.close()
 
 
 class PictureReader:

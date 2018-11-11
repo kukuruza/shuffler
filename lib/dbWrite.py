@@ -246,7 +246,7 @@ def imageGridByTime (c, args):
 
   if args.media == 'video':
     imwriter = VideoWriter(rootdir='', vimagefile=args.image_path, overwrite=args.overwrite,
-      fourcc=cv2.VideoWriter_fourcc(*'XVID'), fps=args.fps)
+      imagecodec='ljpeg', fps=args.fps)
   elif args.media == 'pictures':
     imwriter = PictureWriter(rootdir='')
 
