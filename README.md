@@ -32,12 +32,10 @@ Example:
 
 ```bash
 ./shuffler -o myPascal.db \
-  importPascalVoc2012 --images_dir=${VOC_DIR}/JPEGImages --detection_dir=${VOC_DIR}/Annotations \| \
-  printDb \| \
-  filterSQL "SELECT objectid WHERE width < 20 OR height < 20"
+  importPascalVoc2012 ${VOC_DIR} --annotations \| filterObjectsSQL "SELECT objectid WHERE width < 20"
 ```
 
-In this example, we import PASCAL VOC 2012 dataset from `${VOC_DIR}`, print information about the dataset, remove small objects, and save the annotations as an SQLite database `myPascal.db`. Later we may choose to export it back to the PASCAL format or to load data from `myPascal.db` to PyTorch directly. 
+In this example, we import PASCAL VOC 2012 dataset from `${VOC_DIR}`, remove small objects, and save the annotations as an SQLite database `myPascal.db`. Later we may choose to export it back to the PASCAL format or to load data from `myPascal.db` to PyTorch directly. 
 
 
 ## Example use cases
@@ -221,7 +219,7 @@ Import](#import) most common computer vision datasets. Currently support formats
 # Filter objects that intersect other objects too much.
 ./shuffler.py --rootdir 'test' \
   --in_db_file 'test/cars/micro1_v4.db' \
-filterObjectsByIntersection --with_display
+  filterObjectsByIntersection --with_display
 
 # Filter objects that have certain names.
 ./shuffler.py --rootdir 'test' \
@@ -236,14 +234,15 @@ filterObjectsByIntersection --with_display
 # Filter objects with an SQL query
 ./shuffler.py --rootdir 'test' \
   --in_db_file 'test/cars/micro1_v4.db' \
-  filterObjectsSQL --sql 'SELECT objects.objectid FROM objects ' \
+  filterObjectsSQL \
+    'SELECT objects.objectid FROM objects ' \
     'INNER JOIN properties ON objects.objectid=properties.objectid ' \
     'WHERE properties.value="blue" AND objects.score > 0.8'
 # or
 ./shuffler.py --rootdir 'test' \
   --in_db_file 'test/cars/micro1_v4.db' \
   filterObjectsSQL \
-  --sql 'SELECT objects.objectid FROM objects ' \
+    'SELECT objects.objectid FROM objects ' \
     'INNER JOIN properties p1 ON objects.objectid=p1.objectid ' \
     'INNER JOIN properties p2 ON objects.objectid=p2.objectid ' \
     'WHERE p1.value="blue" AND p2.key="pitch"'

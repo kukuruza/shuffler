@@ -275,8 +275,7 @@ def filterObjectsSQLParser(subparsers):
   parser = subparsers.add_parser('filterObjectsSQL',
     description='Delete objects based on the SQL "where" clause.')
   parser.set_defaults(func=filterObjectsSQL)
-  group = parser.add_mutually_exclusive_group()
-  group.add_argument('--sql',
+  parser.add_argument('sql',
     help='an arbitrary SQL clause that should query "objectid". E.g.'
     '"SELECT objects.objectid FROM objects '
     'INNER JOIN properties ON objects.objectid=properties.objectid '
@@ -286,10 +285,6 @@ def filterObjectsSQL (c, args):
   c.execute('SELECT COUNT(1) FROM objects')
   logging.info('Before filtering have %d objects.' % c.fetchone()[0])
 
-  # s = 'SELECT objects.objectid FROM objects ' \
-  #     'INNER JOIN images ON images.imagefile=objects.imagefile ' \
-  #     'INNER JOIN properties ON objects.objectid=properties.objectid ' \
-  #     'WHERE (%s)' % args.where
   c.execute(args.sql)
 
   objectids = c.fetchall()

@@ -22,22 +22,28 @@ def add_parsers(subparsers):
 def importPascalVoc2012Parser(subparsers):
   parser = subparsers.add_parser('importPascalVoc2012',
     description='Import annotations in PASCAL VOC 2012 format into a db. '
-    'Object parts are imported as polygons.')
+    'Object parts are imported as polygons. '
+    'Either SegmentationClass or SegmentationObject (not both) can be imported.')
   parser.set_defaults(func=importPascalVoc2012)
-  parser.add_argument('--images_dir', required=True,
-      help='Directory with image files. E.g. "VOC2012/JPEGImages"')
-  parser.add_argument('--detection_dir',
-      help='Directory with xml files. E.g. "VOC2012/Annotations"')
-  parser.add_argument('--segmentation_dir',
-      help='Directory with xml files. E.g. "VOC2012/SegmentationClass"')
+  parser.add_argument('pascal_dir',
+      help='Path to directory with subdirs "JPEGImages", "Annotations", '
+      '"SegmentationClass", and "SegmentationObject". '
+      'E.g. "/my/dir/to/VOC2012"')
+  parser.add_argument('--annotations', action='store_true',
+      help='Import from directory "Annotations"')
+  segm = parser.add_mutually_exclusive_group()
+  segm.add_argument('--segmentation_class', action='store_true',
+      help='Import from directory "SegmentationClass"')
+  segm.add_argument('--segmentation_object', action='store_true',
+      help='Import from directory "SegmentationObject"')
   parser.add_argument('--with_display', action='store_true')
 
 def importPascalVoc2012 (c, args):
   if args.with_display:
     imreader = ImageryReader(args.rootdir)
 
-  image_paths = sorted(glob(op.join(args.images_dir, '*.jpg')))
-  logging.info('Found %d JPG images in %s' % (len(image_paths), args.images_dir))
+  image_paths = sorted(glob(op.join(args.pascal_dir, 'JPEGImages/*.jpg')))
+  logging.info('Found %d JPG images in %s/JPEGImages' % (len(image_paths), args.pascal_dir))
 
   for image_path in progressbar(image_paths):
     filename = op.splitext(op.basename(image_path))[0]
@@ -53,8 +59,8 @@ def importPascalVoc2012 (c, args):
       img = imreader.imread(imagefile)
 
     # Object annotations.
-    if args.detection_dir:
-      annotation_path = op.join(args.detection_dir, '%s.xml' % filename)
+    if args.annotations:
+      annotation_path = op.join(args.pascal_dir, 'Annotations/%s.xml' % filename)
       if not op.exists(annotation_path):
         raise FileNotFoundError('Annotation file not found at "%s".' % annotation_path)
 
@@ -102,17 +108,28 @@ def importPascalVoc2012 (c, args):
             pts = [[x1,y1],[x1,y2],[x2,y2],[x2,y1]]
             drawScoredPolygon (img, pts, name, score=1)
 
-    # Segmentation annotations.
-    if args.segmentation_dir:
-      segmentation_path = op.join(args.segmentation_dir, '%s.png' % filename)
+    # Class egmentation annotations.
+    if args.segmentation_class:
+      segmentation_path = op.join(args.pascal_dir, 'SegmentationClass/%s.png' % filename)
       if not op.exists(segmentation_path):
         logging.debug('Annotation file not found at "%s".' % segmentation_path)
-
       else:
         # Add image to the database.
         maskfile = op.relpath(segmentation_path, args.rootdir)
         c.execute('UPDATE images SET maskfile=? WHERE imagefile=?', (maskfile,imagefile))
+        if args.with_display:
+          mask = imreader.maskread(maskfile)
+          img = drawMaskAside(img, mask, labelmap=None)
 
+    # Object segmentation annotations.
+    elif args.segmentation_object:
+      segmentation_path = op.join(args.pascal_dir, 'SegmentationObject/%s.png' % filename)
+      if not op.exists(segmentation_path):
+        logging.debug('Annotation file not found at "%s".' % segmentation_path)
+      else:
+        # Add image to the database.
+        maskfile = op.relpath(segmentation_path, args.rootdir)
+        c.execute('UPDATE images SET maskfile=? WHERE imagefile=?', (maskfile,imagefile))
         if args.with_display:
           mask = imreader.maskread(maskfile)
           img = drawMaskAside(img, mask, labelmap=None)
