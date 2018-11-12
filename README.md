@@ -8,25 +8,36 @@ Toolbox for manipulating image annotations in computer vision.
 - [Installation](#installation)
 - [Gentle introduction](#gentle-introduction)
 
+![data preparation pipeline](fig/data-preparation-pipeline.png)
 
 ## Motivation
 
-![data preparation pipeline](fig/data-preparation-pipeline.png)
-
-Experts in computer vision train machine learning models to tackle practical problems, such as detecting vehicles in the autonomous car scenario or find faces in Facebook pictures. In order to train a model, researchers either use public datasets of annotated images or collect their own. In the process of fighting for better model performance, a researcher may want to change or filter image annotations, or to add another public dataset. Currently, each small group of researchers writes their own sripts to load, change, and save annotations. As the number of experiments grows, these custom scripts become more and more difficult to maintain. These project eliminates the need for much of custom scrpting by providing a multipurpose tool to import, modify, visualize, export, and evaluate annotations for some common computer vision tasks.
-
+Experts in computer vision train machine learning models to tackle practical problems, such as detecting vehicles in the autonomous car scenario or find faces in Facebook pictures. In order to train a model, researchers either use public datasets of annotated images or collect their own. In the process of fighting for better model performance, a researcher may want to change or filter image annotations, or to add another public dataset. Currently, each small group of researchers writes their own sripts to load, change, and save annotations. As the number of experiments grows, these custom scripts become more and more difficult to maintain. **Shuffler** eliminates the need for custom scripts by providing a multipurpose tool to import, modify, visualize, export, and evaluate annotations for common computer vision tasks.
 
 ## Functionality
 
-The toolbox supports datasets which have 1) images and masks, 2) objects annotated with masks, polygons, and bounding boxes, and 3) matches between objects.
+Shuffler is a command line tool. It takes a dataset in one of the formats on inputs, performs a number of *operations*, and then records the output. Operations fall under these categories:
 
 - [Import](#import) most common computer vision datasets. The list of supported datasets is growing.
 - [Aggregate information](#info) about a dataset. Print basic statistics, plot histograms, and scatter plots.
 - [GUI](#gui) lets a user to manually loop through a dataset, visualize, modify, and delete entries.
 - [Filter](#filter) annotations, e.g. small objects, objects at image boundary, or objects without a color.
-- [Modify](#modify) a dataset, e.g. increase bounding boxes by 20% or split a dataset into "train" and "test" subsets.
+- [Modify](#modify) a dataset, e.g. increase bounding boxes by 20%, split a dataset into "train" and "test" subsets
 - [Evaluate](#evaluate). Given ground truth and predictions, evaluate performance of object detection or semantic segmentation.
 - Export. We provide a [PyTorch Dataset class](https://pytorch.org/tutorials/beginner/data_loading_tutorial.html#dataset-class) to directly load data from PyTorch. I plan to implement [Keras Dataset class](https://keras.io/utils/#sequence) and export to popular formats such as PASCAL.
+
+The toolbox supports datasets consisting of 1) images and masks, 2) objects annotated with masks, polygons, and bounding boxes, and 3) matches between objects. It stores annotations as a SQL database of its custom format. This database can be viewed and edited manually with any SQL viewer.
+
+Example:
+
+```bash
+./shuffler -o myPascal.db \
+  importPascalVoc2012 --images_dir=${VOC_DIR}/JPEGImages --detection_dir=${VOC_DIR}/Annotations \| \
+  printDb \| \
+  filterSQL "SELECT objectid WHERE width < 20 OR height < 20"
+```
+
+In this example, we import PASCAL VOC 2012 dataset from `${VOC_DIR}`, print information about the dataset, remove small objects, and save the annotations as an SQLite database `myPascal.db`. Later we may choose to export it back to the PASCAL format or to load data from `myPascal.db` to PyTorch directly. 
 
 
 ## Example use cases
