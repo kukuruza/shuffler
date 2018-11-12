@@ -35,7 +35,7 @@ def add_parsers(subparsers):
 def addVideoParser(subparsers):
   parser = subparsers.add_parser('addVideo',
       description='Import frames from a video into the database. '
-      'Recorded paths will be made relatvie to "rootdir" argument.')
+      'Recorded paths will be made relative to "rootdir" argument.')
   parser.add_argument('--image_video_path', required=True)
   parser.add_argument('--mask_video_path')
   parser.set_defaults(func=addVideo)

@@ -75,8 +75,6 @@ parser.add_argument('-o', '--out_db_file', required=False,
     help='If specified, commit to this file. Otherwise, do not commit.')
 parser.add_argument('--rootdir', default='.',
     help='If specified, images paths are relative to this dir.')
-parser.add_argument('--video_middleware', default='imageio', choices=['opencv', 'imageio'],
-    help='When datasets are using video format, choose an intermediate layer to ffmpeg.')
 parser.add_argument('--logging', default=20, type=int, choices={10, 20, 30, 40},
     help='Log debug (10), info (20), warning (30), error (40).')
 subparsers = parser.add_subparsers()
@@ -98,7 +96,6 @@ argv_splits = [list(group) for k, group in groupby(sys.argv[1:], lambda x: x == 
 args = parser.parse_args(argv_splits[0])
 do_commit = args.out_db_file is not None
 rootdir = args.rootdir  # Copy, or it will get lost.
-video_middleware = args.video_middleware
 
 # Logging was just parsed.
 progressbar.streams.wrap_stderr()
@@ -117,7 +114,6 @@ args.func(cursor, args)
 for argv_split in argv_splits[1:]:
   args = parser.parse_args(argv_split)
   args.rootdir = rootdir  # This is the only argument that is used in all subcommands.
-  args.video_middleware = video_middleware  # This is the only argument that is used in all subcommands.
   print('=== %s ===' % args.func.__name__)
   args.func(cursor, args)
 
