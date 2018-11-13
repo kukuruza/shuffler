@@ -31,6 +31,7 @@ class DatasetVideoWriter:
     self.imwriter = VideoWriter(
       vimagefile=op.abspath(op.join(rootdir, self.image_video_file)),
       vmaskfile=op.abspath(op.join(rootdir, self.mask_video_file)),
+      rootdir=rootdir,
       overwrite=overwrite)
 
     if op.exists(out_db_file):
@@ -42,23 +43,18 @@ class DatasetVideoWriter:
     self.c = self.conn.cursor()
     createDb(self.conn)
 
-    self.i_image = -1
-
   def addImage(self, image=None, mask=None, imagefile=None, timestamp=None, name=None, width=None, height=None):
-    self.i_image += 1
-    if image is None and imagefile is None or image is not None and imagefile is not None:
-      raise ValueError('Exactly one of "image" or "imagefile" must be non-None')
-    if imagefile is None:
-      imagefile = op.relpath(op.join(self.image_video_file, '%06d' % self.i_image), self.rootdir)
-      self.imwriter.imwrite(image)
-    if mask is not None:
-      self.imwriter.maskwrite(mask)
-
+    ''' Imagefile should be provided when "image" is not provided or written. '''
+    if image is None == imagefile is None:
+      raise ValueError('Exactly one of "image" or "imagefile" must be None')
+    # If image is provided.
     if image is not None:
-        height, width = image.shape[0:2]
+      imagefile = self.imwriter.imwrite(image)
+      height, width = image.shape[0:2]
+    maskfile = self.imwriter.maskwrite(mask) if mask is not None else None
+
     if timestamp is None:
       timestamp = makeTimeString(datetime.now())
-    maskfile = None if mask is None else op.relpath(op.join(self.mask_video_file, '%06d' % self.i_image), self.rootdir)
     image_entry = (imagefile, width, height, maskfile, timestamp, name)
 
     s = 'images(imagefile,width,height,maskfile,timestamp,name)'
