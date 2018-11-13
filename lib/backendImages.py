@@ -179,7 +179,7 @@ class VideoWriter:
     self.image_writer.append_data(image)
     # Return recorded imagefile.
     self.image_current_frame += 1
-    return op.relpath('%s/%06d' % (op.splitext(self.vimagefile)[0], self.image_current_frame), self.rootdir)
+    return op.relpath('%s/%06d' % (self.vimagefile, self.image_current_frame), self.rootdir)
 
   def maskwrite (self, mask):
     # Multiple checks and lazy init.
@@ -196,7 +196,7 @@ class VideoWriter:
     self.mask_writer.append_data(mask)
     # Return recorded maskfile.
     self.mask_current_frame += 1
-    return op.relpath('%s/%06d' % (op.splitext(self.vmaskfile)[0], self.mask_current_frame), self.rootdir)
+    return op.relpath('%s/%06d' % (self.vmaskfile, self.mask_current_frame), self.rootdir)
 
   def close (self):
     if self.image_writer is not None: 
