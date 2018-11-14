@@ -4,8 +4,27 @@ import imageio
 import logging
 import struct
 import cv2
+import traceback
+from pprint import pformat
 from PIL import Image
-from pkg_resources import parse_version
+
+
+'''
+The support for reading and writing media in the form of single files and
+multiple files, which are supported by our backend imageio:
+https://imageio.readthedocs.io/en/stable/formats.html
+
+Levels of abstraction:
+
+- classes VideoReader and PictureReader:
+  Hide 1) implementation if "imread" for images and "maskread" for masks,
+  2) maintain cache of images already in memory,
+  3) maintain a collection of open videos (in case of VideoReader),
+  4) compute absolute paths from "rootdir" and the provided paths.
+
+- class ImageryReader:
+  Hides 1) whether VideoReader or PictureReader should be used.
+'''
 
 
 def getPictureSize(imagepath):
@@ -16,19 +35,14 @@ def getPictureSize(imagepath):
   return height, width
 
 
-# returns OpenCV VideoCapture property id given, e.g., "FPS"
-def capPropId(prop):
-  OPCV3 = parse_version(cv2.__version__) >= parse_version('3')
-  return getattr(cv2 if OPCV3 else cv2.cv, ("" if OPCV3 else "CV_") + "CAP_PROP_" + prop)
-
-def getVideoLength(video_cv2):
-  return int(video_cv2.get(capPropId('FRAME_COUNT')))
-
-
 class VideoReader:
-  '''Implementation based on Image <-> Frame in video.'''
+  '''Implementation of imagery reader based on "Image" <-> "Frame in video".'''
 
   def __init__ (self, rootdir):
+    '''
+    Args:
+      rootdir:     imagefile and maskfile are considered to be  paths relative to rootdir.
+    '''
     self.rootdir = rootdir
     logging.info('Root is set to %s' % self.rootdir)
     self.image_cache = {}    # cache of previously read image(s)
@@ -36,15 +50,13 @@ class VideoReader:
     self.image_video = {}    # map from image video name to VideoCapture object
     self.mask_video = {}     # map from mask  video name to VideoCapture object
 
-  def _openVideoCapture (self, videopath):
+  def _openVideo (self, videopath):
     ''' Open video and set up bookkeeping '''
     logging.debug ('opening video: %s' % videopath)
     videopath = op.join(self.rootdir, videopath)
     if not op.exists(videopath):
       raise ValueError('videopath does not exist: %s' % videopath)
-    handle = cv2.VideoCapture(videopath)  # open video
-    if not handle.isOpened():
-        raise ValueError('video failed to open: %s' % videopath)
+    handle = imageio.get_reader(videopath)
     return handle
 
   def readImpl (self, image_id, ismask):
@@ -53,7 +65,7 @@ class VideoReader:
     # video id set up
     videopath = op.dirname(image_id)
     if videopath not in video_dict:
-      video_dict[videopath] = self._openVideoCapture (videopath)
+      video_dict[videopath] = self._openVideo (videopath)
     # frame id
     frame_name = op.basename(image_id)
     try:
@@ -64,13 +76,10 @@ class VideoReader:
       raise ValueError('frame_id is %d, but can not be negative.' % frame_id)
     logging.debug ('from image_id %s, got frame_id %d' % (image_id, frame_id))
     # read the frame
-    video_dict[videopath].set(capPropId('POS_FRAMES'), frame_id)
-    retval, img = video_dict[videopath].read()
-    if not retval:
-      if frame_id >= video_dict[videopath].get(capPropId('FRAME_COUNT')):
-        raise ValueError('frame_id %d exceeds the video length' % frame_id)
-      else:
-        raise Exception('could not read image_id %s' % image_id)
+    if frame_id >= video_dict[videopath].get_length():
+      raise ValueError('frame_id %d exceeds the video length' % frame_id)
+    img = video_dict[videopath].get_data(frame_id)
+    img = np.asarray(img)
     # assign the dict back to where it was taken from
     if ismask: self.mask_video = video_dict 
     else: self.image_video = video_dict
@@ -81,7 +90,7 @@ class VideoReader:
     if image_id in self.image_cache: 
         logging.debug ('imread: found image in cache')
         return self.image_cache[image_id]  # get cached image if possible
-    image = self.readImpl (image_id, ismask=False)[:,:,::-1]
+    image = self.readImpl (image_id, ismask=False)
     logging.debug ('imread: new image, updating cache')
     self.image_cache = {image_id: image}   # currently only 1 image in the cache
     return image
@@ -108,7 +117,11 @@ class VideoReader:
 
 class VideoWriter:
 
-  def __init__(self, rootdir='.', vimagefile=None, vmaskfile=None, overwrite=False, fps=1, fourcc=1196444237):
+  def __init__(self, rootdir='.', vimagefile=None, vmaskfile=None, overwrite=False, fps=1):
+    '''
+    Args:
+      rootdir:     imagefile and maskfile are considered paths relative to rootdir.
+    '''
     self.overwrite  = overwrite
     self.vimagefile = vimagefile
     self.vmaskfile = vmaskfile
@@ -118,10 +131,9 @@ class VideoWriter:
     self.mask_current_frame = -1
     self.frame_size = None        # used for checks
     self.fps = fps
-    self.fourcc = fourcc
     self.rootdir = rootdir
     logging.info('Rootdir set to "%s"' % rootdir)
-
+    
   def _openVideo (self, ref_frame, ismask):
     ''' open a video for writing with parameters from the reference video (from reader) '''
     width  = ref_frame.shape[1]
@@ -147,27 +159,30 @@ class VideoWriter:
     if not op.exists(op.dirname(vpath)):
       os.makedirs(op.dirname(vpath))
 
-    handler = cv2.VideoWriter (vpath, self.fourcc, self.fps, self.frame_size, isColor=True)
-    if not handler.isOpened():
-        raise Exception('Video failed to open: %s' % videopath)
     if ismask:
-        self.mask_writer  = handler
+      # "huffyuv" codec is good for png. "rgb24" keeps all colors and is supported by VLC.
+      self.mask_writer = imageio.get_writer(vpath, fps=self.fps,
+        codec='huffyuv', pixelformat='rgb24')
     else:
-        self.image_writer = handler
+      # "mjpeg" for JPG images with highest quality and keeping all info with "yuvj444p".
+      self.image_writer = imageio.get_writer(vpath, fps=self.fps,
+        codec='mjpeg', quality=10, pixelformat='yuvj444p')
 
   def imwrite (self, image):
+    # Multiple checks and lazy init.
     assert self.vimagefile is not None
     if self.image_writer is None:
       self._openVideo (image, ismask=False)
     assert len(image.shape) == 3 and image.shape[2] == 3, image.shape
-    # write
     assert (image.shape[1], image.shape[0]) == self.frame_size
-    self.image_writer.write(image[:,:,::-1])
-    # return recorded imagefile
+    # Write.
+    self.image_writer.append_data(image)
+    # Return recorded imagefile.
     self.image_current_frame += 1
-    return op.relpath('%s/%06d' % (op.splitext(self.vimagefile)[0], self.image_current_frame), self.rootdir)
+    return op.relpath('%s/%06d' % (self.vimagefile, self.image_current_frame), self.rootdir)
 
   def maskwrite (self, mask):
+    # Multiple checks and lazy init.
     assert self.vmaskfile is not None
     assert len(mask.shape) == 2
     if self.mask_writer is None:
@@ -175,23 +190,23 @@ class VideoWriter:
     assert mask.dtype == np.uint8
     if len(mask.shape) == 2:
       mask = np.stack((mask, mask, mask), axis=-1)  # Otherwise mask is not written well.
-    # write
     assert len(mask.shape) == 3 and mask.shape[2] == 3, mask.shape
     assert (mask.shape[1], mask.shape[0]) == self.frame_size
-    self.mask_writer.write(mask)
-    # return recorded imagefile
+    # write.
+    self.mask_writer.append_data(mask)
+    # Return recorded maskfile.
     self.mask_current_frame += 1
-    return op.relpath('%s/%06d' % (op.splitext(self.vmaskfile)[0], self.mask_current_frame), self.rootdir)
+    return op.relpath('%s/%06d' % (self.vmaskfile, self.mask_current_frame), self.rootdir)
 
   def close (self):
     if self.image_writer is not None: 
-      self.image_writer.release()
+      self.image_writer.close()
     if self.mask_writer is not None: 
-      self.mask_writer.release()
+      self.mask_writer.close()
 
 
 class PictureReader:
-  ''' Implementation based on Image <-> Picture file (.jpg, .png, etc).'''
+  ''' Implementation of imagery reader based on "Image" <-> "Picture file (.jpg, .png, etc)". '''
 
   def __init__(self, rootdir):
     logging.debug('Creating PictureReader with rootdir: %s' % rootdir)
@@ -270,14 +285,18 @@ class ImageryReader:
     try:
       self.reader = PictureReader(rootdir=self.rootdir)
       return self.reader.imread(image_id)
-    except Exception as e:
-      logging.debug('Seems like it is not a picture. Exception: "%s"' % e)
+    except Exception:
+      exc_type, exc_value, exc_traceback = sys.exc_info()
+      logging.debug(pformat(traceback.format_exception(exc_type, exc_value, exc_traceback)))
+      logging.debug('Seems like it is not a picture.')
 
     try:
       self.reader = VideoReader(rootdir=self.rootdir)
       return self.reader.imread(image_id)
-    except Exception as e:
-      logging.debug('Seems like it is not a video. Exception: "%s"' % e)
+    except Exception:
+      exc_type, exc_value, exc_traceback = sys.exc_info()
+      logging.debug(pformat(traceback.format_exception(exc_type, exc_value, exc_traceback)))
+      logging.debug('Seems like it is not a video.')
 
     raise TypeError('The provided image_id "%s" with rootdir "%s" does not seem to refer to '
       'either picture file or video frame.' % (image_id, self.rootdir))

@@ -142,6 +142,7 @@ class TestVideoWriter (unittest.TestCase):
     writer.imwrite(img)
     img = skimage.io.imread('cars/images/000002.jpg')
     writer.imwrite(img)
+    writer.close()
     self.assertTrue(op.exists(op.join(self.WORK_DIR, 'images.avi')))
 
   def test_maskwrite_works(self):
@@ -153,6 +154,7 @@ class TestVideoWriter (unittest.TestCase):
     writer.maskwrite(mask)
     mask = skimage.io.imread('cars/masks/000002.png')
     writer.maskwrite(mask)
+    writer.close()
 
   def test_overwrite_flag(self):
     # Make a dummy file.
@@ -165,6 +167,7 @@ class TestVideoWriter (unittest.TestCase):
     # Make sure imwrite does not raise an exception.
     img = skimage.io.imread('cars/images/000000.jpg')
     writer.imwrite(img)
+    writer.close()
 
   def test_no_overwrite_flag(self):
     # Make a dummy file.
@@ -194,6 +197,7 @@ class TestVideoWriter (unittest.TestCase):
     # Make sure imwrite does not raise an exception.
     img = skimage.io.imread('cars/images/000000.jpg')
     writer.imwrite(img)
+    writer.close()
     self.assertTrue(op.exists(op.join(self.WORK_DIR, 'images.avi')))
 
 

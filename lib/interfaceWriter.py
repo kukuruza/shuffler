@@ -15,20 +15,24 @@ class DatasetVideoWriter:
   ''' Write a new dataset (db and videos). '''
   # TODO:add writing to pictures.
 
-  def __init__(self, out_db_file, rootdir='.', overwrite=False):
+  def __init__(self, out_db_file, rootdir='.', image_video_file=None, mask_video_file=None, overwrite=False):
 
-    db_name = op.splitext(op.basename(out_db_file))[0]
+    self.rootdir = rootdir
+
+    self.image_video_file = image_video_file if image_video_file is not None else \
+      '%s.avi' % op.splitext(out_db_file)[0]
+    self.mask_video_file = mask_video_file if mask_video_file is not None else \
+      '%smask.avi' % op.splitext(out_db_file)[0]
+
     outdir = op.dirname(out_db_file)
-    self.imagedir = op.join(op.relpath(outdir, rootdir), db_name)
-    self.maskdir = self.imagedir + 'mask'
-    vimagefile = op.abspath(op.join(rootdir, self.imagedir + '.avi'))
-    vmaskfile = op.abspath(op.join(rootdir, self.maskdir + '.avi'))
-
     if not op.exists(outdir):
       os.makedirs(outdir)
 
-    self.imwriter = VideoWriter(vimagefile=vimagefile, vmaskfile=vmaskfile,
-        overwrite=overwrite)
+    self.imwriter = VideoWriter(
+      vimagefile=op.abspath(op.join(rootdir, self.image_video_file)),
+      vmaskfile=op.abspath(op.join(rootdir, self.mask_video_file)),
+      rootdir=rootdir,
+      overwrite=overwrite)
 
     if op.exists(out_db_file):
       if overwrite:
@@ -39,23 +43,18 @@ class DatasetVideoWriter:
     self.c = self.conn.cursor()
     createDb(self.conn)
 
-    self.i_image = -1
-
   def addImage(self, image=None, mask=None, imagefile=None, timestamp=None, name=None, width=None, height=None):
-    self.i_image += 1
-    if image is None and imagefile is None or image is not None and imagefile is not None:
-      raise ValueError('Exactly one of "image" or "imagefile" must be non-None')
-    if imagefile is None:
-      imagefile = op.join('%s.avi' % self.imagedir, '%06d' % self.i_image)
-      self.imwriter.imwrite(image)
-    if mask is not None:
-      self.imwriter.maskwrite(mask)
-
+    ''' Imagefile should be provided when "image" is not provided or written. '''
+    if image is None == imagefile is None:
+      raise ValueError('Exactly one of "image" or "imagefile" must be None')
+    # If image is provided.
     if image is not None:
-        height, width = image.shape[0:2]
+      imagefile = self.imwriter.imwrite(image)
+      height, width = image.shape[0:2]
+    maskfile = self.imwriter.maskwrite(mask) if mask is not None else None
+
     if timestamp is None:
       timestamp = makeTimeString(datetime.now())
-    maskfile = None if mask is None else op.join('%s.avi' % self.maskdir, '%06d' % self.i_image)
     image_entry = (imagefile, width, height, maskfile, timestamp, name)
 
     s = 'images(imagefile,width,height,maskfile,timestamp,name)'
@@ -111,10 +110,13 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('-o', '--out_db_file', required=True)
   parser.add_argument('--rootdir', required=True)
+  parser.add_argument('--image_video_file')
+  parser.add_argument('--mask_video_file')
   parser.add_argument('--overwrite', action='store_true')
   args = parser.parse_args()
 
   writer = DatasetVideoWriter(args.out_db_file, rootdir=args.rootdir,
+      image_video_file=args.image_video_file, mask_video_file=args.mask_video_file,
       overwrite=args.overwrite)
   writer.addImage(np.zeros((100,100,3), dtype=np.uint8),
              mask=np.ones((100,100), dtype=np.uint8))

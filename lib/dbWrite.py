@@ -201,7 +201,7 @@ def writeImages (c, args):
         if not op.splitext(maskname)[1]:  # Add the extension, if there was None.
           maskname = '%s.png' % maskname
         maskfile_new = op.join(args.mask_path, maskname)
-        imwriter.imwrite(maskfile_new, mask)
+        imwriter.maskwrite(maskfile_new, mask)
     elif args.mask_path is None:
       maskfile_new = None
 
@@ -245,8 +245,7 @@ def imageGridByTime (c, args):
   imreader = ImageryReader(rootdir=args.rootdir)
 
   if args.media == 'video':
-    imwriter = VideoWriter(rootdir='', vimagefile=args.image_path, overwrite=args.overwrite,
-      fourcc=cv2.VideoWriter_fourcc(*'XVID'), fps=args.fps)
+    imwriter = VideoWriter(rootdir='', vimagefile=args.image_path, overwrite=args.overwrite, fps=args.fps)
   elif args.media == 'pictures':
     imwriter = PictureWriter(rootdir='')
 
