@@ -146,17 +146,17 @@ Import](#import) most common computer vision datasets. Currently support formats
 ```bash
 # Print general info. Info about objects are grouped by image.
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'test/databases/micro1_v4.db' \
+  --in_db_file 'test/cars/micro1_v4.db' \
   printInfo --objects_by_image
 
 # Print several tables of a database
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'test/databases/micro1_v4.db' \
+  --in_db_file 'test/cars/micro1_v4.db' \
   dumpDb --tables objects properties
 
 # Plot a histogram of value of field "yaw" of objects named "car".
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'test/databases/micro1_v4.db' \
+  --in_db_file 'test/cars/micro1_v4.db' \
   plotObjectsHistogram \
   --sql_query 'SELECT value FROM objects 
                INNER JOIN properties p1 ON objects.objectid=p1.objectid 
@@ -165,7 +165,7 @@ Import](#import) most common computer vision datasets. Currently support formats
 
 # Plot a "strip" plot of values of field "yaw" and "pitch" of objects named "car".
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'test/databases/micro1_v4.db' \
+  --in_db_file 'test/cars/micro1_v4.db' \
   plotObjectsStrip \
   --sql_query 'SELECT p1.value, p2.value FROM objects 
                INNER JOIN properties p1 ON objects.objectid=p1.objectid 
@@ -175,7 +175,7 @@ Import](#import) most common computer vision datasets. Currently support formats
 
 # Plot a scatter plot of values of field "yaw" and "pitch" of objects named "car".
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'test/databases/micro1_v4.db' \
+  --in_db_file 'test/cars/micro1_v4.db' \
   plotObjectsScatter \
   --sql_query 'SELECT p1.value, p2.value FROM objects 
                INNER JOIN properties p1 ON objects.objectid=p1.objectid 
@@ -304,7 +304,7 @@ Import](#import) most common computer vision datasets. Currently support formats
 # Masks from polygons.
 ./shuffler.py --rootdir 'test' \
   --in_db_file 'test/cars/micro1_v4.db' \
-  polygonsToMask --mask_pictures_dir 'cars/mask_polygons' --skip_empty_masks
+  polygonsToMask --media='pictures' --mask_path 'cars/mask_polygons' --skip_empty_masks
 ```
 
 #### <a name="evaluate">Evaluation of ML tasks
@@ -331,12 +331,14 @@ Import](#import) most common computer vision datasets. Currently support formats
 ```bash
 ./shuffler.py --rootdir 'test' \
   --in_db_file 'test/cars/micro1_v4.db' \
-  writeImages --media 'pictures' --image_path 'cars/exported' --mask_alpha 0.5 --with_imageid
+  writeMedia --media 'pictures' --image_path '/tmp/shuffler/cars/images' \
+  --mask_alpha 0.5 --with_imageid --overwrite
 
 ./shuffler.py --rootdir 'test' \
   --in_db_file 'test/cars/micro1_v4.db' \
-  cropObjects --media 'pictures' --image_path 'cars/exported' --mask_path 'cars/exportedmask' \
-  --target_width 64 --target_height 64
+  cropObjects --media 'pictures' --image_path '/tmp/shuffler/cars/imagecrops' \
+  --mask_path '/tmp/shuffler/cars/maskcrops' \
+  --target_width 64 --target_height 64 --overwrite
 ```
 
 
@@ -354,7 +356,7 @@ Sub-commands can be chained via the special symbol "\|" (here, the backslash esc
 ./shuffler.py --rootdir 'test' --in_db_file 'test/cars/micro1_v4.db' \
   addDb --db_file 'test/cars/micro1_v4_singleim.db' \| \
   mergeObjectDuplicates \| \
-  polygonsToMask --mask_pictures_dir 'cars/mask_polygons' --skip_empty_masks \| \
+  polygonsToMask --media='pictures' --mask_path 'cars/mask_polygons' --skip_empty_masks \| \
   dumpDb --tables images \| \
   examineImages --mask_alpha 0.5
 ```

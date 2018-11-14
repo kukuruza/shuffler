@@ -12,7 +12,7 @@ from progressbar import progressbar
 from ast import literal_eval
 
 from .backendDb import makeTimeString, deleteImage, objectField, createDb
-from .backendImages import getPictureSize, ImageryReader, VideoWriter, PictureWriter
+from .backendMedia import getPictureSize, MediaReader
 from .util import drawScoredRoi, roi2bbox
 from .utilExpandBoxes import expandRoiToRatio, expandRoi
 
@@ -29,7 +29,6 @@ def add_parsers(subparsers):
   splitDbParser(subparsers)
   mergeObjectDuplicatesParser(subparsers)
   renameObjectsParser(subparsers)
-  polygonsToMaskParser(subparsers)
 
 
 def addVideoParser(subparsers):
@@ -196,7 +195,7 @@ def expandBoxesParser(subparsers):
 
 def expandBoxes (c, args):
   if args.with_display:
-    imreader = ImageryReader(rootdir=args.rootdir)
+    imreader = MediaReader(rootdir=args.rootdir)
 
   c.execute('SELECT imagefile FROM images')
   for (imagefile,) in progressbar(c.fetchall()):
@@ -461,7 +460,6 @@ def mergeObjectDuplicates (c, args):
         raise NotImplementedError('Marging matches table not implemented yet.')
 
 
-
 def renameObjectsParser(subparsers):
   parser = subparsers.add_parser('renameObjects',
     description='Map object names. '
@@ -489,80 +487,3 @@ def renameObjects (c, args):
   # Remap the rest.
   for key, value in namesmap.items():
     c.execute('UPDATE objects SET name=? WHERE name=? AND (%s)' % args.where_object, (value, key))
-
-
-
-def polygonsToMaskParser(subparsers):
-  parser = subparsers.add_parser('polygonsToMask',
-    description='Convert polygons of an object into a mask, and write it as maskfile.'
-    'If there are polygon entries with different names, consider them as different polygons. '
-    'Masks from each of these polygons are summed up and normalized to their number. '
-    'The result is a black-and-white mask when there is only one polygon, and '
-    'a grayscale mask when there are multiple polygons.')
-  parser.set_defaults(func=polygonsToMask)
-  group = parser.add_mutually_exclusive_group()
-  group.add_argument('--mask_pictures_dir',
-    help='the directory where to write mask pictures to.')
-  group.add_argument('--mask_video_file',
-    help='the video file where to write masks to.')
-  parser.add_argument('--overwrite', action='store_true',
-    help='overwrite images or video.')
-  parser.add_argument('--skip_empty_masks', action='store_true',
-    help='do not write black masks with no objects.')
-
-def polygonsToMask (c, args):
-
-  # Create mask writer.
-  if args.mask_video_file:
-    imwriter = VideoWriter(rootdir=args.rootdir, vmaskfile=args.mask_video_file, overwrite=args.overwrite)
-  elif args.mask_pictures_dir:
-    imwriter = PictureWriter(rootdir=args.rootdir)
-  else:
-    raise ValueError('Specify either "mask_video_file" or "mask_pictures_dir".')
-
-  # Iterate images.
-  c.execute('SELECT imagefile,width,height FROM images')
-  for imagefile, width, height in progressbar(c.fetchall()):
-    mask_per_image = np.zeros((height, width), dtype=np.int32)
-
-    # Iterate objects.
-    c.execute('SELECT objectid FROM objects WHERE imagefile=?', (imagefile,))
-    for objectid, in c.fetchall():
-      mask_per_object = np.zeros((height, width), dtype=np.int32)
-
-      # Iterate multiple polygons (if any) of the object.
-      c.execute('SELECT DISTINCT(name) FROM polygons WHERE objectid=?', (objectid,))
-      polygon_names = c.fetchall()
-      for polygon_name, in polygon_names:
-
-        # Draw a polygon.
-        if polygon_name is None:
-          c.execute('SELECT x,y FROM polygons WHERE objectid=?', (objectid,))
-        else:
-          c.execute('SELECT x,y FROM polygons WHERE objectid=? AND name=?', (objectid, polygon_name))
-        pts = [[pt[0], pt[1]] for pt in c.fetchall()]
-        logging.debug('Polygon "%s" of object %d consists of points: %s' % (polygon_name, objectid, str(pts)))
-        mask_per_polygon = np.zeros((height, width), dtype=np.int32)
-        cv2.fillConvexPoly(mask_per_polygon, np.asarray(pts, dtype=np.int32), 255)
-        mask_per_object += mask_per_polygon
-
-      # Area inside all polygons is white, outside all polygons is black, else gray.
-      if len(polygon_names) > 1:
-        mask_per_object = mask_per_object // len(polygon_names)
-
-      mask_per_image += mask_per_object
-    mask_per_image = mask_per_image.astype(np.uint8)
-
-    # Maybe skip empty mask.
-    if np.sum(mask_per_image) == 0 and args.skip_empty_masks:
-      continue
-
-    if args.mask_video_file:
-      maskfile = imwriter.maskwrite(mask_per_image)
-    elif args.mask_pictures_dir:
-      maskname = '%s.png' % op.splitext(op.basename(imagefile))[0]
-      maskfile = op.join(args.out_pictures_dir, maskname)
-      imwriter.maskwrite(maskfile, mask_per_image)
-    c.execute('UPDATE images SET maskfile=? WHERE imagefile=?', (maskfile, imagefile))
-
-  imwriter.close()

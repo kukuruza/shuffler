@@ -7,7 +7,7 @@ from pprint import pformat
 from torch.utils.data import Dataset
 
 from backendDb import imageField, objectField
-from backendImages import ImageryReader
+from backendMedia import MediaReader
 
 
 class ImagesDataset(Dataset):
@@ -25,7 +25,7 @@ class ImagesDataset(Dataset):
     self.c.execute('SELECT * FROM images WHERE %s ORDER BY imagefile' % where_image)
     self.image_entries = self.c.fetchall()
 
-    self.imreader = ImageryReader(rootdir=rootdir)
+    self.imreader = MediaReader(rootdir=rootdir)
     self.where_object = where_object
 
   def close(self):
@@ -80,7 +80,7 @@ class ObjectsDataset:
     self.c.execute('SELECT * FROM objects WHERE %s ORDER BY objectid' % where_object)
     self.object_entries = self.c.fetchall()
 
-    self.imreader = ImageryReader(rootdir=rootdir)
+    self.imreader = MediaReader(rootdir=rootdir)
 
   def close(self):
     self.conn.close()

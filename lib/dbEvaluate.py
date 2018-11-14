@@ -11,7 +11,7 @@ from matplotlib import pyplot as plt
 from pprint import pformat
 
 from .backendDb import objectField
-from .backendImages import ImageryReader
+from .backendMedia import MediaReader
 
 
 
@@ -278,7 +278,7 @@ def evaluateSegmentationIoU(c, args):
   logging.info ('Total %d images in both the open and the ground truth databases.' % len(entries))
   logging.debug (pformat(entries))
 
-  imreader = ImageryReader(rootdir=args.rootdir)
+  imreader = MediaReader(rootdir=args.rootdir)
 
   labelmap_gt, labelmap_pr, class_names = _label2classMapping(
     args.gt_mapping_dict, args.pred_mapping_dict)
@@ -396,7 +396,7 @@ def evaluateBinarySegmentation(c, args):
   logging.info ('Total %d images in both the open and the ground truth databases.' % len(entries))
   logging.debug (pformat(entries))
 
-  imreader = ImageryReader(rootdir=args.rootdir)
+  imreader = MediaReader(rootdir=args.rootdir)
 
   TPs = np.zeros((256,), dtype=int)
   TNs = np.zeros((256,), dtype=int)

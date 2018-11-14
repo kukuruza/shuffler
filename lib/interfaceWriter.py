@@ -8,7 +8,7 @@ import argparse
 from datetime import datetime
 
 from backendDb import createDb, makeTimeString
-from backendImages import VideoWriter, PictureWriter
+from backendMedia import VideoWriter, PictureWriter
 
 
 class DatasetVideoWriter:

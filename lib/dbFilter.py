@@ -8,7 +8,7 @@ from pprint import pformat
 from progressbar import progressbar
 
 from .backendDb import objectField, polygonField, deleteImage, deleteObject
-from .backendImages import ImageryReader
+from .backendMedia import MediaReader
 from .util import drawScoredRoi, drawScoredPolygon, bbox2roi
 
 def add_parsers(subparsers):
@@ -80,7 +80,7 @@ def filterObjectsAtBorder (c, args):
     return min (roi[0], roi[1], height+1 - roi[2], width+1 - roi[3]) < border_thresh
 
   if args.with_display:
-    imreader = ImageryReader(rootdir=args.rootdir)
+    imreader = MediaReader(rootdir=args.rootdir)
 
   # For the reference.
   c.execute('SELECT COUNT(1) FROM objects')
@@ -170,7 +170,7 @@ def filterObjectsByIntersection (c, args):
     return dy * dx
 
   if args.with_display:
-    imreader = ImageryReader(rootdir=args.rootdir)
+    imreader = MediaReader(rootdir=args.rootdir)
 
   # For the reference.
   c.execute('SELECT COUNT(1) FROM objects')

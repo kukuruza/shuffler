@@ -9,7 +9,7 @@ from .util import drawTextOnImage, drawMaskOnImage, drawMaskAside
 from .util import bbox2roi, drawScoredRoi, drawScoredPolygon
 from .util import FONT, SCALE, FONT_SIZE, THICKNESS
 from .backendDb import deleteObject, objectField, polygonField
-from .backendImages import ImageryReader
+from .backendMedia import MediaReader
 
 
 def add_parsers(subparsers):
@@ -90,7 +90,7 @@ def examineImages (c, args):
   if args.shuffle:
     np.random.shuffle(image_entries)
 
-  imreader = ImageryReader(rootdir=args.rootdir)
+  imreader = MediaReader(rootdir=args.rootdir)
 
   # For parsing keys.
   key_reader = KeyReader(args.key_dict)
@@ -195,7 +195,7 @@ def examineObjects (c, args):
   if args.shuffle:
     np.random.shuffle(image_entries)
 
-  imreader = ImageryReader(rootdir=args.rootdir)
+  imreader = MediaReader(rootdir=args.rootdir)
 
   # For parsing keys.
   key_reader = KeyReader(args.key_dict)
@@ -303,7 +303,7 @@ def examineMatches (c, args):
   if args.shuffle:
     np.random.shuffle(match_entries)
 
-  imreader = ImageryReader(rootdir=args.rootdir)
+  imreader = MediaReader(rootdir=args.rootdir)
 
   # For parsing keys.
   key_reader = KeyReader(args.key_dict)

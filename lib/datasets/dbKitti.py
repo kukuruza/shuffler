@@ -10,7 +10,7 @@ from progressbar import progressbar
 from pprint import pformat
 
 from ..backendDb import objectField
-from ..backendImages import ImageryReader, getPictureSize
+from ..backendMedia import MediaReader, getPictureSize
 from ..util import drawScoredRoi, drawMaskAside
 
 
@@ -167,7 +167,7 @@ def importKittiParser(subparsers):
 
 def importKitti (c, args):
   if args.with_display:
-    imreader = ImageryReader(args.rootdir)
+    imreader = MediaReader(args.rootdir)
 
   image_paths = sorted(glob(op.join(args.images_dir, '*.png')))
   logging.info('Found %d PNG images in %s' % (len(image_paths), args.images_dir))

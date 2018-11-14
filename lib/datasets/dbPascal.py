@@ -11,7 +11,7 @@ from progressbar import progressbar
 from pprint import pformat
 import re
 
-from ..backendImages import ImageryReader, getPictureSize
+from ..backendMedia import MediaReader, getPictureSize
 from ..util import drawScoredRoi, drawScoredPolygon, drawMaskAside, bbox2roi
 
 
@@ -40,7 +40,7 @@ def importPascalVoc2012Parser(subparsers):
 
 def importPascalVoc2012 (c, args):
   if args.with_display:
-    imreader = ImageryReader(args.rootdir)
+    imreader = MediaReader(args.rootdir)
 
   image_paths = sorted(glob(op.join(args.pascal_dir, 'JPEGImages/*.jpg')))
   logging.info('Found %d JPG images in %s/JPEGImages' % (len(image_paths), args.pascal_dir))

@@ -11,7 +11,7 @@ from progressbar import progressbar
 from pprint import pformat
 import re
 
-from ..backendImages import ImageryReader
+from ..backendMedia import MediaReader
 from ..util import drawScoredPolygon
 
 
@@ -48,7 +48,7 @@ def importLabelmeParser(subparsers):
 
 def importLabelme (c, args):
   if args.with_display:
-    imreader = ImageryReader(args.rootdir)
+    imreader = MediaReader(args.rootdir)
 
   c.execute('SELECT imagefile FROM images')
   imagefiles = c.fetchall()
@@ -130,7 +130,7 @@ def importLabelmeObjectsParser(subparsers):
 
 def importLabelmeObjects(c, args):
   if args.with_display:
-    imreader = ImageryReader(rootdir=args.rootdir)
+    imreader = MediaReader(rootdir=args.rootdir)
 
   annotations_paths = os.listdir(args.annotations_dir)
 

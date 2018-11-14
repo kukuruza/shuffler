@@ -10,7 +10,7 @@ import progressbar
 import logging
 import sys
 
-from lib.backendImages import VideoWriter, getVideoLength
+from lib.backendMedia import VideoWriter, getVideoLength
 
 def MakeGridFromVideos_parser():
   parser = ArgumentParser('Take a list of video files, and make a new one, '

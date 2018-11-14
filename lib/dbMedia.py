@@ -9,29 +9,15 @@ from datetime import timedelta
 from math import sqrt
 
 from .backendDb import objectField, polygonField, deleteImage, parseTimeString, makeTimeString
-from .backendImages import ImageryReader, VideoWriter, PictureWriter
+from .backendMedia import MediaReader, MediaWriter
 from .util import drawTextOnImage, drawMaskOnImage, cropPatch, bbox2roi
 
 
 def add_parsers(subparsers):
-  writeImagesParser(subparsers)
+  writeMediaParser(subparsers)
   cropObjectsParser(subparsers)
-  imageGridByTimeParser(subparsers)
-
-
-
-def _createImageryWriter(image_path, mask_path, media, rootdir, overwrite=None):
-  ''' Based on "media", create either a PicturesWriter or VideoWriter.
-  '''
-  if media == 'video':
-    return VideoWriter(rootdir=rootdir,
-      vimagefile=image_path, 
-      vmaskfile=mask_path,
-      overwrite=overwrite)
-  elif media == 'pictures':
-    return PictureWriter(rootdir=rootdir)
-  else:
-    raise ValueError('"media" must be either "video" or "pictures", not %s' % media)
+  polygonsToMaskParser(subparsers)
+  writeMediaGridByTimeParser(subparsers)
 
 
 def cropObjectsParser(subparsers):
@@ -39,8 +25,6 @@ def cropObjectsParser(subparsers):
     description='Crops object patches to pictures or video and saves their info as a db. '
     'All imagefiles and maskfiles in the db will be replaced with the crops, one per object.')
   parser.set_defaults(func=cropObjects)
-  parser.add_argument('--out_rootdir',
-    help='Specify, if rootdir changed for the output imagery.')
   parser.add_argument('--media', choices=['pictures', 'video'], required=True,
     help='output either a directory with pictures or a video file.')
   parser.add_argument('--image_path', required=True,
@@ -57,10 +41,9 @@ def cropObjectsParser(subparsers):
   parser.add_argument('--overwrite', action='store_true', help='overwrite video if it exists.')
 
 def cropObjects(c, args):
-  imreader = ImageryReader(rootdir=args.rootdir)
-
-  imwriter = _createImageryWriter(args.image_path, args.mask_path,
-    args.media, args.out_rootdir, args.overwrite)
+  imreader = MediaReader(rootdir=args.rootdir)
+  imwriter = MediaWriter(media_type=args.media,
+    image_media=args.image_path, mask_media=args.mask_path, overwrite=args.overwrite)
 
   c.execute('SELECT o.objectid,o.imagefile,o.x1,o.y1,o.width,o.height,o.name,o.score,i.maskfile,i.timestamp '
     'FROM objects AS o INNER JOIN images AS i ON i.imagefile = o.imagefile ORDER BY objectid')
@@ -76,21 +59,13 @@ def cropObjects(c, args):
     # Write image.
     image = imreader.imread(imagefile)
     image = cropPatch(image, roi, args.target_height, args.target_width, args.edges)
-    if args.media == 'video':
-      imagefile = imwriter.imwrite(image)
-    elif args.media == 'pictures':
-      imagefile = op.join(args.image_path, '%09d.jpg' % objectid)
-      imwriter.imwrite(imagefile, image)
+    imagefile = imwriter.imwrite(image, namehint='%06d' % objectid)
 
     # Write mask.
     if args.mask_path is not None and maskfile is not None:
       mask = imreader.maskread(maskfile)
       mask = cropPatch(mask, roi, args.target_height, args.target_width, args.edges)
-      if args.media == 'video':
-        maskfile = imwriter.maskwrite(mask)
-      elif args.media == 'pictures':
-        maskfile = op.join(args.mask_path, '%09d.png' % objectid)
-        imwriter.imwrite(maskfile, mask)
+      maskfile = imwriter.maskwrite(mask, namehint='%06d' % objectid)
     elif args.mask_path is None:
       maskfile = None
 
@@ -102,8 +77,8 @@ def cropObjects(c, args):
 
 
 
-def writeImagesParser(subparsers):
-  parser = subparsers.add_parser('writeImages',
+def writeMediaParser(subparsers):
+  parser = subparsers.add_parser('writeMedia',
     description='Export images as a directory with pictures or as a video, '
     'and change the database imagefiles and maskfiles to match the recordings.')
   parser.add_argument('--out_rootdir',
@@ -113,9 +88,9 @@ def writeImagesParser(subparsers):
   parser.add_argument('--media', choices=['pictures', 'video'], required=True,
     help='output either a directory with pictures or a video file.')
   parser.add_argument('--image_path', required=True,
-    help='the directory for pictures OR video file, where to write mask crop pictures.')
+    help='the directory for pictures OR video file, where to write masks.')
   parser.add_argument('--mask_path',
-    help='the directory for pictures OR video file, where to write mask crop pictures.')
+    help='the directory for pictures OR video file, where to write masks.')
   parser.add_argument('--mask_mapping_dict', 
     help='how values in maskfile are drawn. E.g. "{0: [0,0,0], 255: [128,128,30]}"')
   parser.add_argument('--mask_alpha', type=float, default=0.0,
@@ -123,19 +98,19 @@ def writeImagesParser(subparsers):
   parser.add_argument('--with_imageid', action='store_true', help='print frame number.')
   parser.add_argument('--with_objects', action='store_true', help='draw objects on top.')
   parser.add_argument('--overwrite', action='store_true', help='overwrite video if it exists.')
-  parser.set_defaults(func=writeImages)
+  parser.set_defaults(func=writeMedia)
 
-def writeImages (c, args):
-  imreader = ImageryReader(rootdir=args.rootdir)
+def writeMedia (c, args):
+  imreader = MediaReader(rootdir=args.rootdir)
 
   # For overlaying masks.
   labelmap = literal_eval(args.mask_mapping_dict) if args.mask_mapping_dict else None
   logging.info('Parsed mask_mapping_dict to %s' % pformat(labelmap))
 
   # Create a writer. Rootdir may be changed.
-  out_rootdir = args.out_rootdir if args.out_rootdir else args.rootdir
-  imwriter = _createImageryWriter(args.image_path, args.mask_path,
-    args.media, args.out_rootdir, args.overwrite)
+  out_rootdir = args.out_rootdir if args.out_rootdir is not None else args.rootdir
+  imwriter = MediaWriter(rootdir=out_rootdir, media_type=args.media,
+    image_media=args.image_path, mask_media=args.mask_path, overwrite=args.overwrite)
 
   c.execute('SELECT imagefile,maskfile FROM images WHERE %s' % args.where_image)
   entries = c.fetchall()
@@ -183,25 +158,11 @@ def writeImages (c, args):
           raise Exception('Neither polygon, nor bbox is available for objectid %d' % objectid)
 
     # Write an image.
-    if args.media == 'video':
-      imagefile_new = imwriter.imwrite(image)
-    elif args.media == 'pictures':
-      imagename = op.basename(imagefile)
-      if not op.splitext(imagename)[1]:  # Add the extension, if there was None.
-        imagename = '%s.jpg' % imagename
-      imagefile_new = op.join(args.image_path, imagename)
-      imwriter.imwrite(imagefile_new, image)
+    imagefile_new = imwriter.imwrite(image, namehint=imagefile)
 
     # Write mask.
     if args.mask_path is not None and maskfile is not None:
-      if args.media == 'video':
-        maskfile_new = imwriter.maskwrite(mask)
-      elif args.media == 'pictures':
-        maskname = op.basename(maskfile)
-        if not op.splitext(maskname)[1]:  # Add the extension, if there was None.
-          maskname = '%s.png' % maskname
-        maskfile_new = op.join(args.mask_path, maskname)
-        imwriter.maskwrite(maskfile_new, mask)
+      maskfile_new = imwriter.maskwrite(mask, namehint=maskfile)
     elif args.mask_path is None:
       maskfile_new = None
 
@@ -218,8 +179,72 @@ def writeImages (c, args):
   imwriter.close()
 
 
-def imageGridByTimeParser(subparsers):
-  parser = subparsers.add_parser('imageGridByTime',
+def polygonsToMaskParser(subparsers):
+  parser = subparsers.add_parser('polygonsToMask',
+    description='Convert polygons of an object into a mask, and write it as maskfile.'
+    'If there are polygon entries with different names, consider them as different polygons. '
+    'Masks from each of these polygons are summed up and normalized to their number. '
+    'The result is a black-and-white mask when there is only one polygon, and '
+    'a grayscale mask when there are multiple polygons.')
+  parser.set_defaults(func=polygonsToMask)
+  parser.add_argument('--media', choices=['pictures', 'video'], required=True,
+    help='output either a directory with pictures or a video file.')
+  parser.add_argument('--mask_path',
+    help='the directory for pictures OR video file, where to write masks.')
+  parser.add_argument('--overwrite', action='store_true',
+    help='overwrite images or video.')
+  parser.add_argument('--skip_empty_masks', action='store_true',
+    help='do not write black masks with no objects.')
+
+def polygonsToMask (c, args):
+  imwriter = MediaWriter(media_type=args.media, rootdir=args.rootdir,
+    mask_media=args.mask_path, overwrite=args.overwrite)
+
+  # Iterate images.
+  c.execute('SELECT imagefile,width,height FROM images')
+  for imagefile, width, height in progressbar(c.fetchall()):
+    mask_per_image = np.zeros((height, width), dtype=np.int32)
+
+    # Iterate objects.
+    c.execute('SELECT objectid FROM objects WHERE imagefile=?', (imagefile,))
+    for objectid, in c.fetchall():
+      mask_per_object = np.zeros((height, width), dtype=np.int32)
+
+      # Iterate multiple polygons (if any) of the object.
+      c.execute('SELECT DISTINCT(name) FROM polygons WHERE objectid=?', (objectid,))
+      polygon_names = c.fetchall()
+      for polygon_name, in polygon_names:
+
+        # Draw a polygon.
+        if polygon_name is None:
+          c.execute('SELECT x,y FROM polygons WHERE objectid=?', (objectid,))
+        else:
+          c.execute('SELECT x,y FROM polygons WHERE objectid=? AND name=?', (objectid, polygon_name))
+        pts = [[pt[0], pt[1]] for pt in c.fetchall()]
+        logging.debug('Polygon "%s" of object %d consists of points: %s' % (polygon_name, objectid, str(pts)))
+        mask_per_polygon = np.zeros((height, width), dtype=np.int32)
+        cv2.fillConvexPoly(mask_per_polygon, np.asarray(pts, dtype=np.int32), 255)
+        mask_per_object += mask_per_polygon
+
+      # Area inside all polygons is white, outside all polygons is black, else gray.
+      if len(polygon_names) > 1:
+        mask_per_object = mask_per_object // len(polygon_names)
+
+      mask_per_image += mask_per_object
+    mask_per_image = mask_per_image.astype(np.uint8)
+
+    # Maybe skip empty mask.
+    if np.sum(mask_per_image) == 0 and args.skip_empty_masks:
+      continue
+
+    out_maskfile = imwriter.maskwrite(mask_per_image, namehint=imagefile)
+    c.execute('UPDATE images SET maskfile=? WHERE imagefile=?', (out_maskfile, imagefile))
+
+  imwriter.close()
+
+
+def writeMediaGridByTimeParser(subparsers):
+  parser = subparsers.add_parser('writeMediaGridByTime',
     description='Export images, arranged in a grid, as a directory with pictures or as a video. '
     'Grid arranged by directory of imagefile (imagedir), and can be set manually.')
   parser.add_argument('--media', choices=['pictures', 'video'], required=True,
@@ -239,15 +264,12 @@ def imageGridByTimeParser(subparsers):
     help='Draw time on top.')
   parser.add_argument('--overwrite', action='store_true',
     help='overwrite video if it exists.')
-  parser.set_defaults(func=imageGridByTime)
+  parser.set_defaults(func=writeMediaGridByTime)
 
-def imageGridByTime (c, args):
-  imreader = ImageryReader(rootdir=args.rootdir)
-
-  if args.media == 'video':
-    imwriter = VideoWriter(rootdir='', vimagefile=args.image_path, overwrite=args.overwrite, fps=args.fps)
-  elif args.media == 'pictures':
-    imwriter = PictureWriter(rootdir='')
+def writeMediaGridByTime (c, args):
+  imreader = MediaReader(rootdir=args.rootdir)
+  imwriter = MediaWriter(media_type=args.media,
+    image_media=args.image_path, mask_media=args.mask_path, overwrite=args.overwrite)
 
   if not args.imagedirs:
     c.execute("SELECT DISTINCT(rtrim(imagefile, replace(imagefile, '/', ''))) FROM images")
@@ -320,9 +342,6 @@ def imageGridByTime (c, args):
            width  * (gridid % gridX)  : width  * (gridid % gridX + 1),
            :] = image.copy()
       
-      if args.media == 'video':
-        imwriter.imwrite(grid)
-      elif args.media == 'pictures':
-        imwriter.imwrite(op.join(args.image_path, '%06d.jpg' % iframe), grid)
+      imwriter.imwrite(grid)
 
   imwriter.close()

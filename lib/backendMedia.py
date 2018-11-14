@@ -2,7 +2,7 @@ import os, sys, os.path as op
 import numpy as np
 import imageio
 import logging
-import struct
+import shutil
 import cv2
 import traceback
 from pprint import pformat
@@ -17,13 +17,24 @@ https://imageio.readthedocs.io/en/stable/formats.html
 Levels of abstraction:
 
 - classes VideoReader and PictureReader:
-  Hide 1) implementation if "imread" for images and "maskread" for masks,
+  1) hides implementation if "imread" for images and "maskread" for masks,
   2) maintain cache of images already in memory,
-  3) maintain a collection of open videos (in case of VideoReader),
-  4) compute absolute paths from "rootdir" and the provided paths.
+  3) maintain a collection of open videos (in case of VideoReader).
 
-- class ImageryReader:
-  Hides 1) whether VideoReader or PictureReader should be used.
+- class MediaReader:
+  1) hides whether VideoReader or PictureReader should be used,
+  2) compute absolute paths from "rootdir" and the provided paths.
+
+
+- classes VideoWriter and PictureWriter:
+  1) create / recreate a media / dir or raise an exception,
+  2) hides implementation if "imwrite" for images and "maskwrite" for masks,
+  3) counts frames / images (or writes the given name in case of PictureWriter.)
+
+- class MediaWriter:
+  1) hides whether VideoWriter or PictureWriter should be used,
+  2) compute recorded paths relative to "rootdir".
+
 '''
 
 
@@ -38,13 +49,7 @@ def getPictureSize(imagepath):
 class VideoReader:
   '''Implementation of imagery reader based on "Image" <-> "Frame in video".'''
 
-  def __init__ (self, rootdir):
-    '''
-    Args:
-      rootdir:     imagefile and maskfile are considered to be  paths relative to rootdir.
-    '''
-    self.rootdir = rootdir
-    logging.info('Root is set to %s' % self.rootdir)
+  def __init__ (self):
     self.image_cache = {}    # cache of previously read image(s)
     self.mask_cache = {}     # cache of previously read mask(s)
     self.image_video = {}    # map from image video name to VideoCapture object
@@ -53,7 +58,6 @@ class VideoReader:
   def _openVideo (self, videopath):
     ''' Open video and set up bookkeeping '''
     logging.debug ('opening video: %s' % videopath)
-    videopath = op.join(self.rootdir, videopath)
     if not op.exists(videopath):
       raise ValueError('videopath does not exist: %s' % videopath)
     handle = imageio.get_reader(videopath)
@@ -117,11 +121,7 @@ class VideoReader:
 
 class VideoWriter:
 
-  def __init__(self, rootdir='.', vimagefile=None, vmaskfile=None, overwrite=False, fps=1):
-    '''
-    Args:
-      rootdir:     imagefile and maskfile are considered paths relative to rootdir.
-    '''
+  def __init__(self, vimagefile=None, vmaskfile=None, overwrite=False, fps=1):
     self.overwrite  = overwrite
     self.vimagefile = vimagefile
     self.vmaskfile = vmaskfile
@@ -131,8 +131,6 @@ class VideoWriter:
     self.mask_current_frame = -1
     self.frame_size = None        # used for checks
     self.fps = fps
-    self.rootdir = rootdir
-    logging.info('Rootdir set to "%s"' % rootdir)
     
   def _openVideo (self, ref_frame, ismask):
     ''' open a video for writing with parameters from the reference video (from reader) '''
@@ -145,7 +143,7 @@ class VideoWriter:
          'frame_size different for image and mask: %s vs %s' % \
          (self.frame_size, (width, height))
 
-    vpath = op.join(self.rootdir, self.vmaskfile) if ismask else op.join(self.rootdir, self.vimagefile)
+    vpath = self.vmaskfile if ismask else self.vimagefile
     logging.info ('Opening video: %s' % vpath)
     
     # check if video exists
@@ -179,7 +177,7 @@ class VideoWriter:
     self.image_writer.append_data(image)
     # Return recorded imagefile.
     self.image_current_frame += 1
-    return op.relpath('%s/%06d' % (self.vimagefile, self.image_current_frame), self.rootdir)
+    return '%s/%06d' % (self.vimagefile, self.image_current_frame)
 
   def maskwrite (self, mask):
     # Multiple checks and lazy init.
@@ -196,7 +194,7 @@ class VideoWriter:
     self.mask_writer.append_data(mask)
     # Return recorded maskfile.
     self.mask_current_frame += 1
-    return op.relpath('%s/%06d' % (self.vmaskfile, self.mask_current_frame), self.rootdir)
+    return '%s/%06d' % (self.vmaskfile, self.mask_current_frame)
 
   def close (self):
     if self.image_writer is not None: 
@@ -208,20 +206,14 @@ class VideoWriter:
 class PictureReader:
   ''' Implementation of imagery reader based on "Image" <-> "Picture file (.jpg, .png, etc)". '''
 
-  def __init__(self, rootdir):
-    logging.debug('Creating PictureReader with rootdir: %s' % rootdir)
-    self.rootdir = rootdir
-
   def _readImpl (self, image_id):
-    imagepath = op.join(self.rootdir, image_id)
-    logging.debug ('imagepath: %s, rootdir: %s' % (imagepath, self.rootdir))
-    if not op.exists (imagepath):
-      raise ValueError('Image does not exist at path: "%s"' % imagepath)
+    logging.debug ('image_id: %s' % image_id)
+    if not op.exists (image_id):
+      raise ValueError('Image does not exist at path: "%s"' % image_id)
     try:
-      return imageio.imread(imagepath)
+      return imageio.imread(image_id)
     except ValueError:
-      raise ValueError('PictureReader failed to read image_id %s at rootdir %s.'
-        % (image_id, self.rootdir))
+      raise ValueError('PictureReader failed to read image_id %s.' % image_id)
 
   def imread (self, image_id):
     return self._readImpl(image_id)
@@ -235,33 +227,97 @@ class PictureReader:
 
 class PictureWriter:
 
-  def __init__(self, rootdir='.', jpg_quality=100):
+  def __init__(self, imagedir=None, maskdir=None, overwrite=False, jpg_quality=100):
     self.jpg_quality = jpg_quality
-    self.rootdir = rootdir
+    self.overwrite = overwrite
+    self.imagedir = imagedir
+    self.maskdir = maskdir
+    self.image_current_frame = -1
+    self.mask_current_frame = -1
 
-  def _writeImpl (self, image_id, image):
-    if image is None:
-      raise ValueError('image to write is None')
-    imagepath = op.join(self.rootdir, image_id)
-    if not op.exists (op.dirname(imagepath)):
-      os.makedirs (op.dirname(imagepath))
+    if self.imagedir is not None:
+      # Raise, if imagedir is specified and exists and overwrite is disabled.
+      if op.exists(imagedir) and not self.overwrite:
+        raise ValueError('Directory already exists: %s' % self.imagedir)
+      # Create imagedir, if it is specified and does not exist.
+      elif not op.exists(self.imagedir):
+        logging.debug('PictureWriter will create imagedir "%s"' % self.imagedir)
+        os.makedirs (imagedir)
+      # Delete and recreate imagedir, if it is specified and exists.
+      elif op.exists(self.imagedir) and self.overwrite:
+        logging.debug('PictureWriter will recreate imagedir "%s"' % self.imagedir)
+        shutil.rmtree (imagedir)
+        os.makedirs (imagedir)
 
-    if op.splitext(imagepath)[1] in ['.jpg', '.jpeg']:
-      imageio.imwrite (imagepath, image, quality=self.jpg_quality)
+    if self.maskdir is not None:
+      # Raise, if imagedir is specified and exists and overwrite is disabled.
+      if op.exists(maskdir) and not self.overwrite:
+        raise ValueError('Directory already exists: %s' % self.maskdir)
+      # Create imagedir, if it is specified and does not exist.
+      elif not op.exists(self.maskdir):
+        logging.debug('PictureWriter will create maskdir "%s"' % self.maskdir)
+        os.makedirs (maskdir)
+      # Delete and recreate maskdir, if it is specified and exists.
+      elif op.exists(self.maskdir) and self.overwrite:
+        logging.debug('PictureWriter will recreate maskdir "%s"' % self.maskdir)
+        shutil.rmtree (maskdir)
+        os.makedirs (maskdir)
+
+  def imwrite (self, image, namehint=None):
+    if self.imagedir is None:
+      raise ValueException('Tried to write an image, but imagedir was not specified at init.')
+    if not isinstance(namehint, str):
+      raise ValueError('namehint must be a string, got %s' % str(namehint))
+
+    # If "namehint" is not specified, compute name as the next frame.
+    if namehint is None:
+      self.image_current_frame += 1
+      name = '%06d.jpg' % self.image_current_frame
     else:
-      imageio.imwrite (imagepath, image)
+      name = op.basename(namehint)
+      # Add extension if not specified in "name"
+      if not op.splitext(name)[1]:
+        name = '%s.jpg' % name
 
-  def imwrite (self, imagepath, image):
-    self._writeImpl (imagepath, image)
+    # Compute path from name.
+    imagepath = op.join(self.imagedir, name)
+    logging.debug ('Writing image to path: "%s"' % imagepath)
+    if op.exists(imagepath) and not self.overwrite:
+      raise Exception('Imagepath has been already recorded before: "%s"')
 
-  def maskwrite (self, maskpath, mask):
-    self._writeImpl (maskpath, mask)
+    # Write.
+    imageio.imwrite (imagepath, image, quality=self.jpg_quality)
+    return imagepath
+
+  def maskwrite (self, mask, namehint=None):
+    if self.maskdir is None:
+      raise ValueException('Tried to write an mask, but maskdir was not specified at init.')
+
+    # If "namehint" is not specified, compute name as the next frame.
+    if namehint is None:
+      self.mask_current_frame += 1
+      name = '%06d.png' % self.mask_current_frame
+    else:
+      name = op.basename(namehint)
+      # Add extension if not specified in "name"
+      if not op.splitext(name)[1]:
+        name = '%s.png' % name
+
+    # Compute path from name.
+    maskpath = op.join(self.maskdir, name)
+    logging.debug ('Writing mask to path: "%s"' % maskpath)
+    if op.exists(maskpath) and not self.overwrite:
+      raise Exception('Maskpath has been already recorded before: "%s"')
+
+    # Write.
+    imageio.imwrite (maskpath, mask)
+    return maskpath
 
   def close (self):
     pass
 
 
-class ImageryReader:
+class MediaReader:
   ''' A wrapper class around PictureReader and VideoReader.
   The purpose is to automatically figure out if an image_id is a picture or video frame.
   If it is a picture, create PictureReader. If it is a video frame, create VideoReader.
@@ -270,7 +326,7 @@ class ImageryReader:
   def __init__(self, rootdir):  # TODO: pass kwargs to self.reader.__init__
     self.rootdir = rootdir
     if not isinstance(rootdir, str):
-      raise ValueError('rootdir must be a string, got "%s"' % str(rootdir))
+      raise ValueError('rootdir must be a string, got %s' % str(rootdir))
     self.reader = None  # Lazy ionitialization.
 
   def close(self):
@@ -278,12 +334,14 @@ class ImageryReader:
       self.reader.close()
 
   def imread(self, image_id):
-    logging.debug('Try to read image_id "%s"' % image_id)
+    logging.debug('Try to read image_id "%s" with rootdir "%s"' % (image_id, self.rootdir))
+    image_id = op.join(self.rootdir, image_id)
+
     if self.reader is not None:
       return self.reader.imread(image_id)
 
     try:
-      self.reader = PictureReader(rootdir=self.rootdir)
+      self.reader = PictureReader()
       return self.reader.imread(image_id)
     except Exception:
       exc_type, exc_value, exc_traceback = sys.exc_info()
@@ -291,30 +349,96 @@ class ImageryReader:
       logging.debug('Seems like it is not a picture.')
 
     try:
-      self.reader = VideoReader(rootdir=self.rootdir)
+      self.reader = VideoReader()
       return self.reader.imread(image_id)
     except Exception:
       exc_type, exc_value, exc_traceback = sys.exc_info()
       logging.debug(pformat(traceback.format_exception(exc_type, exc_value, exc_traceback)))
       logging.debug('Seems like it is not a video.')
 
-    raise TypeError('The provided image_id "%s" with rootdir "%s" does not seem to refer to '
-      'either picture file or video frame.' % (image_id, self.rootdir))
+    raise TypeError('The provided image_id "%s" (rootdir "%s" was added) '
+      'does not seem to refer to either picture file or video frame.' %
+      (image_id, self.rootdir))
 
   def maskread(self, mask_id):
+    logging.debug('Try to read mask_id "%s" with rootdir "%s"' % (mask_id, self.rootdir))
+    mask_id = op.join(self.rootdir, mask_id)
+
     if self.reader is not None:
       return self.reader.maskread(mask_id)
 
     try:
-      self.reader = PictureReader(rootdir=self.rootdir)
+      self.reader = PictureReader()
       return self.reader.maskread(mask_id)
     except Exception as e:
       logging.debug('Seems like it is not a picture. Exception: "%s"' % e)
 
     try:
-      self.reader = VideoReader(rootdir=self.rootdir)
+      self.reader = VideoReader()
       return self.reader.maskread(mask_id)
     except Exception as e:
       logging.debug('Seems like it is not a video. Exception: "%s"' % e)
 
-    raise TypeError('mask_id "%s" and rootdir "%s" does not refer to picture or video frame.' % (mask_id, self.rootdir))
+    raise TypeError('The provided mask_id "%s" (rootdir "%s" was added) '
+      'does not seem to refer to either picture file or video frame.' %
+      (mask_id, self.rootdir))
+
+
+class MediaWriter:
+  ''' A wrapper class around PictureWriter and VideoWriter. The purpose is
+  1) to avoid if-else in the subcommand code, depending on how a user would like to record data.
+  2) return paths relative to rootdir, if needed.
+  '''
+
+  def __init__(self, media_type, image_media=None, mask_media=None,
+    rootdir='', overwrite=False):
+    '''
+    Args:
+      media_type:   "video" for multiple images in ffmpeg formats,
+                    "pictures" for directory with single images in ffmpeg formats.
+      image_media:  path for "imagefile" to video or directory, depeding on media_type.
+      mask_meda:    path for "maskfile" to video or directory, depeding on media_type.
+      rootdir:      Output "imagefile" and "maskfile" will be computed relative to it.
+                    Input image_media and mask_media are not affected.
+      overwrite:    if media exists, overwrite it or raise an exception.
+    '''
+    if not isinstance(rootdir, str):
+      raise ValueError('rootdir must be a string, got %s' % str(rootdir))
+
+    self.media_type = media_type
+    self.rootdir = rootdir
+    self.picture_id = 0  # Only for media_type='pictures'.
+
+    if media_type == 'video':
+      self.writer = VideoWriter(vimagefile=image_media, vmaskfile=mask_media, overwrite=overwrite)
+    elif media_type == 'pictures':
+      self.writer = PictureWriter(imagedir=image_media, maskdir=mask_media, overwrite=overwrite)
+    else:
+      raise ValueError('"media" must be either "video" or "pictures", not %s' % media_type)
+
+  def imwrite(self, image, namehint=None):
+    ''' Args:
+      namehint:  A file in directory will have basename(namehint), not a sequential number.
+                 (Only for meda_type="pictures".)
+    '''
+    if self.media_type == 'video':
+      image_id = self.writer.imwrite(image)
+    elif self.media_type == 'pictures':
+      image_id = self.writer.imwrite(image, namehint=namehint)
+
+    return op.relpath(image_id, self.rootdir)
+
+  def maskwrite(self, mask, namehint=None):
+    ''' Args:
+      namehint:  A file in directory will have basename(namehint), not a sequential number.
+                 (Only for meda_type="pictures".)
+    '''
+    if self.media_type == 'video':
+      mask_id = self.writer.maskwrite(mask)
+    elif self.media_type == 'pictures':
+      mask_id = self.writer.maskwrite(mask, namehint=namehint)
+
+    return op.relpath(mask_id, self.rootdir)
+
+  def close(self):
+    self.writer.close()

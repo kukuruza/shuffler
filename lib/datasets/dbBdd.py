@@ -11,7 +11,7 @@ from progressbar import progressbar
 from pprint import pformat
 
 from ..backendDb import objectField
-from ..backendImages import ImageryReader, getPictureSize
+from ..backendMedia import MediaReader, getPictureSize
 from ..util import bbox2roi, drawScoredRoi, drawScoredPolygon, drawMaskAside
 
 
@@ -94,7 +94,7 @@ def importBddParser(subparsers):
 
 def importBdd (c, args):
   if args.with_display:
-    imreader = ImageryReader(args.rootdir)
+    imreader = MediaReader(args.rootdir)
 
   image_paths = sorted(glob(op.join(args.images_dir, '*.jpg')))
   logging.info('Found %d JPG images in %s' % (len(image_paths), args.images_dir))

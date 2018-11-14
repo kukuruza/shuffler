@@ -9,7 +9,7 @@ from itertools import groupby
 
 from lib.util import copyWithBackup
 from lib.backendDb import createDb
-from lib import dbGui, dbInfo, dbFilter, dbModify, dbWrite, dbEvaluate
+from lib import dbGui, dbInfo, dbFilter, dbModify, dbMedia, dbEvaluate
 from lib.datasets import dbLabelme, dbKitti, dbPascal, dbBdd
 
 
@@ -82,7 +82,7 @@ dbModify.add_parsers(subparsers)
 dbFilter.add_parsers(subparsers)
 dbGui.add_parsers(subparsers)
 dbInfo.add_parsers(subparsers)
-dbWrite.add_parsers(subparsers)
+dbMedia.add_parsers(subparsers)
 dbEvaluate.add_parsers(subparsers)
 dbLabelme.add_parsers(subparsers)
 dbKitti.add_parsers(subparsers)
