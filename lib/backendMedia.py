@@ -145,6 +145,10 @@ class VideoWriter:
 
     vpath = self.vmaskfile if ismask else self.vimagefile
     logging.info ('Opening video: %s' % vpath)
+
+    # Check if a user passed without extension (otherwise, the error is obscure.)
+    if op.splitext(vpath)[1] == '':
+      raise TypeError('Video path "%s" should have an extension.' % vpath)
     
     # check if video exists
     if op.exists (vpath):
@@ -266,7 +270,7 @@ class PictureWriter:
   def imwrite (self, image, namehint=None):
     if self.imagedir is None:
       raise ValueException('Tried to write an image, but imagedir was not specified at init.')
-    if not isinstance(namehint, str):
+    if namehint is not None and not isinstance(namehint, str):
       raise ValueError('namehint must be a string, got %s' % str(namehint))
 
     # If "namehint" is not specified, compute name as the next frame.

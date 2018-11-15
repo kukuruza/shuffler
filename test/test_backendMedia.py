@@ -133,6 +133,50 @@ class TestVideoWriter (unittest.TestCase):
   def tearDown(self):
     shutil.rmtree(self.WORK_DIR)
 
+  def test_init_create_files (self):
+    image_media = op.join(self.WORK_DIR, 'images.avi')
+    mask_media = op.join(self.WORK_DIR, 'masks.avi')
+    writer = backendMedia.MediaWriter(media_type='video',
+      image_media=image_media, mask_media=mask_media)
+    writer.imwrite(np.zeros((100,100,3), dtype=np.uint8))
+    writer.maskwrite(np.zeros((100,100), dtype=np.uint8))
+    writer.close()
+    self.assertTrue(op.exists(image_media))
+    self.assertTrue(op.exists(mask_media))
+
+  def test_init_no_extension (self):
+    image_media = op.join(self.WORK_DIR, 'images')  # Instead of "images.avi".
+    writer = backendMedia.MediaWriter(media_type='video', image_media=image_media)
+    with self.assertRaises(TypeError):
+      writer.imwrite(np.zeros((100,100,3), dtype=np.uint8))
+
+  def test_init_without_overwrite (self):
+    # For image.
+    image_media = op.join(self.WORK_DIR, 'images.avi')
+    with open(image_media, 'w'): pass
+    writer = backendMedia.MediaWriter(media_type='video', image_media=image_media)
+    with self.assertRaises(FileExistsError):
+      writer.imwrite(np.zeros((100,100,3), dtype=np.uint8))
+    writer.close()
+    # For mask.
+    mask_media = op.join(self.WORK_DIR, 'masks.avi')
+    with open(mask_media, 'w'): pass
+    writer = backendMedia.MediaWriter(media_type='video', mask_media=mask_media)
+    with self.assertRaises(FileExistsError):
+      writer.maskwrite(np.zeros((100,100), dtype=np.uint8))
+    writer.close()
+
+  def test_init_overwrite_files (self):
+    image_media = op.join(self.WORK_DIR, 'images.avi')
+    mask_media = op.join(self.WORK_DIR, 'masks.avi')
+    with open(image_media, 'w'): pass
+    with open(mask_media, 'w'): pass
+    writer = backendMedia.MediaWriter(media_type='video',
+      image_media=image_media, mask_media=mask_media, overwrite=True)
+    writer.close()
+    self.assertTrue(op.exists(image_media))
+    self.assertTrue(op.exists(mask_media))
+
   def test_imwrite_works(self):
     writer = backendMedia.VideoWriter(vimagefile=op.join(self.WORK_DIR, 'images.avi'))
     img = skimage.io.imread('cars/images/000000.jpg')
@@ -153,40 +197,6 @@ class TestVideoWriter (unittest.TestCase):
     mask = skimage.io.imread('cars/masks/000002.png')
     writer.maskwrite(mask)
     writer.close()
-
-  def test_overwrite_flag(self):
-    # Make a dummy file.
-    with open(op.join(self.WORK_DIR, 'images.avi'), 'w') as f:
-      f.write('existing data')
-    # Create a writer with overwrite enabled.
-    writer = backendMedia.VideoWriter(
-      vimagefile=op.join(self.WORK_DIR, 'images.avi'),
-      overwrite=True)
-    # Make sure imwrite does not raise an exception.
-    img = skimage.io.imread('cars/images/000000.jpg')
-    writer.imwrite(img)
-    writer.close()
-
-  def test_no_overwrite_flag(self):
-    # Make a dummy file.
-    with open(op.join(self.WORK_DIR, 'images.avi'), 'w') as f:
-      f.write('existing data')
-    # Create a writer with overwrite enabled.
-    writer = backendMedia.VideoWriter(
-      vimagefile=op.join(self.WORK_DIR, 'images.avi'),
-      overwrite=False)
-    # Make sure imwrite does not raise an exception.
-    img = skimage.io.imread('cars/images/000000.jpg')
-    with self.assertRaises(FileExistsError):
-      writer.imwrite(img)
-      
-  def test_create_directory(self):
-    # Create a writer with vimagefile pointing to non-existent dir.
-    writer = backendMedia.VideoWriter(
-      vimagefile=op.join(self.WORK_DIR, 'not_existing/images.avi'))
-    # Make sure imwrite does not raise an exception.
-    img = skimage.io.imread('cars/images/000000.jpg')
-    writer.imwrite(img)
 
 
 class TestPictureReader (unittest.TestCase):
@@ -241,9 +251,45 @@ class TestPictureWriter (unittest.TestCase):
   def tearDown(self):
     shutil.rmtree(self.WORK_DIR)
 
-  def test_closeWithoutError(self):
+  def test_close_without_error(self):
     self.writer = backendMedia.PictureWriter()
     self.writer.close()
+
+  def test_init_create_dir (self):
+    image_media = op.join(self.WORK_DIR, 'images')
+    mask_media = op.join(self.WORK_DIR, 'masks')
+    writer = backendMedia.MediaWriter(media_type='pictures',
+      image_media=image_media, mask_media=mask_media)
+    self.assertTrue(op.exists(image_media))
+    self.assertTrue(op.exists(mask_media))
+
+  def test_init_without_overwrite (self):
+    # For image.
+    image_media = op.join(self.WORK_DIR, 'images')
+    os.makedirs(image_media)
+    with self.assertRaises(ValueError):
+      writer = backendMedia.MediaWriter(media_type='pictures', image_media=image_media)
+    # For mask.
+    mask_media = op.join(self.WORK_DIR, 'masks')
+    os.makedirs(mask_media)
+    with self.assertRaises(ValueError):
+      writer = backendMedia.MediaWriter(media_type='pictures', mask_media=mask_media)
+
+  def test_init_overwrite_dirs (self):
+    image_media = op.join(self.WORK_DIR, 'images')
+    mask_media = op.join(self.WORK_DIR, 'masks')
+    os.makedirs(image_media)
+    os.makedirs(mask_media)
+    with open(op.join(image_media, 'myfile'), 'w'): pass
+    with open(op.join(mask_media, 'myfile'), 'w'): pass
+    writer = backendMedia.MediaWriter(media_type='pictures',
+      image_media=image_media, mask_media=mask_media, overwrite=True)
+    # Check that dirs are recreated.
+    self.assertTrue(op.exists(image_media))
+    self.assertTrue(op.exists(mask_media))
+    # Check that files dissapeared from the dirs.
+    self.assertFalse(op.exists(op.join(image_media, 'myfile')))
+    self.assertFalse(op.exists(op.join(mask_media, 'myfile')))
 
   def test_imwrite (self):
     img_path = op.join(self.WORK_DIR, 'cars/images/000000.jpg')
@@ -272,7 +318,7 @@ class TestPictureWriter (unittest.TestCase):
     img = skimage.io.imread(img_path)
     self.assertLess(_diff(img, img_gt), 0.01)
 
-  def test_imwriteJpgQuality (self):
+  def test_imwrite_jpg_quality (self):
     img_path = op.join(self.WORK_DIR, 'cars/images/000000.jpg')
     self.writer = backendMedia.PictureWriter(imagedir=op.dirname(img_path), jpg_quality=100)
     img_gt = skimage.io.imread('cars/images/000000.jpg')
@@ -288,18 +334,28 @@ class TestPictureWriter (unittest.TestCase):
     mask = skimage.io.imread(mask_path)
     self.assertLess(_diff(mask, mask_gt), 0.0001)
 
+  def test_maskwrite_namehint (self):
+    mask_media = op.join(self.WORK_DIR, 'masks')
+    writer = backendMedia.MediaWriter(media_type='pictures', mask_media=mask_media)
+    mask_gt = skimage.io.imread('cars/masks/000000.png')
+    writer.close()
+    writer.maskwrite(mask_gt, namehint='mymask')
+    mask = skimage.io.imread(op.join(mask_media, 'mymask.png'))
+    self.assertLess(_diff(mask, mask_gt), 0.002)
+    writer.close()
+
 
 
 class TestMediaReader (unittest.TestCase):
 
   def test_closeUninitWithoutError(self):
     reader = backendMedia.MediaReader(rootdir='.')
-    reader.close()    
+    reader.close()
 
   def test_closePictureWithoutError(self):
     reader = backendMedia.MediaReader(rootdir='.')
     img = reader.imread('cars/images/000000.jpg')
-    reader.close()    
+    reader.close()
 
   def test_imreadPicture (self):
     reader = backendMedia.MediaReader(rootdir='.')
@@ -359,6 +415,83 @@ class TestMediaReader (unittest.TestCase):
     reader = backendMedia.MediaReader(rootdir='cars')
     with self.assertRaises(TypeError):
       reader.imread('images/000005.txt')
+
+
+
+class TestMediaWriter (unittest.TestCase):
+  ''' Test only that ncessary files exists. Do not check image content. '''
+
+  WORK_DIR = '/tmp/TestMediaWriter'
+
+  def setUp (self):
+    if not op.exists(self.WORK_DIR):
+      os.makedirs(self.WORK_DIR)
+
+  def tearDown(self):
+    shutil.rmtree(self.WORK_DIR)
+
+  def test_close_uninit_without_error (self):
+    writer = backendMedia.MediaWriter(media_type='pictures')
+    writer.close()
+    writer = backendMedia.MediaWriter(media_type='video')
+    writer.close()
+
+  def test_close_without_error (self):
+    # Pictures.
+    writer = backendMedia.MediaWriter(
+      media_type='pictures', image_media=op.join(self.WORK_DIR, 'pictures'))
+    writer.imwrite(np.zeros((100,100,3), dtype=np.uint8))
+    writer.close()
+    # Video.
+    writer = backendMedia.MediaWriter(
+      media_type='video', image_media=op.join(self.WORK_DIR, 'video.avi'))
+    writer.imwrite(np.zeros((100,100,3), dtype=np.uint8))
+    writer.close()
+
+  def test_close_uninit_without_error (self):
+    writer = backendMedia.MediaWriter(media_type='pictures')
+    writer.close()
+    writer = backendMedia.MediaWriter(media_type='video')
+    writer.close()
+
+  def test_video_init_create_files (self):
+    image_media = op.join(self.WORK_DIR, 'images.avi')
+    mask_media = op.join(self.WORK_DIR, 'masks.avi')
+    writer = backendMedia.MediaWriter(media_type='video',
+      image_media=image_media, mask_media=mask_media)
+    writer.imwrite(np.zeros((100,100,3), dtype=np.uint8))
+    writer.maskwrite(np.zeros((100,100), dtype=np.uint8))
+    writer.close()
+    self.assertTrue(op.exists(image_media))
+    self.assertTrue(op.exists(mask_media))
+
+  def test_pictures_imwrite (self):
+    image_media = op.join(self.WORK_DIR, 'images')
+    writer = backendMedia.MediaWriter(media_type='pictures', image_media=image_media)
+    writer.imwrite(np.zeros((100,100,3), dtype=np.uint8))
+    writer.close()
+    self.assertTrue(op.exists(op.join(image_media, '000000.jpg')))
+
+  def test_pictures_imwrite_namehint (self):
+    image_media = op.join(self.WORK_DIR, 'images')
+    writer = backendMedia.MediaWriter(media_type='pictures', image_media=image_media)
+    writer.imwrite(np.zeros((100,100,3), dtype=np.uint8), namehint='myimage')
+    writer.close()
+    self.assertTrue(op.exists(op.join(image_media, 'myimage.jpg')))
+
+  def test_pictures_maskwrite (self):
+    mask_media = op.join(self.WORK_DIR, 'masks')
+    writer = backendMedia.MediaWriter(media_type='pictures', mask_media=mask_media)
+    writer.maskwrite(np.zeros((100,100), dtype=np.uint8))
+    writer.close()
+    self.assertTrue(op.exists(op.join(mask_media, '000000.png')))
+
+  def test_pictures_maskwrite_namehint (self):
+    mask_media = op.join(self.WORK_DIR, 'masks')
+    writer = backendMedia.MediaWriter(media_type='pictures', mask_media=mask_media)
+    writer.maskwrite(np.zeros((100,100), dtype=np.uint8), namehint='mymask')
+    writer.close()
+    self.assertTrue(op.exists(op.join(mask_media, 'mymask.png')))
 
 
 
