@@ -148,10 +148,12 @@ def applyLabelMappingToMask(mask, labelmap):
   Returns:
     mask      Mapped mask.
   '''
+  logging.info('Before mapping, mask had values %s' % set(mask.flatten().tolist()))
+
   if len(mask.shape) == 3:
     raise NotImplementedError('Color masks are not supported now.')
 
-  logging.debug('labelmap: %s' % labelmap)
+  logging.info('Labelmap: %s' % labelmap)
   if len(labelmap) is 0:
     raise ValueError('"labelmap" is empty.')
 
@@ -161,10 +163,10 @@ def applyLabelMappingToMask(mask, labelmap):
     if dmask is None:
       if isinstance(value, (list, tuple)) and len(value) == 3:
         # Create a dmask of shape (3, H, W)
-        dmask = np.zeros((3, mask.shape[0], mask.shape[1]), dtype=np.uint8)
+        dmask = np.empty((3, mask.shape[0], mask.shape[1]), dtype=np.uint8) * np.nan
       elif isinstance(value, int):
         # Create a dmask of shape (H, W)
-        dmask = np.zeros(mask.shape[0:2], dtype=np.uint8)
+        dmask = np.empty(mask.shape[0:2], dtype=np.uint8) * np.nan
       else:
         raise TypeError('Values of "labelmap" are neither a collection of length 3, not a number.')
     # For grayscale target.
@@ -177,12 +179,17 @@ def applyLabelMappingToMask(mask, labelmap):
       dmask[2][mask == key] = value[2]
     else:
       raise ValueError('"labelmap" value %s mismatches dmask\'s shape %s' % (value, dmask.shape))
-    logging.debug('key: %d, value: %s, numpixels: %d.' %
+    logging.debug('Key: %d, value: %s, numpixels: %d.' %
       (key, value, np.count_nonzero(mask == key)))
+
+  # From (3, H, W) to (H, W, 3)
   if len(dmask.shape) == 3:
-    # From (3, H, W) to (H, W, 3)
     dmask = np.transpose(dmask, (1, 2, 0))
-  mask = dmask
+    logging.debug('Left %d values unmapped (NaN).' % np.count_nonzero(np.isnan(dmask[:,:,0])))
+  else:
+    logging.debug('Left %d values unmapped (NaN).' % np.count_nonzero(np.isnan(dmask)))
+
+  return dmask
 
 
 
