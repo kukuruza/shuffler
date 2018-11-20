@@ -12,6 +12,7 @@ from pprint import pformat
 
 from .backendDb import objectField
 from .backendMedia import MediaReader
+from .util import applyLabelMappingToMask
 
 
 
@@ -233,23 +234,7 @@ def _label2classMapping(gt_mapping_dict, pred_mapping_dict):
     labelmap_pr_new[key] = class_names.index(labelmap_pr[key])
   labelmap_pr = labelmap_pr_new
   return labelmap_gt, labelmap_pr, class_names
-  
-def _relabelMask(mask, labelmap):
-  ''' Map from pixel values to the target label space. '''
-  out = np.empty(shape=mask.shape, dtype=np.uint8)
-  out[:] = np.nan
-  for key in labelmap:
-    # Parse "<N" and ">N" (undocumented feature.)
-    if isinstance(key, str):
-      if key[0] == '<':
-        for k in range(int(key[1:])):
-          out[mask == k] = labelmap[key]
-      if key[0] == '>':
-        for k in range(int(key[1:]), 256):
-          out[mask == k] = labelmap[key]
-    else:
-      out[mask == key] = labelmap[key]
-  return out
+
 
 def evaluateSegmentationIoUParser(subparsers):
   parser = subparsers.add_parser('evaluateSegmentationIoU',
@@ -288,13 +273,15 @@ def evaluateSegmentationIoU(c, args):
   for imagefile, maskfile_pr, maskfile_gt in progressbar(entries):
 
     # Load masks and bring them to comparable form.
-    mask_gt = _relabelMask(imreader.maskread(maskfile_gt), labelmap_gt)
-    mask_pr = _relabelMask(imreader.maskread(maskfile_pr), labelmap_pr)
-    mask_pr = cv2.resize(mask_pr, (mask_gt.shape[1], mask_gt.shape[0]), cv2.INTER_NEAREST)
+    mask_gt = applyLabelMappingToMask(imreader.maskread(maskfile_gt), labelmap_gt)
+    mask_pr = applyLabelMappingToMask(imreader.maskread(maskfile_pr), labelmap_pr)
+    mask_pr = cv2.resize(mask_pr, (mask_gt.shape[1], mask_gt.shape[0]), interpolation=cv2.INTER_NEAREST)
 
     # Evaluate one image pair.
-    careabout = mask_gt is not None 
-    hist += fast_hist(mask_gt[careabout][:], mask_pr[careabout][:], len(class_names))
+    careabout = ~np.isnan(mask_gt)
+    mask_gt = mask_gt[careabout][:].astype(int)
+    mask_pr = mask_pr[careabout][:].astype(int)
+    hist += fast_hist(mask_gt, mask_pr, len(class_names))
 
   # Get label distribution.
   pr_per_class = hist.sum(0)

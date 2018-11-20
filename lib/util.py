@@ -165,11 +165,11 @@ def applyLabelMappingToMask(mask, labelmap):
     # Lazy initialization of dmask.
     if dmask is None:
       if isinstance(value, (list, tuple)) and len(value) == 3:
-        # Create a dmask of shape (3, H, W), later will reshape it.
-        dmask = np.zeros((3, mask.shape[0], mask.shape[1]), dtype=np.uint8)
+        # Create a dmask of shape (3, H, W)
+        dmask = np.empty((3, mask.shape[0], mask.shape[1]), dtype=np.uint8) * np.nan
       elif isinstance(value, int):
         # Create a dmask of shape (H, W)
-        dmask = np.zeros(mask.shape[0:2], dtype=np.uint8)
+        dmask = np.empty(mask.shape[0:2], dtype=np.uint8) * np.nan
       else:
         raise TypeError('Values of "labelmap" are neither a collection of length 3, not a number.')
 
@@ -206,6 +206,10 @@ def applyLabelMappingToMask(mask, labelmap):
   if len(dmask.shape) == 3:
     # From (3, H, W) to (H, W, 3)
     dmask = np.transpose(dmask, (1, 2, 0))
+    logging.debug('Left %d values unmapped (NaN).' % np.count_nonzero(np.isnan(dmask[:,:,0])))
+  else:
+    logging.debug('Left %d values unmapped (NaN).' % np.count_nonzero(np.isnan(dmask)))
+
   return dmask
 
 
