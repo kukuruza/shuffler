@@ -186,7 +186,6 @@ class VideoWriter:
   def maskwrite (self, mask):
     # Multiple checks and lazy init.
     assert self.vmaskfile is not None
-    assert len(mask.shape) == 2
     if self.mask_writer is None:
       self._openVideo (mask, ismask=True)
     assert mask.dtype == np.uint8

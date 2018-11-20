@@ -1,16 +1,15 @@
 #! /usr/bin/env python3
 import sys, os, os.path as op
 sys.path.append( os.path.dirname( os.path.dirname( os.path.abspath(__file__) ) ) )
-import torch
 import numpy as np
 import cv2
 from glob import glob
 from argparse import ArgumentParser
 import progressbar
 import logging
-import sys
+import imageio
 
-from lib.backendMedia import VideoWriter, getVideoLength
+from lib.backendMedia import VideoWriter
 
 def MakeGridFromVideos_parser():
   parser = ArgumentParser('Take a list of video files, and make a new one, '
@@ -29,28 +28,21 @@ def MakeGridFromVideos(args):
     raise ValueError('Only 2x1, 3x1, or 2x2 grid for now.')
   
   if not args.dryrun:
-    writer = VideoWriter(vimagefile=args.out_video_path, overwrite=args.overwrite, fps=args.fps)
+    writer = VideoWriter(vmaskfile=args.out_video_path, overwrite=args.overwrite, fps=args.fps)
 
   def processImage(image):
     image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB) if len(image.shape) == 2 else image
     scale = float(args.imwidth) / image.shape[1]
     image = cv2.resize(image, dsize=(0,0), fx=scale, fy=scale)
-    image = image[:,:,::-1]  # VideoWriter changes RGB to GBR.
     return image
 
-  handles = [cv2.VideoCapture(path) for path in args.in_video_paths]
-  num_frames = 100000000
-  for i, handle in enumerate(handles):
-    if not handle:
-      raise ValueError('Video failed to open: "%s"' % args.in_video_paths[i])
-    num_frames = min(num_frames, getVideoLength(handle))
+  handles = [imageio.get_reader(path) for path in args.in_video_paths]
+  for handle, path in zip(handles, args.in_video_paths):
+    logging.info('%d frames in video %s.' % (handle.get_length(), path))
+  num_frames = min([handle.get_length() for handle in handles])
 
   for i in progressbar.progressbar(range(num_frames)):
-    rets, images = zip(*[handle.read() for handle in handles])
-    for ivideo,ret in enumerate(rets):
-      if not ret:
-        raise ValueError('Failed to read frame %d from video %s' %
-          (i, args.in_video_paths[ivideo]))
+    images = [handle.get_data(i) for handle in handles]
 
     images = [processImage(image) for image in images]
     if len(images) == 4:
@@ -61,7 +53,10 @@ def MakeGridFromVideos(args):
       gridimage = np.hstack([images[0], images[1], images[2]])
 
     if not args.dryrun:
-      writer.imwrite(gridimage)
+      writer.maskwrite(gridimage)
+  
+  for handle in handles:
+    handle.close()
 
 
 if __name__ == '__main__':

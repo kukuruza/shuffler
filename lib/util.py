@@ -129,10 +129,14 @@ def drawTextOnImage(img, text):
   '''
   imheight, imwidth = img.shape[0:2]
   fontscale = float(imheight) / 500
-  thickness = min(imheight // 100, 2)
+  thickness = max(imheight // 100, 1)
   offsety = int(fontscale * 40)
-  cv2.putText (img, text, (5, offsety), FONT, fontscale, (0,0,0), thickness)
-  cv2.putText (img, text, (5, offsety), FONT, fontscale, (255,255,255), thickness-1)
+  logging.debug('Using offset=%s, fontscale=%s, thickness=%s' % (offsety, fontscale, thickness))
+  if thickness == 1:
+    cv2.putText (img, text, (5, offsety), FONT, fontscale, (255,255,255), thickness)
+  else:
+    cv2.putText (img, text, (5, offsety), FONT, fontscale, (0,0,0), thickness)
+    cv2.putText (img, text, (5, offsety), FONT, fontscale, (255,255,255), thickness-1)
 
 
 def applyLabelMappingToMask(mask, labelmap):
@@ -140,7 +144,7 @@ def applyLabelMappingToMask(mask, labelmap):
   Args:
     mask:     numpy 2-dim array, the same HxW as img.
     labelmap: dict from mask values to output values Key->Value, where:
-              Key is scalar int in [0, 255].
+              Key is scalar int in [0, 255] or a str type ">=N", "<=N", or "[M,N]".
               If Value is a scalar, the mask stays grayscale,
               if Value is a tuple (r,g,b), the mask is transformed to color.
               Examples {1: 255, 2: 128} or {1: (255,255,255), 2: (128,255,0)}.
@@ -157,32 +161,52 @@ def applyLabelMappingToMask(mask, labelmap):
 
   dmask = None
   for key, value in labelmap.items():
+
     # Lazy initialization of dmask.
     if dmask is None:
       if isinstance(value, (list, tuple)) and len(value) == 3:
-        # Create a dmask of shape (3, H, W)
+        # Create a dmask of shape (3, H, W), later will reshape it.
         dmask = np.zeros((3, mask.shape[0], mask.shape[1]), dtype=np.uint8)
       elif isinstance(value, int):
         # Create a dmask of shape (H, W)
         dmask = np.zeros(mask.shape[0:2], dtype=np.uint8)
       else:
         raise TypeError('Values of "labelmap" are neither a collection of length 3, not a number.')
+
+    if isinstance(key, int):
+      roi = mask == key
+    elif isinstance(key, str) and len(key) >= 2 and key[0] == '>':
+      roi = mask > int(key[1:])
+    elif isinstance(key, str) and len(key) >= 2 and key[0] == '<':
+      roi = mask < int(key[1:])
+    elif isinstance(key, str) and len(key) >= 3 and key[0:2] == '>=':
+      roi = mask >= int(key[2:])
+    elif isinstance(key, str) and len(key) >= 3 and key[0:2] == '<=':
+      roi = mask <= int(key[2:])
+    elif isinstance(key, str) and len(key) >= 5 and key[0] == '[' and key[-1] == ']' and ',' in key:
+      key1, key2 = tuple([int(x) for x in key[1:-1].split(',')])
+      roi = np.bitwise_and(mask >= key1, mask <= key2)
+    else:
+      raise TypeError('Could not interpret the key "%s". '
+        'Must be int or string of type "<N", "<=N", ">N", ">=N", "[M,N]".' % key)
+
     # For grayscale target.
     if len(dmask.shape) == 2 and isinstance(value, int):
-      dmask[mask == key] = value
+      dmask[roi] = value
     # For color target.
     elif len(dmask.shape) == 3 and isinstance(value, (list, tuple)) and len(value) == 3:
-      dmask[0][mask == key] = value[0]
-      dmask[1][mask == key] = value[1]
-      dmask[2][mask == key] = value[2]
+      dmask[0][roi] = value[0]
+      dmask[1][roi] = value[1]
+      dmask[2][roi] = value[2]
     else:
       raise ValueError('"labelmap" value %s mismatches dmask\'s shape %s' % (value, dmask.shape))
-    logging.debug('key: %d, value: %s, numpixels: %d.' %
-      (key, value, np.count_nonzero(mask == key)))
+    logging.debug('key: %s, value: %s, numpixels: %d.' %
+      (key, value, np.count_nonzero(roi)))
+
   if len(dmask.shape) == 3:
     # From (3, H, W) to (H, W, 3)
     dmask = np.transpose(dmask, (1, 2, 0))
-  mask = dmask
+  return dmask
 
 
 

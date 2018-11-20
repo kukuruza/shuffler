@@ -24,7 +24,7 @@ def add_parsers(subparsers):
   tailImagesParser(subparsers)
   moduloAnglesParser(subparsers)
   expandBoxesParser(subparsers)
-  moveDirParser(subparsers)
+  moveMediaParser(subparsers)
   addDbParser(subparsers)
   splitDbParser(subparsers)
   mergeObjectDuplicatesParser(subparsers)
@@ -231,37 +231,39 @@ def expandBoxes (c, args):
         args.with_display = False
 
 
-def moveDirParser(subparsers):
-  parser = subparsers.add_parser('moveDir',
+def moveMediaParser(subparsers):
+  parser = subparsers.add_parser('moveMedia',
     description='Change imagefile and maskfile.')
-  parser.set_defaults(func=moveDir)
+  parser.set_defaults(func=moveMedia)
   parser.add_argument('--where_image', default='TRUE',
     help='the SQL "where" clause for "images" table. '
     'E.g. to change imagefile of JPG pictures from directory "from/mydir" only, use: '
     '\'imagefile LIKE "from/mydir/%%"\'')
-  parser.add_argument('--image_dir')
-  parser.add_argument('--mask_dir')
+  parser.add_argument('--image_path',
+    help='the directory for pictures OR video file of images')
+  parser.add_argument('--mask_path',
+    help='the directory for pictures OR video file of masks')
 
-def moveDir (c, args):
+def moveMedia (c, args):
 
-  if args.image_dir:
-    logging.debug ('Moving image dir to: %s' % args.image_dir)
+  if args.image_path:
+    logging.debug ('Moving image dir to: %s' % args.image_path)
     c.execute('SELECT imagefile FROM images WHERE (%s)' % args.where_image)
     imagefiles = c.fetchall()
 
     for oldfile, in progressbar(imagefiles):
-      newfile = op.join (args.image_dir, op.basename(oldfile))
+      newfile = op.join (args.image_path, op.basename(oldfile))
       c.execute('UPDATE images SET imagefile=? WHERE imagefile=?', (newfile, oldfile))
       c.execute('UPDATE objects SET imagefile=? WHERE imagefile=?', (newfile, oldfile))
 
-  if args.mask_dir:
-    logging.debug ('Moving mask dir to: %s' % args.mask_dir)
+  if args.mask_path:
+    logging.debug ('Moving mask dir to: %s' % args.mask_path)
     c.execute('SELECT maskfile FROM images WHERE (%s)' % args.where_image)
     maskfiles = c.fetchall()
 
     for oldfile, in progressbar(maskfiles):
       if oldfile is not None:
-        newfile = op.join (args.mask_dir, op.basename(oldfile))
+        newfile = op.join (args.mask_path, op.basename(oldfile))
         c.execute('UPDATE images SET maskfile=? WHERE maskfile=?', (newfile, oldfile))
 
 

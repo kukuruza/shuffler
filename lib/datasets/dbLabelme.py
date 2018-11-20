@@ -26,8 +26,8 @@ def _pointsOfPolygon (annotation):
   xs = []
   ys = []
   for pt in pts:
-    xs.append( int(pt.find('x').text) )
-    ys.append( int(pt.find('y').text) )
+    xs.append( int(pt.find('x').text)-1 )
+    ys.append( int(pt.find('y').text)-1 )
   logging.debug('Parsed polygon xs=%s, ys=%s.' % (xs, ys))
   return xs, ys
 

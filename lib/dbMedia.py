@@ -10,7 +10,7 @@ from math import sqrt
 
 from .backendDb import objectField, polygonField, deleteImage, parseTimeString, makeTimeString
 from .backendMedia import MediaReader, MediaWriter
-from .util import drawTextOnImage, drawMaskOnImage, cropPatch, bbox2roi
+from .util import drawTextOnImage, drawMaskOnImage, cropPatch, bbox2roi, applyLabelMappingToMask
 
 
 def add_parsers(subparsers):
@@ -18,6 +18,7 @@ def add_parsers(subparsers):
   cropObjectsParser(subparsers)
   polygonsToMaskParser(subparsers)
   writeMediaGridByTimeParser(subparsers)
+  repaintMaskParser(subparsers)
 
 
 def cropObjectsParser(subparsers):
@@ -87,12 +88,12 @@ def writeMediaParser(subparsers):
     help='SQL where clause for the "images" table.')
   parser.add_argument('--media', choices=['pictures', 'video'], required=True,
     help='output either a directory with pictures or a video file.')
-  parser.add_argument('--image_path', required=True,
+  parser.add_argument('--image_path',
     help='the directory for pictures OR video file, where to write masks.')
   parser.add_argument('--mask_path',
     help='the directory for pictures OR video file, where to write masks.')
   parser.add_argument('--mask_mapping_dict', 
-    help='how values in maskfile are drawn. E.g. "{0: [0,0,0], 255: [128,128,30]}"')
+    help='how values in maskfile are drawn. E.g. "{\'[1,254]\': [0,0,0], 255: [128,128,30]}"')
   parser.add_argument('--mask_alpha', type=float, default=0.0,
     help='transparency to overlay the label mask with, 1 means cant see the image behind the mask.')
   parser.add_argument('--with_imageid', action='store_true', help='print frame number.')
@@ -158,23 +159,23 @@ def writeMedia (c, args):
           raise Exception('Neither polygon, nor bbox is available for objectid %d' % objectid)
 
     # Write an image.
-    imagefile_new = imwriter.imwrite(image, namehint=imagefile)
+    if args.image_path is not None:
+      imagefile_new = imwriter.imwrite(image, namehint=imagefile)
+    else:
+      imagefile_new = None
 
     # Write mask.
     if args.mask_path is not None and maskfile is not None:
       maskfile_new = imwriter.maskwrite(mask, namehint=maskfile)
-    elif args.mask_path is None:
+    else:
       maskfile_new = None
 
     # Update the database entry.
     if maskfile_new is not None:
-      c.execute('UPDATE images SET imagefile=?, maskfile=? WHERE imagefile=?',
-        (imagefile_new,maskfile_new,imagefile))
-    else:
-      c.execute('UPDATE images SET imagefile=? WHERE imagefile=?',
-        (imagefile_new,imagefile))
-    c.execute('UPDATE objects SET imagefile=? WHERE imagefile=?',
-      (imagefile_new,imagefile))
+      c.execute('UPDATE images SET maskfile=? WHERE imagefile=?', (maskfile_new,imagefile))
+    if imagefile_new is not None:
+      c.execute('UPDATE images SET imagefile=? WHERE imagefile=?', (imagefile_new,imagefile))
+      c.execute('UPDATE objects SET imagefile=? WHERE imagefile=?', (imagefile_new,imagefile))
 
   imwriter.close()
 
@@ -343,5 +344,51 @@ def writeMediaGridByTime (c, args):
            :] = image.copy()
       
       imwriter.imwrite(grid)
+
+  imwriter.close()
+
+
+
+def repaintMaskParser(subparsers):
+  parser = subparsers.add_parser('repaintMask',
+    description='Convert polygons of an object into a mask, and write it as maskfile.'
+    'If there are polygon entries with different names, consider them as different polygons. '
+    'Masks from each of these polygons are summed up and normalized to their number. '
+    'The result is a black-and-white mask when there is only one polygon, and '
+    'a grayscale mask when there are multiple polygons.')
+  parser.set_defaults(func=repaintMask)
+  parser.add_argument('--media', choices=['pictures', 'video'], required=True,
+    help='output either a directory with pictures or a video file.')
+  parser.add_argument('--mask_path',
+    help='the directory for pictures OR video file, where to write masks. '
+    'Can not overwrite the same mask dir / video.')
+  parser.add_argument('--mask_mapping_dict', required=True,
+    help='how values in maskfile are displayed. E.g. "{\'[1,254]\': [0,0,0], 255: [128,128,30]}"')
+  parser.add_argument('--overwrite', action='store_true',
+    help='overwrite images or video.')
+  parser.add_argument('--out_rootdir',
+    help='Specify, if rootdir changed for the output imagery.')
+
+def repaintMask (c, args):
+  labelmap = literal_eval(args.mask_mapping_dict)
+  logging.info('Parsed mask_mapping_dict to %s' % pformat(labelmap))
+
+  imreader = MediaReader(rootdir=args.rootdir)
+
+  out_rootdir = args.out_rootdir if args.out_rootdir is not None else args.rootdir
+  imwriter = MediaWriter(rootdir=out_rootdir,
+    media_type=args.media, mask_media=args.mask_path, overwrite=args.overwrite)
+
+  # Iterate images.
+  c.execute('SELECT maskfile FROM images')
+  for maskfile, in progressbar(c.fetchall()):
+    if maskfile is not None:
+      # Read mask.
+      mask = imreader.maskread(maskfile)
+      # Repaint mask.
+      mask = applyLabelMappingToMask(mask, labelmap)
+      # Write mask to video and to the db.
+      maskfile_new = imwriter.maskwrite(mask, namehint=maskfile)
+      c.execute('UPDATE images SET maskfile=? WHERE maskfile=?', (maskfile_new,maskfile))
 
   imwriter.close()

@@ -63,7 +63,7 @@ def examineImagesParser(subparsers):
     description='Loop through images. Possibly, assign names to images.')
   parser.set_defaults(func=examineImages)
   parser.add_argument('--mask_mapping_dict', 
-    help='how values in maskfile are displayed. E.g. "{0: [0,0,0], 255: [128,128,30]}"')
+    help='how values in maskfile are displayed. E.g. "{\'[1,254]\': [0,0,0], 255: [128,128,30]}"')
   group = parser.add_mutually_exclusive_group()
   group.add_argument('--mask_aside', action='store_true',
     help='Image and mask side by side.')
@@ -117,9 +117,6 @@ def examineImages (c, args):
     else:
       logging.info('No mask for this image.')
 
-    # Overlay imagefile.
-    drawTextOnImage(image, op.basename(imagefile))
-
     # Put the objects on top of the image.
     if args.with_objects:
       c.execute('SELECT * FROM objects WHERE imagefile=?', (imagefile,))
@@ -146,6 +143,9 @@ def examineImages (c, args):
     c.execute('SELECT height,width FROM images WHERE imagefile=?', (imagefile,))
     scale = float(args.winsize) / max(c.fetchone())
     image = cv2.resize(image, dsize=(0,0), fx=scale, fy=scale)
+    # Overlay imagefile.
+    drawTextOnImage(image, op.basename(imagefile))
+    # Display
     cv2.imshow('examineImages', image[:,:,::-1])
     action = key_reader.parse (cv2.waitKey(-1))
     if action is None:
