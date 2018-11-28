@@ -18,6 +18,7 @@ from .utilExpandBoxes import expandRoiToRatio, expandRoi
 
 
 def add_parsers(subparsers):
+  sqlParser(subparsers)
   addVideoParser(subparsers)
   addPicturesParser(subparsers)
   headImagesParser(subparsers)
@@ -29,6 +30,19 @@ def add_parsers(subparsers):
   splitDbParser(subparsers)
   mergeObjectDuplicatesParser(subparsers)
   renameObjectsParser(subparsers)
+
+
+def sqlParser(subparsers):
+  parser = subparsers.add_parser('sql',
+    description='Run SQL commands.'
+    'Recorded paths will be made relative to "rootdir" argument.')
+  parser.add_argument('sql', nargs='+',
+    help='A list of SQL statements.')
+  parser.set_defaults(func=sql)
+
+def sql (c, args):
+  for sql in args.sql:
+    c.execute(sql)
 
 
 def addVideoParser(subparsers):
@@ -213,9 +227,9 @@ def expandBoxes (c, args):
       if oldroi is None:  # Roi is not specified.
         continue
       if args.target_ratio:
-        roi = expandRoiToRatio(roi, args.expand_perc, args.target_ratio)
+        roi = expandRoiToRatio(oldroi, args.expand_perc, args.target_ratio)
       else:
-        roi = expandRoi(roi, (args.expand_perc, args.expand_perc))
+        roi = expandRoi(oldroi, (args.expand_perc, args.expand_perc))
       c.execute('UPDATE objects SET x1=?, y1=?,width=?,height=? WHERE objectid=?',
                 tuple(roi2bbox(roi) + [objectid]))
 

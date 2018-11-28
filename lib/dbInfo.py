@@ -190,15 +190,15 @@ def _getImagesStats(image_entries):
   # Width.
   widths = set([imageField(x, 'width') for x in image_entries])
   if len(widths) > 1:
-    info['image width'] = '%d different values' % len(widths)
+    info['image width'] = '%s different values' % len(widths)
   elif len(widths) == 1:
-    info['image width'] = '%d' % next(iter(widths))
+    info['image width'] = '%s' % next(iter(widths))
   # Height.
   heights = set([imageField(x, 'height') for x in image_entries])
   if len(heights) > 1:
-    info['image height'] = '%d different values' % len(heights)
+    info['image height'] = '%s different values' % len(heights)
   elif len(heights) == 1:
-    info['image height'] = '%d' % next(iter(heights))
+    info['image height'] = '%s' % next(iter(heights))
   return info
 
 def _getObjectsStats(object_entries):

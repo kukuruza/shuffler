@@ -297,20 +297,14 @@ def filterImagesSQLParser(subparsers):
   parser = subparsers.add_parser('filterImagesSQL',
     description='Delete images (and their objects) based on the SQL "where_image" clause.')
   parser.set_defaults(func=filterImagesSQL)
-  group = parser.add_mutually_exclusive_group()
-  group.add_argument('--where_image',
-    help='the SQL "where_image" clause for the image table.')
-  group.add_argument('--sql',
+  parser.add_argument('sql',
     help='an arbitrary SQL clause that should query "imagefile"')
 
 def filterImagesSQL (c, args):
   c.execute('SELECT COUNT(1) FROM images')
   logging.info('Before filtering have %d images.' % c.fetchone()[0])
 
-  if args.where_image:
-    c.execute('SELECT imagefile FROM images WHERE (%s)' % args.where_image)
-  elif args.sql:
-    c.execute(args.sql)
+  c.execute(args.sql)
 
   imagefiles = c.fetchall()
   for imagefile, in progressbar(imagefiles):

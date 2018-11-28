@@ -6,6 +6,7 @@ import shutil
 import cv2
 import traceback
 from pprint import pformat
+from operator import itemgetter
 from PIL import Image
 
 
@@ -52,8 +53,8 @@ class VideoReader:
   def __init__ (self):
     self.image_cache = {}    # cache of previously read image(s)
     self.mask_cache = {}     # cache of previously read mask(s)
-    self.image_video = {}    # map from image video name to VideoCapture object
-    self.mask_video = {}     # map from mask  video name to VideoCapture object
+    self.videos = {}         # map from video name to imageio video object
+    self.used_ago = {}       # map from video name to number of frames since the last time it was used
 
   def _openVideo (self, videopath):
     ''' Open video and set up bookkeeping '''
@@ -64,12 +65,24 @@ class VideoReader:
     return handle
 
   def readImpl (self, image_id, ismask):
-    # choose the dictionary, depending on whether it's image or mask
-    video_dict = self.image_video if ismask else self.mask_video
     # video id set up
     videopath = op.dirname(image_id)
-    if videopath not in video_dict:
-      video_dict[videopath] = self._openVideo (videopath)
+    if videopath not in self.videos:
+      # try:
+      if len(self.videos) >= 80:
+      #   self.videos[videopath] = self._openVideo (videopath)
+      # except OSError:
+        # Find the file that was used the longest ago.
+        keymax = max(self.used_ago.items(), key=itemgetter(1))[0]
+        logging.warning('Open %d videos, closing video "%s" to release a handle.' %
+          (len(self.used_ago), keymax))
+        self.videos[keymax].close()
+        del self.videos[keymax]
+        del self.used_ago[keymax]
+        import time
+        time.sleep(5)
+      # Repeat opening.
+      self.videos[videopath] = self._openVideo (videopath)
     # frame id
     frame_name = op.basename(image_id)
     try:
@@ -80,18 +93,19 @@ class VideoReader:
       raise ValueError('frame_id is %d, but can not be negative.' % frame_id)
     logging.debug ('from image_id %s, got frame_id %d' % (image_id, frame_id))
     # read the frame
-    if frame_id >= video_dict[videopath].get_length():
+    if frame_id >= self.videos[videopath].get_length():
       raise ValueError('frame_id %d exceeds the video length' % frame_id)
-    img = video_dict[videopath].get_data(frame_id)
+    img = self.videos[videopath].get_data(frame_id)
     img = np.asarray(img)
-    # assign the dict back to where it was taken from
-    if ismask: self.mask_video = video_dict 
-    else: self.image_video = video_dict
+    # increase everyones's "long ago", except the current video
+    for key in self.used_ago:
+      self.used_ago[key] += 1
+    self.used_ago[videopath] = 0
     # and finally...
     return img
 
   def imread (self, image_id):
-    if image_id in self.image_cache: 
+    if image_id in self.image_cache:
         logging.debug ('imread: found image in cache')
         return self.image_cache[image_id]  # get cached image if possible
     image = self.readImpl (image_id, ismask=False)
@@ -112,10 +126,8 @@ class VideoReader:
     return mask
 
   def close(self):
-    for key in self.image_video:
-      self.image_video[key].close()
-    for key in self.mask_video:
-      self.mask_video[key].close()
+    for key in self.videos:
+      self.videos[key].close()
 
 
 

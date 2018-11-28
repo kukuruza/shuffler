@@ -8,7 +8,7 @@ from pprint import pformat
 from .util import drawTextOnImage, drawMaskOnImage, drawMaskAside
 from .util import bbox2roi, drawScoredRoi, drawScoredPolygon
 from .util import FONT, SCALE, FONT_SIZE, THICKNESS
-from .backendDb import deleteObject, objectField, polygonField
+from .backendDb import deleteImage, deleteObject, objectField, polygonField
 from .backendMedia import MediaReader
 
 
@@ -62,6 +62,8 @@ def examineImagesParser(subparsers):
   parser = subparsers.add_parser('examineImages',
     description='Loop through images. Possibly, assign names to images.')
   parser.set_defaults(func=examineImages)
+  parser.add_argument('--where_images', default='TRUE',
+    help='the SQL "where" clause for the "images" table.')
   parser.add_argument('--mask_mapping_dict', 
     help='how values in maskfile are displayed. E.g. "{\'[1,254]\': [0,0,0], 255: [128,128,30]}"')
   group = parser.add_mutually_exclusive_group()
@@ -75,12 +77,12 @@ def examineImagesParser(subparsers):
     help='draw all objects on top of the image.')
   parser.add_argument('--winsize', type=int, default=500)
   parser.add_argument('--key_dict',
-    default='{"-": "previous", "=": "next", " ": "next", 27: "exit"}')
+    default='{"-": "previous", "=": "next", " ": "next", 127: "delete", 27: "exit"}')
 
 def examineImages (c, args):
   cv2.namedWindow("examineImages")
 
-  c.execute('SELECT imagefile,maskfile FROM images')
+  c.execute('SELECT imagefile,maskfile FROM images WHERE (%s)' % args.where_images)
   image_entries = c.fetchall()
   logging.info('%d images found.' % len(image_entries))
   if len(image_entries) == 0:
@@ -140,8 +142,7 @@ def examineImages (c, args):
           raise Exception('Neither polygon, nor bbox is available for objectid %d' % objectid)
 
     # Display an image, wait for the key from user, and parse that key.
-    c.execute('SELECT height,width FROM images WHERE imagefile=?', (imagefile,))
-    scale = float(args.winsize) / max(c.fetchone())
+    scale = float(args.winsize) / max(list(image.shape[0:2]))
     image = cv2.resize(image, dsize=(0,0), fx=scale, fy=scale)
     # Overlay imagefile.
     drawTextOnImage(image, op.basename(imagefile))
@@ -151,6 +152,13 @@ def examineImages (c, args):
     if action is None:
       # User pressed something which does not have an action.
       continue
+    elif action == 'delete':
+      deleteImage (c, imagefile)
+      del image_entries[index_image]
+      if len(image_entries) == 0:
+        logging.warning('Deleted the last image.')
+        break
+      index_image += 1
     elif action == 'exit':
       break
     elif action == 'previous':

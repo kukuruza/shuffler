@@ -243,13 +243,17 @@ def evaluateSegmentationIoUParser(subparsers):
   parser.add_argument('--gt_db_file', required=True)
   parser.add_argument('--where_image', default='TRUE')
   parser.add_argument('--out_dir',
-      help='If specified, output files with be written there.')
+    help='If specified, output files with be written there.')
   parser.add_argument('--out_prefix', default='',
-      help='Add to output filenames, use to keep predictions from different epochs in one dir.')
+    help='Add to output filenames, use to keep predictions from different epochs in one dir.')
   parser.add_argument('--gt_mapping_dict', required=True,
     help='from ground truth maskfile to classes. E.g. "{0: \'background\', 255: \'car\'}"')
   parser.add_argument('--pred_mapping_dict', 
     help='the mapping from predicted masks to classes, if different from "gt_mapping_dict"')
+  parser.add_argument('--class_to_record_iou',
+    help='If specified, IoU for a class is recorded into the "score" field of the "images" table. '
+    'If not specified, mean IoU is recorded. '
+    'Should correspond to values of "gt_mapping_dict". E.g. "background".')
 
 def evaluateSegmentationIoU(c, args):
   import pandas as pd
@@ -268,7 +272,11 @@ def evaluateSegmentationIoU(c, args):
   labelmap_gt, labelmap_pr, class_names = _label2classMapping(
     args.gt_mapping_dict, args.pred_mapping_dict)
 
-  hist = np.zeros((len(class_names), len(class_names)))
+  if args.class_to_record_iou is not None and not args.class_to_record_iou in class_names:
+    raise ValueError('class_to_record_iou=%s is not among values of gt_mapping_dict=%s' %
+      (args.class_to_record_iou, args.gt_mapping_dict))
+
+  hist_all = np.zeros((len(class_names), len(class_names)))
 
   for imagefile, maskfile_pr, maskfile_gt in progressbar(entries):
 
@@ -281,16 +289,25 @@ def evaluateSegmentationIoU(c, args):
     careabout = ~np.isnan(mask_gt)
     mask_gt = mask_gt[careabout][:].astype(int)
     mask_pr = mask_pr[careabout][:].astype(int)
-    hist += fast_hist(mask_gt, mask_pr, len(class_names))
+    hist = fast_hist(mask_gt, mask_pr, len(class_names))
+    hist_all += hist
+    
+    # Compute and record results by image.
+    iou_list = per_class_iu(hist)
+    if args.class_to_record_iou is None:
+      iou = iou_list.mean()
+    else:
+      iou = iou_list[class_names.index(args.class_to_record_iou)]
+    c.execute('UPDATE images SET score=? WHERE imagefile=?', (iou, imagefile))
 
   # Get label distribution.
-  pr_per_class = hist.sum(0)
-  gt_per_class = hist.sum(1)
+  pr_per_class = hist_all.sum(0)
+  gt_per_class = hist_all.sum(1)
 
-  iou_list = per_class_iu(hist)
-  fwIoU = calc_fw_iu(hist)
-  pixAcc = calc_pixel_accuracy(hist)
-  mAcc = calc_mean_accuracy(hist)
+  iou_list = per_class_iu(hist_all)
+  fwIoU = calc_fw_iu(hist_all)
+  pixAcc = calc_pixel_accuracy(hist_all)
+  mAcc = calc_mean_accuracy(hist_all)
 
   result_df = pd.DataFrame({
       'class': class_names,

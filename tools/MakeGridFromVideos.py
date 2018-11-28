@@ -16,6 +16,8 @@ def MakeGridFromVideos_parser():
     'where each frame is a grid of frames from the input videos.')
   parser.add_argument('-i', '--in_video_paths', nargs='+', required=True)
   parser.add_argument('-o', '--out_video_path', required=True)
+  parser.add_argument('--gridY', type=int,
+    help='if specified, use the grid of "gridY" cells wide. Infer gridX.')
   parser.add_argument('--dryrun', action='store_true', help='Do not write anything.')
   parser.add_argument('--overwrite', action='store_true')
   parser.add_argument('--fps', type=int, default=2)
@@ -24,8 +26,9 @@ def MakeGridFromVideos_parser():
 
 def MakeGridFromVideos(args):
   num_videos = len(args.in_video_paths)
-  if not num_videos in [2, 3, 4]:
-    raise ValueError('Only 2x1, 3x1, or 2x2 grid for now.')
+  gridY = int(sqrt(num_videos)) if args.gridY is None else args.gridY
+  gridX = num_videos // gridY
+  logging.info('Will use grid %d x %d' % (gridY, gridX))
   
   if not args.dryrun:
     writer = VideoWriter(vmaskfile=args.out_video_path, overwrite=args.overwrite, fps=args.fps)
@@ -45,15 +48,19 @@ def MakeGridFromVideos(args):
     images = [handle.get_data(i) for handle in handles]
 
     images = [processImage(image) for image in images]
-    if len(images) == 4:
-      gridimage = np.vstack([np.hstack([images[0], images[1]]), np.hstack([images[2], images[3]])])
-    elif len(images) == 2:
-      gridimage = np.hstack([images[0], images[1]])
-    elif len(images) == 3:
-      gridimage = np.hstack([images[0], images[1], images[2]])
+
+    # Lazy initialization.
+    if 'grid' not in locals():
+      height, width = images[0].shape[0:2]
+      grid = np.zeros((height * gridY, width * gridX, 3), dtype=np.uint8)
+
+    for gridid,image in enumerate(images):
+      grid[height * (gridid // gridX) : height * (gridid // gridX + 1),
+           width  * (gridid % gridX)  : width  * (gridid % gridX + 1),
+           :] = image.copy()
 
     if not args.dryrun:
-      writer.maskwrite(gridimage)
+      writer.maskwrite(grid)
   
   for handle in handles:
     handle.close()
