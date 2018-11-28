@@ -152,10 +152,12 @@ def applyLabelMappingToMask(mask, labelmap):
   Returns:
     mask      Mapped mask.
   '''
+  logging.debug('Before mapping, mask had values %s' % set(mask.flatten().tolist()))
+
   if len(mask.shape) == 3:
     raise NotImplementedError('Color masks are not supported now.')
 
-  logging.debug('labelmap: %s' % labelmap)
+  logging.debug('Labelmap: %s' % labelmap)
   if len(labelmap) is 0:
     raise ValueError('"labelmap" is empty.')
 

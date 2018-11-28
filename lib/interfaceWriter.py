@@ -31,7 +31,6 @@ class DatasetVideoWriter:
     self.imwriter = VideoWriter(
       vimagefile=op.abspath(op.join(rootdir, self.image_video_file)),
       vmaskfile=op.abspath(op.join(rootdir, self.mask_video_file)),
-      rootdir=rootdir,
       overwrite=overwrite)
 
     if op.exists(out_db_file):

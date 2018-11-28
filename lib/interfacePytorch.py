@@ -19,7 +19,8 @@ class ImagesDataset(Dataset):
     try:
       self.conn = sqlite3.connect('file:%s?mode=ro' % db_file, uri=True)
     except TypeError:
-      logging.info('This Python version does not support connecting to SQLite by uri.')
+      logging.debug('This Python version does not support connecting to SQLite by uri, '
+      'will connect in regular mode (without readonly.)')
       self.conn = sqlite3.connect(db_file)
     self.c = self.conn.cursor()
     self.c.execute('SELECT * FROM images WHERE %s ORDER BY imagefile' % where_image)
