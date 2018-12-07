@@ -13,15 +13,22 @@ from backendMedia import MediaReader
 class ImagesDataset(Dataset):
   ''' Items of a dataset are images. '''
 
-  def __init__(self, db_file, rootdir='.', where_image='TRUE', where_object='TRUE'):
+  def __init__(self, db_file, rootdir='.', where_image='TRUE', where_object='TRUE', copy_to_memory=True):
     from torch.utils.data import Dataset
 
-    try:
-      self.conn = sqlite3.connect('file:%s?mode=ro' % db_file, uri=True)
-    except TypeError:
-      logging.debug('This Python version does not support connecting to SQLite by uri, '
-      'will connect in regular mode (without readonly.)')
-      self.conn = sqlite3.connect(db_file)
+    if copy_to_memory:
+      self.conn = sqlite3.connect(':memory:') # create a memory database
+      disk_conn = sqlite3.connect(db_file)
+      query = ''.join(line for line in disk_conn.iterdump())
+      self.conn.executescript(query)
+    else:
+      try:
+        self.conn = sqlite3.connect('file:%s?mode=ro' % db_file, uri=True)
+      except TypeError:
+        logging.debug('This Python version does not support connecting to SQLite by uri, '
+                      'will connect in regular mode (without readonly.)')
+        self.conn = sqlite3.connect(db_file)
+
     self.c = self.conn.cursor()
     self.c.execute('SELECT * FROM images WHERE %s ORDER BY imagefile' % where_image)
     self.image_entries = self.c.fetchall()
@@ -70,13 +77,20 @@ class ImagesDataset(Dataset):
 class ObjectsDataset:
   ''' Items of a dataset are objects. '''
 
-  def __init__(self, db_file, rootdir='.', where_object='TRUE'):
+  def __init__(self, db_file, rootdir='.', where_object='TRUE', copy_to_memory=True):
 
-    try:
-      self.conn = sqlite3.connect('file:%s?mode=ro' % db_file, uri=True)
-    except TypeError:
-      logging.info('This Python version does not support connecting to SQLite by uri.')
-      self.conn = sqlite3.connect(db_file)
+    if copy_to_memory:
+      self.conn = sqlite3.connect(':memory:') # create a memory database
+      disk_conn = sqlite3.connect(db_file)
+      query = ''.join(line for line in disk_conn.iterdump())
+      self.conn.executescript(query)
+    else:
+      try:
+        self.conn = sqlite3.connect('file:%s?mode=ro' % db_file, uri=True)
+      except TypeError:
+        logging.info('This Python version does not support connecting to SQLite by uri.')
+        self.conn = sqlite3.connect(db_file)
+
     self.c = self.conn.cursor()
     self.c.execute('SELECT * FROM objects WHERE %s ORDER BY objectid' % where_object)
     self.object_entries = self.c.fetchall()
@@ -119,7 +133,8 @@ class ObjectsDataset:
     img = img[roi[0]:roi[2], roi[1]:roi[3]]
     mask = mask[roi[0]:roi[2], roi[1]:roi[3]] if mask is not None else None
 
-    item = {'image': img, 'mask': mask, 'class': name, 'imagefile': imagefile}
+    item = {'image': img, 'mask': mask, 'class': name, 'imagefile': imagefile,
+            'objectid': objectid}
 
     # Add properties.
     self.c.execute('SELECT key,value FROM properties WHERE objectid=?', (objectid,))

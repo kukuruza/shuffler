@@ -59,31 +59,29 @@ class DatasetVideoWriter:
     s = 'images(imagefile,width,height,maskfile,timestamp,name)'
     logging.debug('Writing %s to %s' % (image_entry, s))
     self.c.execute('INSERT INTO %s VALUES (?,?,?,?,?,?)' % s, image_entry)
-
     return imagefile
 
   def addObject(self, object_dict):
     imagefile = object_dict['imagefile']
-    x1 = object_dict['x1']
-    y1 = object_dict['y1']
-    width = object_dict['width']
-    height = object_dict['height']
-    name = object_dict['name']
-    score = object_dict['score']
+    x1 = object_dict['x1'] if 'x1' in object_dict else None
+    y1 = object_dict['y1'] if 'y1' in object_dict else None
+    width = object_dict['width'] if 'width' in object_dict else None
+    height = object_dict['height'] if 'height' in object_dict else None
+    name = object_dict['name'] if 'name' in object_dict else None
+    score = object_dict['score'] if 'score' in object_dict else None
     if 'objectid' in object_dict:
       objectid = object_dict['objectid']
       self.c.execute('INSERT INTO objects(objectid,imagefile,x1,y1,width,height,name,score) '
              'VALUES (?,?,?,?,?,?,?,?)', (objectid,imagefile,x1,y1,width,height,name,score))
-      return self.c.lastrowid
     else:
       self.c.execute('INSERT INTO objects(imagefile,x1,y1,width,height,name,score) '
              'VALUES (?,?,?,?,?,?,?,?)', (imagefile,x1,y1,width,height,name,score))
       objectid = self.c.lastrowid
-    properties = []
     for key in object_dict:
       if key not in ['objectid', 'imagefile', 'x1', 'y1', 'width', 'height', 'name', 'score']:
-        self.c.execute('INSERT INTO properties(objerctid,key,value) VALUES (?,?,?)',
-          (objectid, key, object_dict[key]))
+        self.c.execute('INSERT INTO properties(objectid,key,value) VALUES (?,?,?)',
+          (objectid, key, str(object_dict[key])))
+    return objectid
     
 
   def addMatch(self, objectid, match=None):
