@@ -330,8 +330,8 @@ def evaluateSegmentationIoU(c, args):
   result_ser = result_ser[["pixAcc", "mAcc", "fwIoU", "mIoU"]]
   result_ser *= 100  # change to percent ratio
 
-  print("---- result summary -----")
-  print(result_ser)
+#  print("---- result summary -----")
+#  print(result_ser)
 
   if args.out_dir is not None:
     if not op.exists(args.out_dir):

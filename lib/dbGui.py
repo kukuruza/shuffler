@@ -129,6 +129,7 @@ def examineImages (c, args):
         roi          = objectField(object_entry, 'roi')
         score        = objectField(object_entry, 'score')
         name         = objectField(object_entry, 'name')
+        logging.info ('objectid: %d, roi: %s, score: %s, name: %s' % (objectid, roi, score, name))
         c.execute('SELECT * FROM polygons WHERE objectid=?', (objectid,))
         polygon_entries = c.fetchall()
         if len(polygon_entries) > 0:
@@ -230,6 +231,7 @@ def examineObjects (c, args):
       roi          = objectField(object_entry, 'roi')
       score        = objectField(object_entry, 'score')
       name         = objectField(object_entry, 'name')
+      logging.info ('objectid: %d, roi: %s, score: %s, name: %s' % (objectid, roi, score, name))
       c.execute('SELECT * FROM polygons WHERE objectid=?', (objectid,))
       polygon_entries = c.fetchall()
       if len(polygon_entries) > 0:
@@ -252,6 +254,7 @@ def examineObjects (c, args):
             FONT, FONT_SIZE, (0,0,0), THICKNESS)
         cv2.putText (image, '%s: %s' % (key, value), (10, SCALE * (iproperty + 1)), 
             FONT, FONT_SIZE, (255,255,255), THICKNESS-1)
+        logging.info ('objectid: %d. %s = %s.' % (objectid, key, value))
 
     # Display an image, wait for the key from user, and parse that key.
     scale = float(args.winsize) / max(image.shape[0:2])

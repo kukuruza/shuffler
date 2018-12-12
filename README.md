@@ -141,7 +141,11 @@ VOC2012=/path/to/directory/VOC2012
 ```
 
 
-
+## Examples of getting information about a dataset with standard SQLite.
+```bash
+# Print out names of objects and their count.
+sqlite3 my_dataset.db "SELECT name, COUNT(1) FROM objects GROUP BY name"
+```
 
 ## Testing code
 

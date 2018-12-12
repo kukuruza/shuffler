@@ -191,7 +191,7 @@ def moduloAnglesParser(subparsers):
   parser.set_defaults(func=moduloAngles)
 
 def moduloAngles(c, args):
-  c.execute('UPDATE properties SET value = CAST(value as decimal) %% 360.0 WHERE key="%s"' % args.property)
+  c.execute('UPDATE properties SET value = CAST(value as FLOAT) % 360.0 WHERE key="%s"' % args.property)
 
 
 def expandBoxesParser(subparsers):
