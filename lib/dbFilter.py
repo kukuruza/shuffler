@@ -256,7 +256,7 @@ def filterEmptyImages(c, args):
   c.execute('SELECT imagefile FROM images WHERE imagefile NOT IN '
             '(SELECT imagefile FROM objects)')
   for imagefile, in progressbar(c.fetchall()):
-    deleteImage(imagefile)
+    deleteImage(c, imagefile)
 
 
 def filterObjectsByScoreParser(subparsers):

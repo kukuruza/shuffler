@@ -68,21 +68,17 @@ class VideoReader:
     # video id set up
     videopath = op.dirname(image_id)
     if videopath not in self.videos:
-      # try:
-      if len(self.videos) >= 80:
-      #   self.videos[videopath] = self._openVideo (videopath)
-      # except OSError:
+      if len(self.videos) >= 10:
         # Find the file that was used the longest ago.
         keymax = max(self.used_ago.items(), key=itemgetter(1))[0]
-        logging.warning('Open %d videos, closing video "%s" to release a handle.' %
+        logging.debug('Open %d videos, closing video "%s" to release a handle.' %
           (len(self.used_ago), keymax))
         self.videos[keymax].close()
         del self.videos[keymax]
         del self.used_ago[keymax]
-        import time
-        time.sleep(5)
       # Repeat opening.
       self.videos[videopath] = self._openVideo (videopath)
+      logging.debug('Have %d videos opened' % len(self.videos))
     # frame id
     frame_name = op.basename(image_id)
     try:

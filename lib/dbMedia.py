@@ -160,13 +160,13 @@ def writeMedia (c, args):
 
     # Write an image.
     if args.image_path is not None:
-      imagefile_new = imwriter.imwrite(image, namehint=imagefile)
+      imagefile_new = imwriter.imwrite(image)
     else:
       imagefile_new = None
 
     # Write mask.
     if args.mask_path is not None and maskfile is not None:
-      maskfile_new = imwriter.maskwrite(mask, namehint=maskfile)
+      maskfile_new = imwriter.maskwrite(mask)
     else:
       maskfile_new = None
 
