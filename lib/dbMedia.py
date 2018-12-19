@@ -172,9 +172,9 @@ def writeMedia (c, args):
 
     # Update the database entry.
     if maskfile_new is not None:
-      c.execute('UPDATE images SET maskfile=? WHERE imagefile=?', (maskfile_new,imagefile))
+      c.execute('UPDATE images SET maskfile=?,name=? WHERE imagefile=?', (maskfile_new,imagefile,imagefile))
     if imagefile_new is not None:
-      c.execute('UPDATE images SET imagefile=? WHERE imagefile=?', (imagefile_new,imagefile))
+      c.execute('UPDATE images SET imagefile=?,name=? WHERE imagefile=?', (imagefile_new,imagefile,imagefile))
       c.execute('UPDATE objects SET imagefile=? WHERE imagefile=?', (imagefile_new,imagefile))
 
   imwriter.close()
