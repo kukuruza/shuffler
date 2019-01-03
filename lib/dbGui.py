@@ -82,7 +82,7 @@ def examineImagesParser(subparsers):
 def examineImages (c, args):
   cv2.namedWindow("examineImages")
 
-  c.execute('SELECT imagefile,maskfile FROM images WHERE (%s)' % args.where_images)
+  c.execute('SELECT imagefile,maskfile FROM images')
   image_entries = c.fetchall()
   logging.info('%d images found.' % len(image_entries))
   if len(image_entries) == 0:
