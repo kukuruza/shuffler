@@ -38,6 +38,11 @@ Levels of abstraction:
 
 '''
 
+def _normalizeSeparators(path):
+  ''' Replace mixed slashes to forward slashes in a path.
+  Provides the compatibility for Windows. '''
+  return path.replace('\\', '/')
+
 
 def getPictureSize(imagepath):
   if not op.exists (imagepath):
@@ -61,7 +66,7 @@ class VideoReader:
     logging.debug ('opening video: %s' % videopath)
     if not op.exists(videopath):
       raise ValueError('videopath does not exist: %s' % videopath)
-    handle = imageio.get_reader(videopath)
+    handle = imageio.get_reader(_normalizeSeparators(videopath))
     return handle
 
   def readImpl (self, image_id, ismask):
@@ -171,11 +176,11 @@ class VideoWriter:
 
     if ismask:
       # "huffyuv" codec is good for png. "rgb24" keeps all colors and is supported by VLC.
-      self.mask_writer = imageio.get_writer(vpath, fps=self.fps,
+      self.mask_writer = imageio.get_writer(_normalizeSeparators(vpath), fps=self.fps,
         codec='huffyuv', pixelformat='rgb24')
     else:
       # "mjpeg" for JPG images with highest quality and keeping all info with "yuvj444p".
-      self.image_writer = imageio.get_writer(vpath, fps=self.fps,
+      self.image_writer = imageio.get_writer(_normalizeSeparators(vpath), fps=self.fps,
         codec='mjpeg', quality=10, pixelformat='yuvj444p')
 
   def imwrite (self, image):
@@ -222,7 +227,7 @@ class PictureReader:
     if not op.exists (image_id):
       raise ValueError('Image does not exist at path: "%s"' % image_id)
     try:
-      return imageio.imread(image_id)
+      return imageio.imread(_normalizeSeparators(image_id))
     except ValueError:
       raise ValueError('PictureReader failed to read image_id %s.' % image_id)
 
@@ -297,7 +302,7 @@ class PictureWriter:
       raise Exception('Imagepath has been already recorded before: "%s"')
 
     # Write.
-    imageio.imwrite (imagepath, image, quality=self.jpg_quality)
+    imageio.imwrite (_normalizeSeparators(imagepath), image, quality=self.jpg_quality)
     return imagepath
 
   def maskwrite (self, mask, namehint=None):
@@ -321,7 +326,7 @@ class PictureWriter:
       raise Exception('Maskpath has been already recorded before: "%s"')
 
     # Write.
-    imageio.imwrite (maskpath, mask)
+    imageio.imwrite (_normalizeSeparators(maskpath), mask)
     return maskpath
 
   def close (self):
