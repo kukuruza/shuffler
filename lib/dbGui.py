@@ -9,7 +9,7 @@ from .util import drawTextOnImage, drawMaskOnImage, drawMaskAside
 from .util import bbox2roi, drawScoredRoi, drawScoredPolygon
 from .util import FONT, SCALE, FONT_SIZE, THICKNESS
 from .backendDb import deleteImage, deleteObject, objectField, polygonField
-from .backendMedia import MediaReader
+from .backendMedia import MediaReader, normalizeSeparators
 
 
 def add_parsers(subparsers):
@@ -146,7 +146,7 @@ def examineImages (c, args):
     scale = float(args.winsize) / max(list(image.shape[0:2]))
     image = cv2.resize(image, dsize=(0,0), fx=scale, fy=scale)
     # Overlay imagefile.
-    drawTextOnImage(image, op.basename(imagefile))
+    drawTextOnImage(image, op.basename(normalizeSeparators(imagefile)))
     # Display
     cv2.imshow('examineImages', image[:,:,::-1])
     action = key_reader.parse (cv2.waitKey(-1))
