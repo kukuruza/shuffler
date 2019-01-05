@@ -41,7 +41,7 @@ Levels of abstraction:
 def normalizeSeparators(path):
   ''' Replace mixed slashes to forward slashes in a path.
   Provides the compatibility for Windows. '''
-  return path.replace('\\', '/')
+  return path.replace('/', os.sep).replace('\\', os.sep)
 
 
 def getPictureSize(imagepath):
