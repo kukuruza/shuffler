@@ -63,10 +63,11 @@ class VideoReader:
 
   def _openVideo (self, videopath):
     ''' Open video and set up bookkeeping '''
+    videopath = _normalizeSeparators(videopath)
     logging.debug ('opening video: %s' % videopath)
     if not op.exists(videopath):
       raise ValueError('videopath does not exist: %s' % videopath)
-    handle = imageio.get_reader(_normalizeSeparators(videopath))
+    handle = imageio.get_reader(videopath)
     return handle
 
   def readImpl (self, image_id, ismask):
@@ -157,6 +158,7 @@ class VideoWriter:
          (self.frame_size, (width, height))
 
     vpath = self.vmaskfile if ismask else self.vimagefile
+    vpath = _normalizeSeparators(vpath)
     logging.info ('Opening video: %s' % vpath)
 
     # Check if a user passed without extension (otherwise, the error is obscure.)
@@ -176,11 +178,11 @@ class VideoWriter:
 
     if ismask:
       # "huffyuv" codec is good for png. "rgb24" keeps all colors and is supported by VLC.
-      self.mask_writer = imageio.get_writer(_normalizeSeparators(vpath), fps=self.fps,
+      self.mask_writer = imageio.get_writer(vpath, fps=self.fps,
         codec='huffyuv', pixelformat='rgb24')
     else:
       # "mjpeg" for JPG images with highest quality and keeping all info with "yuvj444p".
-      self.image_writer = imageio.get_writer(_normalizeSeparators(vpath), fps=self.fps,
+      self.image_writer = imageio.get_writer(vpath, fps=self.fps,
         codec='mjpeg', quality=10, pixelformat='yuvj444p')
 
   def imwrite (self, image):
@@ -223,11 +225,12 @@ class PictureReader:
   ''' Implementation of imagery reader based on "Image" <-> "Picture file (.jpg, .png, etc)". '''
 
   def _readImpl (self, image_id):
+    image_id = _normalizeSeparators(image_id)
     logging.debug ('image_id: %s' % image_id)
     if not op.exists (image_id):
       raise ValueError('Image does not exist at path: "%s"' % image_id)
     try:
-      return imageio.imread(_normalizeSeparators(image_id))
+      return imageio.imread(image_id)
     except ValueError:
       raise ValueError('PictureReader failed to read image_id %s.' % image_id)
 
@@ -297,12 +300,13 @@ class PictureWriter:
 
     # Compute path from name.
     imagepath = op.join(self.imagedir, name)
+    imagepath = _normalizeSeparators(imagepath)
     logging.debug ('Writing image to path: "%s"' % imagepath)
     if op.exists(imagepath) and not self.overwrite:
       raise Exception('Imagepath has been already recorded before: "%s"')
 
     # Write.
-    imageio.imwrite (_normalizeSeparators(imagepath), image, quality=self.jpg_quality)
+    imageio.imwrite (imagepath, image, quality=self.jpg_quality)
     return imagepath
 
   def maskwrite (self, mask, namehint=None):
@@ -321,12 +325,13 @@ class PictureWriter:
 
     # Compute path from name.
     maskpath = op.join(self.maskdir, name)
+    maskpath = _normalizeSeparators(maskpath)
     logging.debug ('Writing mask to path: "%s"' % maskpath)
     if op.exists(maskpath) and not self.overwrite:
       raise Exception('Maskpath has been already recorded before: "%s"')
 
     # Write.
-    imageio.imwrite (_normalizeSeparators(maskpath), mask)
+    imageio.imwrite (maskpath, mask)
     return maskpath
 
   def close (self):
