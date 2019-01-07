@@ -97,7 +97,10 @@ class TestGetFields (unittest.TestCase):
 
 class TestDeleteObject (unittest.TestCase):
 
-  WORK_DIR = '/tmp/TestDeleteObject'
+  if os.name == 'nt':
+    WORK_DIR = op.join(op.dirname(op.realpath(__file__)), 'tmp/TestDeleteObject')
+  else:
+    WORK_DIR = '/tmp/TestDeleteObject'
 
   def setUp (self):
     if not op.exists(self.WORK_DIR):
@@ -157,7 +160,10 @@ class TestDeleteObject (unittest.TestCase):
 
 class TestDeleteImage (unittest.TestCase):
 
-  WORK_DIR = '/tmp/TestDeleteImage'
+  if os.name == 'nt':
+    WORK_DIR = op.join(op.dirname(op.realpath(__file__)), 'tmp/TestDeleteImage')
+  else:
+    WORK_DIR = '/tmp/TestDeleteImage'
 
   def setUp (self):
     if not op.exists(self.WORK_DIR):

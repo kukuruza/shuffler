@@ -11,7 +11,10 @@ from lib import util
 
 class TestCopyWithBackup (unittest.TestCase):
 
-  WORK_DIR = '/tmp/TestCopyWithBackup'
+  if os.name == 'nt':
+    WORK_DIR = op.join(op.dirname(op.realpath(__file__)), 'tmp/TestCopyWithBackup')
+  else:
+    WORK_DIR = '/tmp/TestCopyWithBackup'
 
   def setUp (self):
     if not op.exists(self.WORK_DIR):
