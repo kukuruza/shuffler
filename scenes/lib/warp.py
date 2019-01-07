@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import sys, os, os.path as op
-sys.path.insert(0, op.join(os.getenv('CITY_PATH'), 'src'))
 from scenes.lib.scene import Pose
 import simplejson as json
 import logging

@@ -8,8 +8,8 @@ import re
 import numpy as np
 
 
-def _atcity(path):
-  return op.join(os.getenv('CITY_PATH'), path)
+def _atscenes(path):
+  return op.join(os.getenv('SCENES_PATH'), path)
 
 
 class Info:
@@ -50,7 +50,7 @@ class Camera(Info):
   def __init__ (self, camera_id):
     Info.__init__(self)
     self.camera_id = camera_id
-    self.path = _atcity(op.join('data/scenes', '%s' % camera_id, 'camera.json'))
+    self.path = _atscenes(op.join('%s' % camera_id, 'camera.json'))
     self.load()
 
   def get_camera_dir(self):
@@ -66,7 +66,7 @@ class Map(Info):
     self.load()
 
   def get_map_dir(self):
-    return _atcity(op.join('data/scenes', '%s' % self.camera_id, 'map%d' % self.map_id))
+    return _atscenes(op.join('%s' % self.camera_id, 'map%d' % self.map_id))
 
   def load_satellite(self):
     satellite_path = op.join(self.get_map_dir(), 'satellite.jpg')
@@ -92,8 +92,7 @@ class Pose(Info):
         (self.camera_id, self.map_id, self.pose_id))
 
   def get_pose_dir(self):
-    return _atcity(op.join(
-        'data/scenes', '%s' % self.camera_id, 'pose%d' % self.pose_id))
+    return _atscenes(op.join('%s' % self.camera_id, 'pose%d' % self.pose_id))
 
   def save(self, backup=True):
     Info.save(self, backup=backup)
@@ -121,19 +120,18 @@ class Video(Info):
     self.pose = Pose(camera_id=self.camera_id, pose_id=self['pose_id'])
 
   def get_video_dir(self):
-    return _atcity(op.join('data/scenes', '%s' % self.camera_id,
-                   'videos', self.video_id))
+    return _atscenes(op.join('%s' % self.camera_id, 'videos', self.video_id))
 
   def load (self):
     multiple_videos_path = op.abspath(op.join(self.get_video_dir(), '../videos.json'))
     # Video-specific json.
-    if op.exists(_atcity(self.path)):
+    if op.exists(self.path):
       logging.info ('Video: loading videos info from: %s' % self.path)
       Info.load(self)
       assert 'pose_id' in self, '%s does not have pose_id.' % self.path
     # Multiple-videos json file.
-    elif op.exists(_atcity(multiple_videos_path)):
-      logging.debug('Video: %s does not exist.' % _atcity(self.path))
+    elif op.exists(multiple_videos_path):
+      logging.debug('Video: %s does not exist.' % self.path)
       logging.info ('Video: loading videos info from: %s' % multiple_videos_path)
       videos = json.load(open(multiple_videos_path))
       assert 'videos' in videos, json.dumps(videos, sort_keys=True, indent=2)

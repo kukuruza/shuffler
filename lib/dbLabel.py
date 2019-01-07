@@ -85,6 +85,8 @@ def labelAzimuthParser(subparsers):
     or by assigning a value manually.''')
   parser.set_defaults(func=labelAzimuth)
   parser.add_argument('--winsize', type=int, default=500)
+  parser.add_argument('--scenes_dir', required=True,
+    help='Directory with scenes by camera.')
   parser.add_argument('--shuffle', action='store_true')
   parser.add_argument('--where_object', default='TRUE',
     help='the SQL "where" clause for the "objects" table.')
@@ -92,6 +94,8 @@ def labelAzimuthParser(subparsers):
       default='{"-": "previous", "=": "next", 27: "exit"}')
 
 def labelAzimuth (c, args):
+  os.environ['SCENES_PATH'] = args.scenes_dir
+
   imreader = MediaReader(rootdir=args.rootdir)
   key_reader = KeyReader(args.key_dict)
 
