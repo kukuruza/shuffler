@@ -31,6 +31,7 @@ class KeyReader:
     Returns:
       Parsed dict.
     '''
+    logging.debug('Got keys map string as: %s' % keysmap_str)
     keysmap = literal_eval(keysmap_str)
     logging.info('Keys map was parsed as: %s' % pformat(keysmap))
     for value in ['exit', 'previous', 'next']:
@@ -317,41 +318,38 @@ def labelObjects (c, args):
   c.execute('SELECT COUNT(*) FROM objects WHERE (%s) ' % args.where_object)
   logging.info('Found %d objects in db.' % c.fetchone()[0])
 
-  c.execute('SELECT DISTINCT imagefile FROM objects WHERE (%s) ' % args.where_object)
-  image_entries = c.fetchall()
-  logging.info('%d images found.' % len(image_entries))
-  if len(image_entries) == 0:
-    logging.error('There are no images. Exiting.')
+  c.execute('SELECT * FROM objects WHERE (%s)' % args.where_object)
+  object_entries = c.fetchall()
+  logging.info('Found %d objects in db.' % len(object_entries))
+  if len(object_entries) == 0:
     return
 
   if args.shuffle:
-    np.random.shuffle(image_entries)
+    np.random.shuffle(object_entries)
 
   imreader = MediaReader(rootdir=args.rootdir)
 
   # For parsing keys.
   key_reader = KeyReader(args.key_dict)
 
-  index_image = 0
+  button = 0
   index_object = 0
+  another_object = True
+  while button != 27:
+    go_next_object = False
 
-  # Iterating over images, because for each image we want to show all objects.
-  while True:  # Until a user hits the key for the "exit" action.
+    if another_object:
+      another_object = False
 
-    (imagefile,) = image_entries[index_image]
-    logging.info ('Imagefile "%s"' % imagefile)
-    image = imreader.imread(imagefile)
-
-    c.execute('SELECT * FROM objects WHERE imagefile=? AND (%s)' % args.where_object, (imagefile,))
-    object_entries = c.fetchall()
-    logging.info ('Found %d objects for image %s' % (len(object_entries), imagefile))
-
-    # Put the objects on top of the image.
-    if len(object_entries) > 0:
-      assert index_object < len(object_entries)
+      logging.info(' ')
+      logging.info('Object %d out of %d' % (index_object, len(object_entries)))
       object_entry = object_entries[index_object]
       objectid     = objectField(object_entry, 'objectid')
+      bbox         = objectField(object_entry, 'bbox')
       roi          = objectField(object_entry, 'roi')
+      imagefile    = objectField(object_entry, 'imagefile')
+      image = imreader.imread(imagefile)
+
       logging.info ('objectid: %d, roi: %s' % (objectid, roi))
       c.execute('SELECT * FROM polygons WHERE objectid=?', (objectid,))
       polygon_entries = c.fetchall()
@@ -379,42 +377,41 @@ def labelObjects (c, args):
             FONT, FONT_SIZE, (255,255,255), THICKNESS-1)
         logging.info ('objectid: %d. %s = %s.' % (objectid, key, value))
 
-    any_object_in_focus = len(object_entries) > 0
-
-    # Display an image, wait for the key from user, and parse that key.
-    scale = float(args.winsize) / max(image.shape[0:2])
-    image = cv2.resize(image, dsize=(0,0), fx=scale, fy=scale)
-    cv2.imshow('examineObjects', image[:,:,::-1])
-    action = key_reader.parse (cv2.waitKey(-1))
-    if action is None:
-      # User pressed something which does not have an action.
-      continue
-    elif action == 'exit':
-      break
-    elif action == 'previous':
-      index_object -= 1
-      if index_object < 0:
-        index_image -= 1
-        index_object = 0
-    elif action == 'next':
-      index_object += 1
-      if index_object >= len(object_entries):
-        index_image += 1
-        index_object = 0
-    elif action == 'delete_label' and any_object_in_focus:
-      logging.info('Remove the name from objectid "%s"' % objectid)
-      c.execute('DELETE FROM properties WHERE objectid=? AND key=?', (objectid, args.property))
-    elif any_object_in_focus:
-      # User pressed something else which has an assigned action, assume it is a new value.
-      logging.info('Setting name "%s" to objectid "%s"' % (action, objectid))
-      if len(properties) > 0:
+      # Display an image, wait for the key from user, and parse that key.
+      scale = float(args.winsize) / max(image.shape[0:2])
+      image = cv2.resize(image, dsize=(0,0), fx=scale, fy=scale)
+      cv2.imshow('labelObjects', image[:,:,::-1])
+      action = key_reader.parse (cv2.waitKey(-1))
+      if action == 'exit':
+        break
+      elif action == 'delete_label' and any_object_in_focus:
+        logging.info('Remove label from objectid "%s"' % objectid)
         c.execute('DELETE FROM properties WHERE objectid=? AND key=?', (objectid, args.property))
-      else:
-        c.execute('INSERT INTO properties(objectid,key,value) VALUES (?,?,?)',
-          (objectid, args.property, str(action)))
-    else:
-      assert not any_object_in_focus
-    index_image = index_image % len(image_entries)
+        go_next_object = True
+      elif action is not None and action not in ['previous', 'next']:
+        # User pressed something else which has an assigned action, assume it is a new value.
+        logging.info('Setting name "%s" to objectid "%s"' % (action, objectid))
+        if len(properties) > 0:
+          c.execute('DELETE FROM properties WHERE objectid=? AND key=?', (objectid, args.property))
+        else:
+          c.execute('INSERT INTO properties(objectid,key,value) VALUES (?,?,?)',
+            (objectid, args.property, str(action)))
+        go_next_object = True
+      # Navigation.
+      if action == 'previous':
+        logging.debug ('previous object')
+        another_object = True
+        if index_object > 0:
+          index_object -= 1
+        else:
+          logging.warning('Already at the first object.')
+      elif action == 'next' or go_next_object == True:
+        logging.debug ('next object')
+        another_object = True
+        if index_object < len(object_entries) - 1:
+          index_object += 1
+        else:
+          logging.warning('Already at the last object. Press Esc to save and exit.')
 
   cv2.destroyWindow("labelObjects")
 
