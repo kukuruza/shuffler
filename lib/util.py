@@ -212,7 +212,7 @@ def applyLabelMappingToMask(mask, labelmap):
   else:
     logging.debug('Left %d values unmapped (NaN).' % np.count_nonzero(np.isnan(dmask)))
 
-  return dmask
+  return dmask.astype(np.uint8)
 
 
 

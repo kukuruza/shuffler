@@ -43,7 +43,7 @@ def cropObjectsParser(subparsers):
 
 def cropObjects(c, args):
   imreader = MediaReader(rootdir=args.rootdir)
-  imwriter = MediaWriter(media_type=args.media,
+  imwriter = MediaWriter(media_type=args.media, rootdir=args.rootdir,
     image_media=args.image_path, mask_media=args.mask_path, overwrite=args.overwrite)
 
   c.execute('SELECT o.objectid,o.imagefile,o.x1,o.y1,o.width,o.height,o.name,o.score,i.maskfile,i.timestamp '
@@ -73,6 +73,7 @@ def cropObjects(c, args):
     logging.debug('Recording imagefile %s and maskfile %s.' % (imagefile, maskfile))
     c.execute('INSERT INTO images VALUES (?,?,?,?,?,?,?)',
       (imagefile, args.target_width, args.target_height, maskfile, timestamp, name, score))
+    c.execute('UPDATE objects SET imagefile=? WHERE objectid=?', (imagefile, objectid))
     
   imwriter.close()
 
@@ -351,11 +352,7 @@ def writeMediaGridByTime (c, args):
 
 def repaintMaskParser(subparsers):
   parser = subparsers.add_parser('repaintMask',
-    description='Convert polygons of an object into a mask, and write it as maskfile.'
-    'If there are polygon entries with different names, consider them as different polygons. '
-    'Masks from each of these polygons are summed up and normalized to their number. '
-    'The result is a black-and-white mask when there is only one polygon, and '
-    'a grayscale mask when there are multiple polygons.')
+    description='Repaint specific colors in mask into different colors.')
   parser.set_defaults(func=repaintMask)
   parser.add_argument('--media', choices=['pictures', 'video'], required=True,
     help='output either a directory with pictures or a video file.')
@@ -363,7 +360,7 @@ def repaintMaskParser(subparsers):
     help='the directory for pictures OR video file, where to write masks. '
     'Can not overwrite the same mask dir / video.')
   parser.add_argument('--mask_mapping_dict', required=True,
-    help='how values in maskfile are displayed. E.g. "{\'[1,254]\': [0,0,0], 255: [128,128,30]}"')
+    help='values mapping for repainting. E.g. "{\'[1,254]\': [0,0,0], 255: [128,128,30]}"')
   parser.add_argument('--overwrite', action='store_true',
     help='overwrite images or video.')
   parser.add_argument('--out_rootdir',
