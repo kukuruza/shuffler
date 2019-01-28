@@ -71,16 +71,16 @@ Shuffler requires Python3. The installation instructions assume Conda package ma
 
 ```bash
 # If desired, add support for datasets stored as video (needs to go first).
-conda install -c conda-forge ffmpeg=4.0
+conda install -y -c conda-forge ffmpeg=4.0
 
-conda install imageio matplotlib lxml simplejson progressbar2 Pillow scipy
-conda install opencv=3.4.2  # Require opencv3.
+conda install -y imageio matplotlib lxml simplejson progressbar2 Pillow scipy
+conda install -y opencv=3.4.2  # Require opencv3.
 
 # If desired, add support for plotting commands
-conda install pandas seaborn
+conda install -y pandas seaborn
 
 # If desired, add support for unit tests
-conda install nose scikit-image
+conda install -y nose scikit-image
 ```
 
 
