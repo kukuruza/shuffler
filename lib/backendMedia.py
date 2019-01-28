@@ -38,6 +38,11 @@ Levels of abstraction:
 
 '''
 
+def normalizeSeparators(path):
+  ''' Replace mixed slashes to forward slashes in a path.
+  Provides the compatibility for Windows. '''
+  return path.replace('/', os.sep).replace('\\', os.sep)
+
 
 def getPictureSize(imagepath):
   if not op.exists (imagepath):
@@ -58,6 +63,7 @@ class VideoReader:
 
   def _openVideo (self, videopath):
     ''' Open video and set up bookkeeping '''
+    videopath = normalizeSeparators(videopath)
     logging.debug ('opening video: %s' % videopath)
     if not op.exists(videopath):
       raise ValueError('videopath does not exist: %s' % videopath)
@@ -152,6 +158,7 @@ class VideoWriter:
          (self.frame_size, (width, height))
 
     vpath = self.vmaskfile if ismask else self.vimagefile
+    vpath = normalizeSeparators(vpath)
     logging.info ('Opening video: %s' % vpath)
 
     # Check if a user passed without extension (otherwise, the error is obscure.)
@@ -218,6 +225,7 @@ class PictureReader:
   ''' Implementation of imagery reader based on "Image" <-> "Picture file (.jpg, .png, etc)". '''
 
   def _readImpl (self, image_id):
+    image_id = normalizeSeparators(image_id)
     logging.debug ('image_id: %s' % image_id)
     if not op.exists (image_id):
       raise ValueError('Image does not exist at path: "%s"' % image_id)
@@ -292,6 +300,7 @@ class PictureWriter:
 
     # Compute path from name.
     imagepath = op.join(self.imagedir, name)
+    imagepath = normalizeSeparators(imagepath)
     logging.debug ('Writing image to path: "%s"' % imagepath)
     if op.exists(imagepath) and not self.overwrite:
       raise Exception('Imagepath has been already recorded before: "%s"')
@@ -316,6 +325,7 @@ class PictureWriter:
 
     # Compute path from name.
     maskpath = op.join(self.maskdir, name)
+    maskpath = normalizeSeparators(maskpath)
     logging.debug ('Writing mask to path: "%s"' % maskpath)
     if op.exists(maskpath) and not self.overwrite:
       raise Exception('Maskpath has been already recorded before: "%s"')

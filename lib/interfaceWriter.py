@@ -8,29 +8,39 @@ import argparse
 from datetime import datetime
 
 from backendDb import createDb, makeTimeString
-from backendMedia import VideoWriter, PictureWriter
+from backendMedia import MediaWriter
 
 
-class DatasetVideoWriter:
+class DatasetWriter:
   ''' Write a new dataset (db and videos). '''
   # TODO:add writing to pictures.
 
-  def __init__(self, out_db_file, rootdir='.', image_video_file=None, mask_video_file=None, overwrite=False):
+  def __init__(self, out_db_file, rootdir='.', media='video',
+               image_path=None, mask_path=None, overwrite=False):
 
     self.rootdir = rootdir
 
-    self.image_video_file = image_video_file if image_video_file is not None else \
-      '%s.avi' % op.splitext(out_db_file)[0]
-    self.mask_video_file = mask_video_file if mask_video_file is not None else \
-      '%smask.avi' % op.splitext(out_db_file)[0]
+    db_file_no_ext = op.splitext(out_db_file)[0]
+    if image_path is None:
+      if media == 'video':
+        image_path = '%s.avi' % db_file_no_ext
+      else:
+        image_path = db_file_no_ext
+    if mask_path is None:
+      if media == 'video':
+        mask_path = '%smask.avi' % db_file_no_ext
+      else:
+        mask_path = '%smask' % db_file_no_ext
 
     outdir = op.dirname(out_db_file)
     if not op.exists(outdir):
       os.makedirs(outdir)
 
-    self.imwriter = VideoWriter(
-      vimagefile=op.abspath(op.join(rootdir, self.image_video_file)),
-      vmaskfile=op.abspath(op.join(rootdir, self.mask_video_file)),
+    self.imwriter = MediaWriter(
+      media_type=media,
+      rootdir=rootdir,
+      image_media=op.abspath(op.join(rootdir, image_path)),
+      mask_media=op.abspath(op.join(rootdir, mask_path)),
       overwrite=overwrite)
 
     if op.exists(out_db_file):
@@ -75,7 +85,7 @@ class DatasetVideoWriter:
              'VALUES (?,?,?,?,?,?,?,?)', (objectid,imagefile,x1,y1,width,height,name,score))
     else:
       self.c.execute('INSERT INTO objects(imagefile,x1,y1,width,height,name,score) '
-             'VALUES (?,?,?,?,?,?,?,?)', (imagefile,x1,y1,width,height,name,score))
+               'VALUES (?,?,?,?,?,?,?)', (imagefile,x1,y1,width,height,name,score))
       objectid = self.c.lastrowid
     for key in object_dict:
       if key not in ['objectid', 'imagefile', 'x1', 'y1', 'width', 'height', 'name', 'score']:
@@ -107,13 +117,15 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('-o', '--out_db_file', required=True)
   parser.add_argument('--rootdir', required=True)
-  parser.add_argument('--image_video_file')
-  parser.add_argument('--mask_video_file')
+  parser.add_argument('--image_path')
+  parser.add_argument('--mask_path')
+  parser.add_argument('--media', choices=['video', 'pictures'])
   parser.add_argument('--overwrite', action='store_true')
   args = parser.parse_args()
 
-  writer = DatasetVideoWriter(args.out_db_file, rootdir=args.rootdir,
-      image_video_file=args.image_video_file, mask_video_file=args.mask_video_file,
+  writer = DatasetWriter(args.out_db_file, rootdir=args.rootdir,
+      media=args.media,
+      image_path=args.image_path, mask_path=args.mask_path,
       overwrite=args.overwrite)
   writer.addImage(np.zeros((100,100,3), dtype=np.uint8),
              mask=np.ones((100,100), dtype=np.uint8))

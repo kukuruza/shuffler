@@ -9,12 +9,13 @@ from .util import drawTextOnImage, drawMaskOnImage, drawMaskAside
 from .util import bbox2roi, drawScoredRoi, drawScoredPolygon
 from .util import FONT, SCALE, FONT_SIZE, THICKNESS
 from .backendDb import deleteImage, deleteObject, objectField, polygonField
-from .backendMedia import MediaReader
+from .backendMedia import MediaReader, normalizeSeparators
 
 
 def add_parsers(subparsers):
   examineImagesParser(subparsers)
   examineObjectsParser(subparsers)
+  labelObjectsParser(subparsers)
   examineMatchesParser(subparsers)
 
 
@@ -30,6 +31,7 @@ class KeyReader:
     Returns:
       Parsed dict.
     '''
+    logging.debug('Got keys map string as: %s' % keysmap_str)
     keysmap = literal_eval(keysmap_str)
     logging.info('Keys map was parsed as: %s' % pformat(keysmap))
     for value in ['exit', 'previous', 'next']:
@@ -82,7 +84,7 @@ def examineImagesParser(subparsers):
 def examineImages (c, args):
   cv2.namedWindow("examineImages")
 
-  c.execute('SELECT imagefile,maskfile FROM images WHERE (%s)' % args.where_images)
+  c.execute('SELECT imagefile,maskfile FROM images')
   image_entries = c.fetchall()
   logging.info('%d images found.' % len(image_entries))
   if len(image_entries) == 0:
@@ -146,7 +148,7 @@ def examineImages (c, args):
     scale = float(args.winsize) / max(list(image.shape[0:2]))
     image = cv2.resize(image, dsize=(0,0), fx=scale, fy=scale)
     # Overlay imagefile.
-    drawTextOnImage(image, op.basename(imagefile))
+    drawTextOnImage(image, op.basename(normalizeSeparators(imagefile)))
     # Display
     cv2.imshow('examineImages', image[:,:,::-1])
     action = key_reader.parse (cv2.waitKey(-1))
@@ -293,6 +295,125 @@ def examineObjects (c, args):
     index_image = index_image % len(image_entries)
 
   cv2.destroyWindow("examineObjects")
+
+
+def labelObjectsParser(subparsers):
+  parser = subparsers.add_parser('labelObjects',
+    description='Loop through objects and manually label them, '
+    'i.e. assign the value of user-defined property.')
+  parser.set_defaults(func=labelObjects)
+  parser.add_argument('--shuffle', action='store_true')
+  parser.add_argument('--where_object', default='TRUE',
+    help='the SQL "where" clause for the "objects" table.')
+  parser.add_argument('--winsize', type=int, default=500)
+  parser.add_argument('--property', required=True,
+    help='name of the property being labelled')
+  parser.add_argument('--key_dict', required=True,
+    default='{"-": "previous", "=": "next", 27: "exit", 127: "delete_label",'
+            ' "r": "red", "g": "green", "b": "blue"}')
+
+def labelObjects (c, args):
+  cv2.namedWindow("labelObjects")
+
+  c.execute('SELECT COUNT(*) FROM objects WHERE (%s) ' % args.where_object)
+  logging.info('Found %d objects in db.' % c.fetchone()[0])
+
+  c.execute('SELECT * FROM objects WHERE (%s)' % args.where_object)
+  object_entries = c.fetchall()
+  logging.info('Found %d objects in db.' % len(object_entries))
+  if len(object_entries) == 0:
+    return
+
+  if args.shuffle:
+    np.random.shuffle(object_entries)
+
+  imreader = MediaReader(rootdir=args.rootdir)
+
+  # For parsing keys.
+  key_reader = KeyReader(args.key_dict)
+
+  button = 0
+  index_object = 0
+  another_object = True
+  while button != 27:
+    go_next_object = False
+
+    if another_object:
+      another_object = False
+
+      logging.info(' ')
+      logging.info('Object %d out of %d' % (index_object, len(object_entries)))
+      object_entry = object_entries[index_object]
+      objectid     = objectField(object_entry, 'objectid')
+      bbox         = objectField(object_entry, 'bbox')
+      roi          = objectField(object_entry, 'roi')
+      imagefile    = objectField(object_entry, 'imagefile')
+      image = imreader.imread(imagefile)
+
+      logging.info ('objectid: %d, roi: %s' % (objectid, roi))
+      c.execute('SELECT * FROM polygons WHERE objectid=?', (objectid,))
+      polygon_entries = c.fetchall()
+      if len(polygon_entries) > 0:
+        logging.info('showing object with a polygon.')
+        polygon = [(polygonField(p, 'x'), polygonField(p, 'y')) for p in polygon_entries]
+        drawScoredPolygon (image, polygon, label=None, score=score)
+      elif roi is not None:
+        logging.info('showing object with a bounding box.')
+        drawScoredRoi (image, roi, label=None, score=None)
+      else:
+        raise Exception('Neither polygon, nor bbox is available for objectid %d' % objectid)
+      c.execute('SELECT key,value FROM properties WHERE objectid=? AND key=?', (objectid, args.property))
+      # TODO: Multiple properties are possible because there is no contraint
+      #   on uniqueness on table properties(objectid,key).
+      #   Change when the uniqueness constraint is added to the database schema.
+      properties = c.fetchall()
+      if len(properties) > 1:
+        logging.warning('Multiple values for object %s and property %s. '
+          'If reassigned, both will be changed' % (objectid, args.property))
+      for iproperty, (key, value) in enumerate(properties):
+        cv2.putText (image, '%s: %s' % (key, value), (10, SCALE * (iproperty + 1)), 
+            FONT, FONT_SIZE, (0,0,0), THICKNESS)
+        cv2.putText (image, '%s: %s' % (key, value), (10, SCALE * (iproperty + 1)), 
+            FONT, FONT_SIZE, (255,255,255), THICKNESS-1)
+        logging.info ('objectid: %d. %s = %s.' % (objectid, key, value))
+
+      # Display an image, wait for the key from user, and parse that key.
+      scale = float(args.winsize) / max(image.shape[0:2])
+      image = cv2.resize(image, dsize=(0,0), fx=scale, fy=scale)
+      cv2.imshow('labelObjects', image[:,:,::-1])
+      action = key_reader.parse (cv2.waitKey(-1))
+      if action == 'exit':
+        break
+      elif action == 'delete_label' and any_object_in_focus:
+        logging.info('Remove label from objectid "%s"' % objectid)
+        c.execute('DELETE FROM properties WHERE objectid=? AND key=?', (objectid, args.property))
+        go_next_object = True
+      elif action is not None and action not in ['previous', 'next']:
+        # User pressed something else which has an assigned action, assume it is a new value.
+        logging.info('Setting name "%s" to objectid "%s"' % (action, objectid))
+        if len(properties) > 0:
+          c.execute('DELETE FROM properties WHERE objectid=? AND key=?', (objectid, args.property))
+        else:
+          c.execute('INSERT INTO properties(objectid,key,value) VALUES (?,?,?)',
+            (objectid, args.property, str(action)))
+        go_next_object = True
+      # Navigation.
+      if action == 'previous':
+        logging.debug ('previous object')
+        another_object = True
+        if index_object > 0:
+          index_object -= 1
+        else:
+          logging.warning('Already at the first object.')
+      elif action == 'next' or go_next_object == True:
+        logging.debug ('next object')
+        another_object = True
+        if index_object < len(object_entries) - 1:
+          index_object += 1
+        else:
+          logging.warning('Already at the last object. Press Esc to save and exit.')
+
+  cv2.destroyWindow("labelObjects")
 
 
 def examineMatchesParser(subparsers):
