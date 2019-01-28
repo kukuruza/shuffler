@@ -120,8 +120,11 @@ class TestVideoReader (unittest.TestCase):
 
 
 class TestVideoWriter (unittest.TestCase):
-
-  WORK_DIR = '/tmp/TestVideoWriter'
+  
+  if os.name == 'nt':
+    WORK_DIR = op.join(op.dirname(op.realpath(__file__)), 'tmp/TestVideoWriter')
+  else:
+    WORK_DIR = '/tmp/TestVideoWriter'
 
   # TODO:
   #   test_imwrite_works should check quality.
@@ -242,7 +245,10 @@ class TestPictureReader (unittest.TestCase):
 
 class TestPictureWriter (unittest.TestCase):
 
-  WORK_DIR = '/tmp/TestPictureWriter'
+  if os.name == 'nt':
+    WORK_DIR = op.join(op.dirname(op.realpath(__file__)), 'tmp/TestPictureWriter')
+  else:
+    WORK_DIR = '/tmp/TestPictureWriter'
 
   def setUp (self):
     if not op.exists(self.WORK_DIR):
@@ -421,7 +427,10 @@ class TestMediaReader (unittest.TestCase):
 class TestMediaWriter (unittest.TestCase):
   ''' Test only that ncessary files exists. Do not check image content. '''
 
-  WORK_DIR = '/tmp/TestMediaWriter'
+  if os.name == 'nt':
+    WORK_DIR = op.join(op.dirname(op.realpath(__file__)), 'tmp/TestMediaWriter')
+  else:
+    WORK_DIR = '/tmp/TestMediaWriter'
 
   def setUp (self):
     if not op.exists(self.WORK_DIR):

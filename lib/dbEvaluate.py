@@ -254,6 +254,9 @@ def evaluateSegmentationIoUParser(subparsers):
     help='If specified, IoU for a class is recorded into the "score" field of the "images" table. '
     'If not specified, mean IoU is recorded. '
     'Should correspond to values of "gt_mapping_dict". E.g. "background".')
+  parser.add_argument('--out_summary_file',
+    help='Text file, where the summary is going to be appended as just one line of format: '
+    'out_prefix \\t IoU_class1 \\t IoU_class2 \\t etc.')
 
 def evaluateSegmentationIoU(c, args):
   import pandas as pd
@@ -336,6 +339,9 @@ def evaluateSegmentationIoU(c, args):
   if args.out_dir is not None:
     if not op.exists(args.out_dir):
       os.makedirs(args.out_dir)
+
+    with open(op.join(args.out_dir, args.out_summary_file), 'a') as f:
+        f.write(args.out_prefix + '\t' + '\t'.join(['%.2f' % x for x in result_df['IoU']]) + '\n')
 
     # Save confusion matrix
     fig = plt.figure()
