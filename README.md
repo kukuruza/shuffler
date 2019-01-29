@@ -84,6 +84,35 @@ conda install -y nose scikit-image
 ```
 
 
+## Instructions for the annotators
+
+1. If you have experience using git from command line, clone this repository. Otherwise, find a tool to manage git repositories. For example, https://desktop.github.com. Using that tool, clone this repository.
+
+2. Download Anaconda (or Miniconda) tool for managing Python packages. Pick the one with Python 3.5 or 3.6. Optionally create an conda environment. Install the following packages with Anaconda.
+
+```
+conda install -y imageio matplotlib lxml simplejson progressbar2 Pillow scipy
+conda install -y opencv=3.4.2
+```
+
+3. Download the folder "annotating" from https://drive.google.com/open?id=1c6vLJbOG0cJSQBYM1A1lnqS3DMCUDcRA and unzip. Inside this folder, there are two zip archives: `test-full.zip` and `train-full.zip`. Unzip them. You should get this file structure:
+
+```
+annotating
+|- test-full   (folder with images)
+|- test-full.db
+|- train-full  (folder with images)
+|- train-full.db
+```
+
+4) On Windows, start an Anaconda terminal. On Linux or Mac, start a terminal. In the terminal, cd to the directory “annotating”. In the commands below, replace `my_path_to_shuffler.py` with the actual path to file `shuffler.py` in directory shuffler. For example, on Mac it may be `/Users/evgeny/Downloads/shuffler-master/shuffler.py` or on Windows `C:\Users\evgeny\Downloads\shuffler-master\shuffler.py`. Run:
+
+```bash
+python my_path_to_shuffler.py -i test-full.db -o test-full.db --rootdir .  labelObjects --property color --key_dict "{'-': 'previous', '=': 'next', 27: 'exit', 127: 'delete_label', 'g': 'green', 'b': 'blue', 'o': 'orange', 'y': 'yellow', 'k': 'black', 'r': 'red', 'w': 'white', 'a': 'gray'}" --where_object "objectid NOT IN (SELECT objectid FROM properties WHERE key == 'color')"
+```
+
+
+
 ## Gentle introduction
 
 
