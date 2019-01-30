@@ -110,19 +110,19 @@ annotating
 This command will print some information about usage:
 
 ```bash
-python3 my_path_to_shuffler.py --usage
+python3 my_path_to_shuffler.py -h
 ```
 
 This command will print some information about the database:
 
 ```bash
-python3 my_path_to_shuffler.py --logging 10 -i train-full.db --rootdir .
+python3 my_path_to_shuffler.py --logging 10 -i train-full.db --rootdir . printInfo
 ```
 
 This command should open a window with an image. You should see a window with images. You should be able to move forward and backwards between images using keys "-" and "=". To exit, press Esc.
 
 ```bash
-python3 my_path_to_shuffler.py --logging 10 -i train-full.db --rootdir .
+python3 my_path_to_shuffler.py --logging 10 -i train-full.db --rootdir . examineImages
 ```
 
 Finally, the command below should open a window with an image, and allow you to label individual cars with colors. The dictionary is below. For example, when you press a button "r", the car will be labelled as red. Navigation is the same as above.
