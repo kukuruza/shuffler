@@ -135,10 +135,11 @@ Finally, the command below should open a window with an image, and allow you to 
 - "k": "black"
 - "w": "white"
 - "a": "gray"
+- Space key: color should not be assigned (no prominent color, color not seen well in the dusk, etc)
 - Del key: delete the label
 
 ```bash
-python3 my_path_to_shuffler.py --logging 10 -i train-full.db --rootdir . labelObjects --property color --key_dict "{'-': 'previous', '=': 'next', 27: 'exit', 127: 'delete_label', 'g': 'green', 'b': 'blue', 'o': 'orange', 'y': 'yellow', 'k': 'black', 'r': 'red', 'w': 'white', 'a': 'gray'}" --where_object "objectid NOT IN (SELECT objectid FROM properties WHERE key == 'color')"
+python3 my_path_to_shuffler.py --logging 10 -i train-full.db --rootdir . labelObjects --property color --key_dict "{'-': 'previous', '=': 'next', 27: 'exit', 127: 'delete_label', 'g': 'green', 'b': 'blue', 'o': 'orange', 'y': 'yellow', 'k': 'black', 'r': 'red', 'w': 'white', 'a': 'gray', ' ': 'no_color'}" --where_object "objectid NOT IN (SELECT objectid FROM properties WHERE key == 'color')"
 ```
 
 
