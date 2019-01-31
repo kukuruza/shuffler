@@ -126,14 +126,16 @@ python3 my_path_to_shuffler.py --logging 10 -i train-full.db --rootdir . examine
 ```
 
 Finally, the command below should open a window with an image, and allow you to label individual cars with colors. The dictionary is below. For example, when you press a button "r", the car will be labelled as red. Navigation is the same as above.
-"r": "red"
-"g": "green"
-"b": "blue"
-"o": "orange"
-"y": "yellow"
-"k": "black"
-"w": "white"
-"a": "gray"
+
+- "r": "red"
+- "g": "green"
+- "b": "blue"
+- "o": "orange"
+- "y": "yellow"
+- "k": "black"
+- "w": "white"
+- "a": "gray"
+- Del key: delete the label
 
 ```bash
 python3 my_path_to_shuffler.py --logging 10 -i train-full.db --rootdir . labelObjects --property color --key_dict "{'-': 'previous', '=': 'next', 27: 'exit', 127: 'delete_label', 'g': 'green', 'b': 'blue', 'o': 'orange', 'y': 'yellow', 'k': 'black', 'r': 'red', 'w': 'white', 'a': 'gray'}" --where_object "objectid NOT IN (SELECT objectid FROM properties WHERE key == 'color')"
