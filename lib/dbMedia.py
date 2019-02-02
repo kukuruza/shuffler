@@ -59,6 +59,7 @@ def cropObjects(c, args):
 
     # Write image.
     image = imreader.imread(imagefile)
+    logging.debug('Cropping roi=%s from image of shape %s' % (roi, image.shape))
     image = cropPatch(image, roi, args.target_height, args.target_width, args.edges)
     imagefile = imwriter.imwrite(image, namehint='%06d' % objectid)
 
@@ -126,12 +127,14 @@ def writeMedia (c, args):
   for imagefile, maskfile in progressbar(entries):
 
     logging.debug ('Imagefile "%s"' % imagefile)
-    image = imreader.imread(imagefile)
+    if args.image_path is not None:
+      image = imreader.imread(imagefile)
 
     # Overlay the mask.
     if maskfile is not None:
       mask = imreader.maskread(maskfile)
-      image = drawMaskOnImage(image, mask, alpha=args.mask_alpha, labelmap=labelmap)
+      if args.image_path is not None:
+        image = drawMaskOnImage(image, mask, alpha=args.mask_alpha, labelmap=labelmap)
     else:
       mask = None
       logging.debug('No mask for this image.')
@@ -173,9 +176,9 @@ def writeMedia (c, args):
 
     # Update the database entry.
     if maskfile_new is not None:
-      c.execute('UPDATE images SET maskfile=?,name=? WHERE imagefile=?', (maskfile_new,imagefile,imagefile))
+      c.execute('UPDATE images SET maskfile=? WHERE imagefile=?', (maskfile_new,imagefile))
     if imagefile_new is not None:
-      c.execute('UPDATE images SET imagefile=?,name=? WHERE imagefile=?', (imagefile_new,imagefile,imagefile))
+      c.execute('UPDATE images SET imagefile=? WHERE imagefile=?', (imagefile_new,imagefile))
       c.execute('UPDATE objects SET imagefile=? WHERE imagefile=?', (imagefile_new,imagefile))
 
   imwriter.close()

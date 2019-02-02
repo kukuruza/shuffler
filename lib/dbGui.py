@@ -220,6 +220,8 @@ def examineObjects (c, args):
     (imagefile,) = image_entries[index_image]
     logging.info ('Imagefile "%s"' % imagefile)
     image = imreader.imread(imagefile)
+    scale = float(args.winsize) / max(image.shape[0:2])
+    image = cv2.resize(image, dsize=(0,0), fx=scale, fy=scale)
 
     c.execute('SELECT * FROM objects WHERE imagefile=? AND (%s)' % args.where_object, (imagefile,))
     object_entries = c.fetchall()
@@ -233,6 +235,7 @@ def examineObjects (c, args):
       roi          = objectField(object_entry, 'roi')
       score        = objectField(object_entry, 'score')
       name         = objectField(object_entry, 'name')
+      scaledroi    = [int(scale * r) for r in roi]  # For displaying the scaled image.
       logging.info ('objectid: %d, roi: %s, score: %s, name: %s' % (objectid, roi, score, name))
       c.execute('SELECT * FROM polygons WHERE objectid=?', (objectid,))
       polygon_entries = c.fetchall()
@@ -242,7 +245,7 @@ def examineObjects (c, args):
         drawScoredPolygon (image, polygon, label=None, score=score)
       elif roi is not None:
         logging.info('showing object with a bounding box.')
-        drawScoredRoi (image, roi, label=None, score=score)
+        drawScoredRoi (image, scaledroi, label=None, score=score)
       else:
         raise Exception('Neither polygon, nor bbox is available for objectid %d' % objectid)
       c.execute('SELECT key,value FROM properties WHERE objectid=?', (objectid,))
@@ -252,15 +255,15 @@ def examineObjects (c, args):
       if score is not None:
         properties.append(('score', score))
       for iproperty, (key, value) in enumerate(properties):
-        cv2.putText (image, '%s: %s' % (key, value), (10, SCALE * (iproperty + 1)), 
+        cv2.putText (image, '%s: %s' % (key, value),
+            (scaledroi[3] + 10, scaledroi[0] - 10 + SCALE * (iproperty + 1)), 
             FONT, FONT_SIZE, (0,0,0), THICKNESS)
-        cv2.putText (image, '%s: %s' % (key, value), (10, SCALE * (iproperty + 1)), 
+        cv2.putText (image, '%s: %s' % (key, value), 
+            (scaledroi[3] + 10, scaledroi[0] - 10 + SCALE * (iproperty + 1)), 
             FONT, FONT_SIZE, (255,255,255), THICKNESS-1)
         logging.info ('objectid: %d. %s = %s.' % (objectid, key, value))
 
     # Display an image, wait for the key from user, and parse that key.
-    scale = float(args.winsize) / max(image.shape[0:2])
-    image = cv2.resize(image, dsize=(0,0), fx=scale, fy=scale)
     cv2.imshow('examineObjects', image[:,:,::-1])
     action = key_reader.parse (cv2.waitKey(-1))
     if action is None:
