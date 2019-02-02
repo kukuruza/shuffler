@@ -230,7 +230,8 @@ class PictureReader:
     if not op.exists (image_id):
       raise ValueError('Image does not exist at path: "%s"' % image_id)
     try:
-      return imageio.imread(image_id)
+      image = imageio.imread(image_id)
+      return np.asarray(image)
     except ValueError:
       raise ValueError('PictureReader failed to read image_id %s.' % image_id)
 

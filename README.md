@@ -71,17 +71,77 @@ Shuffler requires Python3. The installation instructions assume Conda package ma
 
 ```bash
 # If desired, add support for datasets stored as video (needs to go first).
-conda install -c conda-forge ffmpeg=4.0
+conda install -y -c conda-forge ffmpeg=4.0
 
-conda install imageio matplotlib lxml simplejson progressbar2 Pillow scipy
-conda install opencv=3.4.2  # Require opencv3.
+conda install -y imageio matplotlib lxml simplejson progressbar2 Pillow scipy
+conda install -y opencv=3.4.2  # Require opencv3.
 
 # If desired, add support for plotting commands
-conda install pandas seaborn
+conda install -y pandas seaborn
 
 # If desired, add support for unit tests
-conda install nose scikit-image
+conda install -y nose scikit-image
 ```
+
+
+## Instructions for the annotators
+
+1. If you have experience using git from command line, clone this repository. Otherwise, find a tool to manage git repositories. For example, https://desktop.github.com. Using that tool, clone this repository.
+
+2. Download Anaconda (or Miniconda) tool for managing Python packages. Pick the one with Python 3.5 or 3.6. Optionally create an conda environment. Install the following packages with Anaconda.
+
+```
+conda install -y imageio matplotlib lxml simplejson progressbar2 Pillow scipy
+conda install -y opencv=3.4.2
+```
+
+3. Download the folder "annotating" from https://drive.google.com/open?id=1c6vLJbOG0cJSQBYM1A1lnqS3DMCUDcRA and unzip. Inside this folder, there are two zip archives: `test-full.zip` and `train-full.zip`. Unzip them. You should get this file structure:
+
+```
+annotating
+|- test-full   (folder with images)
+|- test-full.db
+|- train-full  (folder with images)
+|- train-full.db
+```
+
+4) Start an Anaconda terminal. In the terminal, cd to the directory “annotating”. In the commands below, replace `my_path_to_shuffler.py` with your actual path to file `shuffler.py` residing in the repo "shuffler". For example, on Mac it may be `/Users/evgeny/Downloads/shuffler/shuffler.py` and on Windows `C:\Users\evgeny\Downloads\shuffler-master\shuffler.py`. Run the following commands, and if any one of them fails contact Evgeny.
+
+This command will print some information about usage:
+
+```bash
+python3 my_path_to_shuffler.py -h
+```
+
+This command will print some information about the database:
+
+```bash
+python3 my_path_to_shuffler.py --logging 10 -i train-full.db --rootdir . printInfo
+```
+
+This command should open a window with an image. You should see a window with images. You should be able to move forward and backwards between images using keys "-" and "=". To exit, press Esc.
+
+```bash
+python3 my_path_to_shuffler.py --logging 10 -i train-full.db --rootdir . examineImages
+```
+
+Finally, the command below should open a window with an image, and allow you to label individual cars with colors. The dictionary is below. For example, when you press a button "r", the car will be labelled as red. Navigation is the same as above.
+
+- "r": "red"
+- "g": "green"
+- "b": "blue"
+- "o": "orange"
+- "y": "yellow"
+- "k": "black"
+- "w": "white"
+- "a": "gray"
+- Space key: color should not be assigned (no prominent color, color not seen well in the dusk, etc)
+- Del key: delete the label
+
+```bash
+python3 my_path_to_shuffler.py --logging 10 -i train-full.db --rootdir . labelObjects --property color --key_dict "{'-': 'previous', '=': 'next', 27: 'exit', 127: 'delete_label', 'g': 'green', 'b': 'blue', 'o': 'orange', 'y': 'yellow', 'k': 'black', 'r': 'red', 'w': 'white', 'a': 'gray', ' ': 'no_color'}" --where_object "objectid NOT IN (SELECT objectid FROM properties WHERE key == 'color')"
+```
+
 
 
 ## Gentle introduction

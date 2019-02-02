@@ -99,7 +99,7 @@ class DatasetWriter:
       self.c.execute('SELECT MAX(match) FROM matches')
       match = self.c.fetchone()[0]
       match = match + 1 if match is not None else 0
-    s = 'matches(match,carid)'
+    s = 'matches(match,objectid)'
     logging.debug('Adding a new match %d for objectid %d' % (match, objectid))
     self.c.execute('INSERT INTO %s VALUES (?,?);' % s, (match, objectid))
     return match
