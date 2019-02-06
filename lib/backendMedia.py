@@ -228,6 +228,7 @@ class PictureReader:
     image_id = normalizeSeparators(image_id)
     logging.debug ('image_id: %s' % image_id)
     if not op.exists (image_id):
+      logging.error('Real image path: %s' % op.realpath(image_id))
       raise ValueError('Image does not exist at path: "%s"' % image_id)
     try:
       image = imageio.imread(image_id)
