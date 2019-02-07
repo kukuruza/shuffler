@@ -75,7 +75,9 @@ def cropObjects(c, args):
     c.execute('INSERT INTO images VALUES (?,?,?,?,?,?,?)',
       (imagefile, args.target_width, args.target_height, maskfile, timestamp, name, score))
     c.execute('UPDATE objects SET imagefile=? WHERE objectid=?', (imagefile, objectid))
-    
+
+  c.execute('UPDATE objects SET x1=0,y1=0,width=?,height=?', (args.target_width, args.target_height))
+  # TODO: update polygons.
   imwriter.close()
 
 
