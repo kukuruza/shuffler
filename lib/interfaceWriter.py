@@ -15,7 +15,7 @@ class DatasetWriter:
   ''' Write a new dataset (db and videos). '''
   # TODO:add writing to pictures.
 
-  def __init__(self, out_db_file, rootdir='.', media='video',
+  def __init__(self, out_db_file, rootdir='.', media='pictures',
                image_path=None, mask_path=None, overwrite=False):
 
     self.rootdir = rootdir

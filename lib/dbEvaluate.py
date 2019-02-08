@@ -262,6 +262,7 @@ def evaluateSegmentationIoU(c, args):
   import pandas as pd
 
   # Get corresponding maskfiles from predictions and ground truth.
+  logging.info('Opening ground truth dataset: %s' % args.gt_db_file)
   c.execute('ATTACH ? AS "attached"', (args.gt_db_file,))
   c.execute('SELECT pr.imagefile,pr.maskfile,gt.maskfile FROM images pr INNER JOIN attached.images gt '
     'WHERE pr.imagefile=gt.imagefile AND pr.maskfile IS NOT NULL AND gt.maskfile IS NOT NULL AND %s '
