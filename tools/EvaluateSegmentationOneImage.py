@@ -13,8 +13,7 @@ from lib.dbEvaluate import *
 from lib.dbEvaluate import _label2classMapping
 
 def evaluateSegmentationOneImage_parser():
-  parser = ArgumentParser('Take a list of video files, and make a new one, '
-    'where each frame is a grid of frames from the input videos.')
+  parser = ArgumentParser()
   parser.add_argument('-pred', '--predicted_path', required=True,
   	help='Path of prediction mask.')
   parser.add_argument('-gt', '--ground_truth_path', required=True,
@@ -30,8 +29,8 @@ def evaluateSegmentationOneImage(args):
   labelmap_gt, labelmap_pr, class_names = _label2classMapping(
     args.gt_mapping_dict, args.pred_mapping_dict)
 
-  mask_pr = imageio.imread(args.predicted_path)
-  mask_gt = imageio.imread(args.ground_truth_path)
+  mask_pr = imageio.imread(args.predicted_path).astype(float)
+  mask_gt = imageio.imread(args.ground_truth_path).astype(float)
   if len(mask_pr.shape) == 3:
     mask_pr = mask_pr[:,:,0]
   if len(mask_gt.shape) == 3:
@@ -39,6 +38,8 @@ def evaluateSegmentationOneImage(args):
 
   mask_gt = applyLabelMappingToMask(mask_gt, labelmap_gt)
   mask_pr = applyLabelMappingToMask(mask_pr, labelmap_pr)
+  assert mask_gt.dtype == float
+  assert mask_pr.dtype == float
   mask_pr = cv2.resize(mask_pr, (mask_gt.shape[1], mask_gt.shape[0]), interpolation=cv2.INTER_NEAREST)
   careabout = ~np.isnan(mask_gt)
 

@@ -4,6 +4,7 @@ import cv2
 import logging
 from ast import literal_eval
 from pprint import pformat
+import imageio
 
 from .util import drawTextOnImage, drawMaskOnImage, drawMaskAside
 from .util import bbox2roi, drawScoredRoi, drawScoredPolygon
@@ -79,7 +80,9 @@ def examineImagesParser(subparsers):
     help='draw all objects on top of the image.')
   parser.add_argument('--winsize', type=int, default=500)
   parser.add_argument('--key_dict',
-    default='{"-": "previous", "=": "next", " ": "next", 127: "delete", 27: "exit"}')
+    default='{"-": "previous", "=": "next", " ": "snapshot", 127: "delete", 27: "exit"}')
+  parser.add_argument('--snapshot_dir',
+    help='If provided, snapshots will be written in this directory.')
 
 def examineImages (c, args):
   cv2.namedWindow("examineImages")
@@ -93,6 +96,9 @@ def examineImages (c, args):
 
   if args.shuffle:
     np.random.shuffle(image_entries)
+
+  if args.snapshot_dir and not op.exists(args.snapshot_dir):
+    os.makedirs(args.snapshot_dir)
 
   imreader = MediaReader(rootdir=args.rootdir)
 
@@ -146,15 +152,22 @@ def examineImages (c, args):
 
     # Display an image, wait for the key from user, and parse that key.
     scale = float(args.winsize) / max(list(image.shape[0:2]))
-    image = cv2.resize(image, dsize=(0,0), fx=scale, fy=scale)
+    scaled_image = cv2.resize(image, dsize=(0,0), fx=scale, fy=scale)
     # Overlay imagefile.
-    drawTextOnImage(image, op.basename(normalizeSeparators(imagefile)))
+    drawTextOnImage(scaled_image, op.basename(normalizeSeparators(imagefile)))
     # Display
-    cv2.imshow('examineImages', image[:,:,::-1])
+    cv2.imshow('examineImages', scaled_image[:,:,::-1])
     action = key_reader.parse (cv2.waitKey(-1))
     if action is None:
       # User pressed something which does not have an action.
       continue
+    elif action == 'snapshot':
+      if args.snapshot_dir:
+        snaphot_path = op.join(args.snapshot_dir, '%08d.png' % index_image)
+        logging.info('Making a snapshot at path: %s' % snaphot_path)
+        imageio.imwrite(snaphot_path, image)
+      else:
+        logging.warning('The user pressed a snapshot key, but snapshot_dir is not given.')
     elif action == 'delete':
       deleteImage (c, imagefile)
       del image_entries[index_image]

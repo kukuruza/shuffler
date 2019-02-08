@@ -150,7 +150,7 @@ def applyLabelMappingToMask(mask, labelmap):
               Examples {1: 255, 2: 128} or {1: (255,255,255), 2: (128,255,0)}.
               If not specified, the mask is used as is.
   Returns:
-    mask      Mapped mask.
+    mask      Mapped mask of type float
   '''
   logging.debug('Before mapping, mask had values %s' % set(mask.flatten().tolist()))
 
@@ -208,11 +208,11 @@ def applyLabelMappingToMask(mask, labelmap):
   if len(dmask.shape) == 3:
     # From (3, H, W) to (H, W, 3)
     dmask = np.transpose(dmask, (1, 2, 0))
-    logging.debug('Left %d values unmapped (NaN).' % np.count_nonzero(np.isnan(dmask[:,:,0])))
+    logging.debug('Left %d pixels unmapped (NaN).' % np.count_nonzero(np.isnan(dmask[:,:,0])))
   else:
-    logging.debug('Left %d values unmapped (NaN).' % np.count_nonzero(np.isnan(dmask)))
+    logging.debug('Left %d pixels unmapped (NaN).' % np.count_nonzero(np.isnan(dmask)))
 
-  return dmask.astype(np.uint8)
+  return dmask
 
 
 
@@ -231,7 +231,7 @@ def drawMaskOnImage(img, mask, alpha=0.5, labelmap=None):
     raise NotImplementedError('Only color images are supported now.')
 
   if labelmap is not None:
-    mask = applyLabelMappingToMask(mask, labelmap)
+    mask = applyLabelMappingToMask(mask, labelmap).astype(uint8)
 
   if len(mask.shape) == 2:
     mask = cv2.cvtColor (mask, cv2.COLOR_GRAY2RGB)

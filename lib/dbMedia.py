@@ -388,7 +388,7 @@ def repaintMask (c, args):
       # Read mask.
       mask = imreader.maskread(maskfile)
       # Repaint mask.
-      mask = applyLabelMappingToMask(mask, labelmap)
+      mask = applyLabelMappingToMask(mask, labelmap).astype(uint8)
       # Write mask to video and to the db.
       maskfile_new = imwriter.maskwrite(mask, namehint=maskfile)
       c.execute('UPDATE images SET maskfile=? WHERE maskfile=?', (maskfile_new,maskfile))
