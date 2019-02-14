@@ -372,7 +372,7 @@ def labelObjects (c, args):
       if len(polygon_entries) > 0:
         logging.info('showing object with a polygon.')
         polygon = [(polygonField(p, 'x'), polygonField(p, 'y')) for p in polygon_entries]
-        drawScoredPolygon (image, polygon, label=None, score=score)
+        drawScoredPolygon (image, polygon, label=None, score=None)
       elif roi is not None:
         logging.info('showing object with a bounding box.')
         drawScoredRoi (image, roi, label=None, score=None)
@@ -409,9 +409,8 @@ def labelObjects (c, args):
         logging.info('Setting name "%s" to objectid "%s"' % (action, objectid))
         if len(properties) > 0:
           c.execute('DELETE FROM properties WHERE objectid=? AND key=?', (objectid, args.property))
-        else:
-          c.execute('INSERT INTO properties(objectid,key,value) VALUES (?,?,?)',
-            (objectid, args.property, str(action)))
+        c.execute('INSERT INTO properties(objectid,key,value) VALUES (?,?,?)',
+          (objectid, args.property, str(action)))
         go_next_object = True
       # Navigation.
       if action == 'previous':
