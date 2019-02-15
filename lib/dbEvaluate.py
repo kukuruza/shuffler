@@ -341,7 +341,9 @@ def evaluateSegmentationIoU(c, args):
     if not op.exists(args.out_dir):
       os.makedirs(args.out_dir)
 
-    with open(op.join(args.out_dir, args.out_summary_file), 'a') as f:
+    out_summary_path = op.join(args.out_dir, args.out_summary_file)
+    logging.info('Will add summary to: %s' % out_summary_path)
+    with open(out_summary_path, 'a') as f:
         f.write(args.out_prefix + '\t' + '\t'.join(['%.2f' % x for x in result_df['IoU']]) + '\n')
 
     # Save confusion matrix
