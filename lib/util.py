@@ -231,7 +231,7 @@ def drawMaskOnImage(img, mask, alpha=0.5, labelmap=None):
     raise NotImplementedError('Only color images are supported now.')
 
   if labelmap is not None:
-    mask = applyLabelMappingToMask(mask, labelmap).astype(uint8)
+    mask = applyLabelMappingToMask(mask, labelmap).astype(np.uint8)
 
   if len(mask.shape) == 2:
     mask = cv2.cvtColor (mask, cv2.COLOR_GRAY2RGB)
