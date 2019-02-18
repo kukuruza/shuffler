@@ -152,11 +152,12 @@ The next command allows one to classify the car by type. Currently we use the fo
 - Space key: Anything ambiguous, as well as motorbikes, bicycles, street-cleaning cars, construction cars that can not be called trucks, etc
 - Del key: delete the label
 
-![examples-type](fig/examples-type.jpg)
-
 ```bash
 python3 my_path_to_shuffler.py --logging 10 -i train-full.db --rootdir . labelObjects --property color --key_dict "{'-': 'previous', '=': 'next', 27: 'exit', 127: 'delete_label', 'p': 'passenger', 'b': 'bus', 'c': 'taxi', 't': 'truck', 'v': 'van', ' ': 'no_type'}" --where_object "objectid NOT IN (SELECT objectid FROM properties WHERE key == 'type')"
 ```
+
+![examples-type](fig/examples-type.jpg)
+
 
 
 
