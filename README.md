@@ -144,12 +144,12 @@ python3 my_path_to_shuffler.py --logging 10 -i train-full.db --rootdir . labelOb
 
 The next command allows one to classify the car by type. Currently we use the following types. When in doubt, use "no\_type"
 
-- "p": "passenger". Sedans, hatchbacks, sport cars, SUVs, etc. *NOT* pickups, *NOT* taxis.
-- "t": "truck". Commercial trucks, UHauls, etc. *NOT* pickups.
+- "p": "passenger". Sedans, hatchbacks, sport cars, SUVs, etc. *NOT* taxis.
+- "t": "truck". Commercial trucks, UHauls, pickups, etc.
 - "v": "van". Commercial vans, normally with no windows.
 - "c": "taxi". Any car labelled as taxi (can be yellow, green, black, etc.)
 - "b": "bus". In-city or inter-city buses, school buses.
-- Space key: Anything ambiguous, as well as **pickups**, motorbikes, bicycles, street-cleaning cars, construction cars that can not be called trucks, etc.
+- Space key: Anything ambiguous, as well as motorbikes, bicycles, street-cleaning cars, construction cars that can not be called trucks, etc.
 - Del key: delete the label
 
 ```bash
