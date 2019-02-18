@@ -125,7 +125,7 @@ This command should open a window with an image. You should see a window with im
 python3 my_path_to_shuffler.py --logging 10 -i train-full.db --rootdir . examineImages
 ```
 
-Finally, the command below should open a window with an image, and allow you to label individual cars with colors. The dictionary is below. For example, when you press a button "r", the car will be labelled as red. Navigation is the same as above.
+The command below should open a window with an image, and allow you to label individual cars with colors. The dictionary is below. For example, when you press a button "r", the car will be labelled as red. Navigation is the same as above.
 
 - "r": "red"
 - "g": "green"
@@ -141,6 +141,23 @@ Finally, the command below should open a window with an image, and allow you to 
 ```bash
 python3 my_path_to_shuffler.py --logging 10 -i train-full.db --rootdir . labelObjects --property color --key_dict "{'-': 'previous', '=': 'next', 27: 'exit', 127: 'delete_label', 'g': 'green', 'b': 'blue', 'o': 'orange', 'y': 'yellow', 'k': 'black', 'r': 'red', 'w': 'white', 'a': 'gray', ' ': 'no_color'}" --where_object "objectid NOT IN (SELECT objectid FROM properties WHERE key == 'color')"
 ```
+
+The next command allows one to classify the car by type. Currently we use the following types. When in doubt, use "no\_type"
+
+- "p": "passenger". Sedans, hatchbacks, sport cars, SUVs, etc. NOT pickups, NOT taxis.
+- "t": "truck". Commercial trucks, UHauls, etc. NOT pickups.
+- "v": "van". Commercial vans, normally with no windows.
+- "t": "taxi". Any car labelled as taxi (can be yellow, green, black, etc.)
+- "b": "bus". In-city or inter-city buses, school buses.
+- Space key: Anything ambiguous, as well as motorbikes, bicycles, street-cleaning cars, construction cars that can not be called trucks, etc
+- Del key: delete the label
+
+![examples-type](fig/examples-type.jpg)
+
+```bash
+python3 my_path_to_shuffler.py --logging 10 -i train-full.db --rootdir . labelObjects --property color --key_dict "{'-': 'previous', '=': 'next', 27: 'exit', 127: 'delete_label', 'p': 'passenger', 'b': 'bus', 'c': 'taxi', 't': 'truck', 'v': 'van', ' ': 'no_type'}" --where_object "objectid NOT IN (SELECT objectid FROM properties WHERE key == 'type')"
+```
+
 
 
 
