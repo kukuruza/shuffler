@@ -49,6 +49,10 @@ class KeyReader:
   def parse(self, button):
     ''' Get the corresponding action for a pressed button. '''
 
+    if button == -1:  # cv2 code for no press.
+      #logging.debug('No key was pressed')
+      return None
+
     if chr(button) in self.keysmap:
       # Get the character from ASCII, since character is in the keymap.
       logging.info('Found char "%s" for pressed ASCII %d in the table.' % (chr(button), button))
@@ -517,25 +521,27 @@ def _monitorPressRelease (event,x,y,flags,param):
   global xpress, ypress, mousePressed, mouseReleased
 
   if event == cv2.EVENT_LBUTTONDOWN:
+    logging.debug('Left mouse button pressed at %d,%d' % (x,y))
     xpress, ypress = x, y
     assert not mouseReleased
     mousePressed = True
 
   elif event == cv2.EVENT_LBUTTONUP:
     xpress, ypress = x, y
+    logging.debug('Left mouse button released at %d,%d' % (x,y))
     assert not mousePressed
     mouseReleased = True
 
-def _drawMatch (img, roi1, roi2):
-  offsetY = img.shape[0] / 2;
-  color = (0, 255, 0)
-  roi2[0] += offsetY
-  roi2[2] += offsetY
-  drawRoi (img, roi1, None, color)
-  drawRoi (img, roi2, None, color)
-  center1 = getCenter(roi1)
-  center2 = getCenter(roi2)
-  cv2.line(img, center1, center2, color)
+def _drawMatch (img, roi1, roi2, yoffset):
+  def _getCenter(roi):
+    return int(0.5 * roi[1] + 0.5 * roi[3]), int(0.25 * roi[0] + 0.75 * roi[2])
+  roi2[0] += yoffset
+  roi2[2] += yoffset
+  drawScoredRoi (img, roi1)
+  drawScoredRoi (img, roi2)
+  center1 = _getCenter(roi1)
+  center2 = _getCenter(roi2)
+  cv2.line(img, center1, center2, [0, 0, 255], thickness=2)
 
 def _findPressedObject (x, y, cars):
   for i in range(len(cars)):
@@ -559,8 +565,8 @@ def labelMatchesParser(subparsers):
     'Press "exit" (key "Esc" by default) to save changes and exit. '
     'Pass "min_imagefile" to start with a certain image pair.')
   parser.set_defaults(func=labelMatches)
-  parser.add_argument('--min_imagefile',
-    help='If specified, use only "imagefile" greater or equal than min_imagefile.')
+  parser.add_argument('--where_images', default='TRUE',
+    help='the SQL "where" clause for the "images" table.')
   parser.add_argument('--shuffle', action='store_true')
   parser.add_argument('--winsize', type=int, default=500)
   parser.add_argument('--key_dict',
@@ -571,12 +577,7 @@ def labelMatches (c, args):
   cv2.setMouseCallback('labelMatches', _monitorPressRelease)
   global mousePressed, mouseReleased, xpress, ypress
 
-  if args.min_imagefile is not None:
-    logging.info('Starting from image %d' % index_im)
-    c.execute('SELECT imagefile FROM images WHERE imagefile >= ?', (args.min_imagefile,))
-  else:
-    logging.info('Using all images.')
-    c.execute('SELECT imagefile FROM images')
+  c.execute('SELECT imagefile FROM images WHERE %s' % args.where_images)
   image_entries = c.fetchall()
   logging.debug ('Found %d images' % len(image_entries))
   if len(image_entries) < 2:
@@ -620,108 +621,130 @@ def labelMatches (c, args):
 
     i1 = i2 = None  # Matches selected with a mouse.
 
-    # On each cycle, some some key is pressed.
     selectedMatch = None
     needRedraw = True
-    while action != 'exit':
+    action = None
+    # Stay in side the loop until a key is pressed.
+    while action is None:
 
       img_stack = np.vstack((img1, img2))
 
       if needRedraw:
 
-          # find existing matches, and make a map
-          matchesOf1 = {}
-          matchesOf2 = {}
-          for j1 in range(len(objects1)):
-            object1 = objects1[j1]
-            for j2 in range(len(objects2)):
-              object2 = objects2[j2]
-              c.execute('SELECT match FROM matches WHERE objectid = ? INTERSECT '
-                        'SELECT match FROM matches WHERE objectid = ?',
-                        (objectField(object1, 'objectid'),
-                         objectField(object2, 'objectid')))
-              matches = c.fetchall()
-              if len(matches) > 0:
-                assert len(matches) == 1  # No duplicate matches.
-                roi1 = objectField(object1, 'roi')
-                roi2 = objectField(object2, 'roi')
-                _drawMatch (img_stack, roi1, roi2)
-                matchesOf1[j1] = matches[0][0]
-                matchesOf2[j2] = matches[0][0]
+        # find existing matches, and make a map
+        matchesOf1 = {}
+        matchesOf2 = {}
+        for j1 in range(len(objects1)):
+          object1 = objects1[j1]
+          for j2 in range(len(objects2)):
+            object2 = objects2[j2]
+            c.execute('SELECT match FROM matches WHERE objectid = ? INTERSECT '
+                      'SELECT match FROM matches WHERE objectid = ?',
+                      (objectField(object1, 'objectid'),
+                       objectField(object2, 'objectid')))
+            matches = c.fetchall()
+            if len(matches) > 0:
+              assert len(matches) == 1  # No duplicate matches.
+              roi1 = objectField(object1, 'roi')
+              roi2 = objectField(object2, 'roi')
+              _drawMatch (img_stack, roi1, roi2, yoffset)
+              matchesOf1[j1] = matches[0][0]
+              matchesOf2[j2] = matches[0][0]
 
-          # draw image
-          scale = float(args.winsize) / max(img_stack.shape[0:2])
-          img_show = cv2.resize(img_stack, dsize=(0,0), fx=scale, fy=scale)
-          cv2.imshow('labelMatches', img_show[:,:,::-1])
-          logging.info ('%d matches found between the pair' % len(matchesOf1))
-          needRedraw = False
+        # draw image
+        scale = float(args.winsize) / max(img_stack.shape[0:2])
+        img_show = cv2.resize(img_stack, dsize=(0,0), fx=scale, fy=scale)
+        cv2.imshow('labelMatches', img_show[:,:,::-1])
+        logging.info ('Will draw %d matches found between the pair' % len(matchesOf1))
+        needRedraw = False
 
       # process mouse callback effect (button has been pressed)
       if mousePressed:
-          i2 = None  # reset after the last unsuccessful match
-          logging.debug ('Pressed  x=%d, y=%d' % (xpress, ypress))
-          xpress /= scale
-          ypress /= scale
-          i1 = _findPressedObject (xpress, ypress, objects1)
-          if i1 is not None: logging.debug ('Found pressed object: %d' % i1)
-          mousePressed = False
+        i2 = None  # reset after the last unsuccessful match
+        logging.debug ('Pressed  x=%d, y=%d' % (xpress, ypress))
+        xpress /= scale
+        ypress /= scale
+        i1 = _findPressedObject (xpress, ypress, objects1)
+        if i1 is not None: logging.debug ('Found pressed object: %d' % i1)
+        mousePressed = False
 
       # process mouse callback effect (button has been released)
       if mouseReleased:
-          logging.debug ('released x=%d, y=%d' % (xpress, ypress))
-          xpress /= scale
-          ypress /= scale
-          i2 = _findPressedObject (xpress, ypress-yoffset, objects2)
-          if i2 is not None: logging.debug ('Found released object: %d' % i2)
-          mouseReleased = False
+        logging.debug ('released x=%d, y=%d' % (xpress, ypress))
+        xpress /= scale
+        ypress /= scale
+        i2 = _findPressedObject (xpress, ypress-yoffset, objects2)
+        if i2 is not None: logging.debug ('Found released object: %d' % i2)
+        mouseReleased = False
 
       # If we could find pressed and released objects, add match
       if i1 is not None and i2 is not None:
 
-        # If one of the objects in the new match is already matched, discard
+        # If one of the objects is already matched in this image pair, discard.
         if i1 in matchesOf1 or i2 in matchesOf2:
           logging.warning ('One or two connected objects is already matched')
           i1 = i2 = None
 
         else:
-          # Add the match to the list
-          objectid1 = objectField(objects1[i1], 'id')
-          objectid2 = objectField(objects2[i2], 'id')
+          # Add the match to the list.
+          objectid1 = objectField(objects1[i1], 'objectid')
+          objectid2 = objectField(objects2[i2], 'objectid')
           logging.debug('i1 = %d, i2 = %d' % (i1, i2))
-          logging.info('Detected a match')
 
-          # Find a free match index
-          c.execute('SELECT MAX(match) FROM matches')
-          matchid = int(c.fetchone()[0]) + 1
+          # Check if this object already in the matches.
+          c.execute('SELECT match FROM matches WHERE objectid=?', (objectid1,))
+          matches1 = c.fetchall()
+          c.execute('SELECT match FROM matches WHERE objectid=?', (objectid2,))
+          matches2 = c.fetchall()
 
-          c.execute('INSERT INTO matches(match, objectid) VALUES (?,?)', (matchid, objectid1))
-          c.execute('INSERT INTO matches(match, objectid) VALUES (?,?)', (matchid, objectid2))
+          if len(matches1) > 1 or len(matches2) > 1:
+            logging.error('One of the objectids %d, %d is in several matches.' % (objectid1, objectid2))
+            continue
 
-          # Display the match
-          roi1 = objectField(objects1[i1], 'roi')
-          roi2 = objectField(objects2[i2], 'roi')
-          roi2[0] += yoffset
-          roi2[1] += yoffset
-          _drawMatch (img_stack, roi1, roi2)
+          elif len(matches1) == 1 and len(matches2) == 1:
+            logging.info('Will merge matches of objectids %d and %d' % (objectid1, objectid2))
+            c.execute('UPDATE matches SET match=? WHERE match=?', (matches1[0][0], matches2[0][0]))
+            
+          elif len(matches1) == 1 and len(matches2) == 0:
+            logging.info('Add objectid %d to match %d' % (objectid2, matches1[0][0]))
+            c.execute('INSERT INTO matches(match, objectid) VALUES (?,?)', (matches1[0][0], objectid2))
 
-          # reset when a new match is made
+          elif len(matches1) == 0 and len(matches2) == 1:
+            logging.info('Add objectid %d to match %d' % (objectid1, matches2[0][0]))
+            c.execute('INSERT INTO matches(match, objectid) VALUES (?,?)', (matches2[0][0], objectid1))
+
+          elif len(matches1) == 0 and len(matches2) == 0:
+            logging.info('Add a new match between objectids %d and %d.' % (objectid1, objectid2))
+
+            # Find a free match index
+            c.execute('SELECT MAX(match) FROM matches')
+            maxmatch = c.fetchone()[0]
+            match = int(maxmatch) + 1 if maxmatch is not None else 1
+
+            c.execute('INSERT INTO matches(match, objectid) VALUES (?,?)', (match, objectid1))
+            c.execute('INSERT INTO matches(match, objectid) VALUES (?,?)', (match, objectid2))
+
+          else:
+            assert False
+
+          # Reset when a new match is made.
           needRedraw = True
           i1 = i2 = None
 
       # Stay inside the loop inside one image pair until some button is pressed
-      action = key_reader.parse (cv2.waitKey(-1))
+      action = key_reader.parse (cv2.waitKey(50))
 
     # Process pressed key (all except exit)
-    if button == keys['previous']:
-      logging.debug ('Previous image pair')
+    if action == 'previous':
+      logging.info ('Previous image pair')
       if index_image == 1:
         logging.warning ('already the first image pair')
       else:
         index_image -= 1
-    elif button == keys['next']:
-        logging.debug ('Next image pair')
+    elif action == 'next':
+        logging.info ('Next image pair')
         index_image += 1  # exit at last image pair from outer loop
-    elif button == keys['delete_match']:
+    elif action == 'delete_match':
       # if any car was selected, and it is matched
       if i1 is not None and i1 in matchesOf1:
         match = matchesOf1[i1]

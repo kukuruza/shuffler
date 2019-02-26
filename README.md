@@ -158,6 +158,20 @@ python3 my_path_to_shuffler.py --logging 10 -i train-full.db --rootdir . labelOb
 
 ![examples-type](fig/examples-type.jpg)
 
+The next command allows one to label matching cars.
+At the start you should see a window with two images one under another.
+
+- Press and hold the mouse at a box in the TOP image, and release at a box in the BOTTOM image. That will add a match between that pair of objects. If one of the two boxes were already matched to a different object, a new match will not be added.
+- Click on a box in the TOP image and then press "Del" key to remove a match if the top box was incorrectly matched.
+- Press "-" / "=" takes you accordingly to the previous and the next image pair.
+- Press "Esc" to save changes and exit.
+
+```bash
+python3 my_path_to_shuffler.py --logging 10 -i train-full.db --rootdir . labelMatches --where_images "imagefile NOT IN (SELECT imagefile FROM objects INNER JOIN matches ON objects.objectid == matches.objectid)"
+```
+
+![examples-matches](fig/examples-matches.jpg)
+
 
 
 
