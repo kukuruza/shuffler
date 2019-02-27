@@ -260,7 +260,7 @@ def polygonsToMask (c, args):
     if np.sum(mask_per_image) == 0 and args.skip_empty_masks:
       continue
 
-    out_maskfile = imwriter.maskwrite(mask_per_image, namehint='%s.png' % op.splitext(imagefile)[0])
+    out_maskfile = imwriter.maskwrite(mask_per_image) #, namehint='%s.png' % op.splitext(imagefile)[0])
     c.execute('UPDATE images SET maskfile=? WHERE imagefile=?', (out_maskfile, imagefile))
 
   imwriter.close()
@@ -399,14 +399,23 @@ def repaintMask (c, args):
 
   # Iterate images.
   c.execute('SELECT maskfile FROM images')
-  for maskfile, in progressbar(c.fetchall()):
+  maskfiles = c.fetchall()
+
+  # Find out if all the masks are in the same directory.
+  # If so, use a namehint, that is, new maskfiles will have the same name as original.
+  # Otherwise, new maskfiles will be named seqentially from 0.
+  # Regardless, namehint is currently only used when media=="pictures".
+  maskdirs = set([op.dirname(maskfile) for maskfile in maskfiles])
+  use_namehint = len(maskdirs) == 1
+
+  for maskfile, in progressbar(maskfiles):
     if maskfile is not None:
       # Read mask.
       mask = imreader.maskread(maskfile)
       # Repaint mask.
       mask = applyLabelMappingToMask(mask, labelmap).astype(np.uint8)
       # Write mask to video and to the db.
-      maskfile_new = imwriter.maskwrite(mask, namehint=maskfile)
+      maskfile_new = imwriter.maskwrite(mask, namehint=(maskfile if use_namehint else None))
       c.execute('UPDATE images SET maskfile=? WHERE maskfile=?', (maskfile_new,maskfile))
 
   imwriter.close()
