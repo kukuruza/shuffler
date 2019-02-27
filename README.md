@@ -86,6 +86,8 @@ conda install -y nose scikit-image
 
 ## Instructions for the annotators
 
+#### Installation
+
 1. If you have experience using git from command line, clone this repository. Otherwise, find a tool to manage git repositories. For example, https://desktop.github.com. Using that tool, clone this repository.
 
 2. Download Anaconda (or Miniconda) tool for managing Python packages. Pick the one with Python 3.5 or 3.6. Optionally create an conda environment. Install the following packages with Anaconda.
@@ -125,6 +127,8 @@ This command should open a window with an image. You should see a window with im
 python3 my_path_to_shuffler.py --logging 10 -i train-full.db --rootdir . examineImages
 ```
 
+#### Labelling color
+
 The command below should open a window with an image, and allow you to label individual cars with colors. The dictionary is below. For example, when you press a button "r", the car will be labelled as red. Navigation is the same as above.
 
 - "r": "red"
@@ -142,6 +146,8 @@ The command below should open a window with an image, and allow you to label ind
 python3 my_path_to_shuffler.py --logging 10 -i train-full.db --rootdir . labelObjects --property color --key_dict "{'-': 'previous', '=': 'next', 27: 'exit', 127: 'delete_label', 'g': 'green', 'b': 'blue', 'o': 'orange', 'y': 'yellow', 'k': 'black', 'r': 'red', 'w': 'white', 'a': 'gray', ' ': 'no_color'}" --where_object "objectid NOT IN (SELECT objectid FROM properties WHERE key == 'color')"
 ```
 
+#### Labelling car type
+
 The next command allows one to classify the car by type. Currently we use the following types. When in doubt, use "no\_type"
 
 - "p": "passenger". Sedans, hatchbacks, sport cars, SUVs, etc. *NOT* taxis.
@@ -157,6 +163,8 @@ python3 my_path_to_shuffler.py --logging 10 -i train-full.db --rootdir . labelOb
 ```
 
 ![examples-type](fig/examples-type.jpg)
+
+#### Labelling matches
 
 The next command allows one to label matching cars.
 At the start you should see a window with two images one under another.
