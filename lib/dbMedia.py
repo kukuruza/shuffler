@@ -10,7 +10,7 @@ from math import sqrt
 
 from .backendDb import objectField, polygonField, deleteImage, parseTimeString, makeTimeString
 from .backendMedia import MediaReader, MediaWriter
-from .util import drawTextOnImage, drawMaskOnImage, cropPatch, bbox2roi, applyLabelMappingToMask
+from .util import drawTextOnImage, drawMaskOnImage, drawMaskAside, cropPatch, bbox2roi, applyLabelMappingToMask
 
 
 def add_parsers(subparsers):
@@ -98,7 +98,10 @@ def writeMediaParser(subparsers):
     help='the directory for pictures OR video file, where to write masks.')
   parser.add_argument('--mask_mapping_dict', 
     help='how values in maskfile are drawn. E.g. "{\'[1,254]\': [0,0,0], 255: [128,128,30]}"')
-  parser.add_argument('--mask_alpha', type=float, default=0.0,
+  group = parser.add_mutually_exclusive_group()
+  group.add_argument('--mask_aside', action='store_true',
+    help='Image and mask side by side.')
+  group.add_argument('--mask_alpha', type=float,
     help='transparency to overlay the label mask with, 1 means cant see the image behind the mask.')
   parser.add_argument('--with_imageid', action='store_true', help='print frame number.')
   parser.add_argument('--with_objects', action='store_true', help='draw objects on top.')
@@ -136,7 +139,10 @@ def writeMedia (c, args):
     if maskfile is not None:
       mask = imreader.maskread(maskfile)
       if args.image_path is not None:
-        image = drawMaskOnImage(image, mask, alpha=args.mask_alpha, labelmap=labelmap)
+        if args.mask_aside:
+          image = drawMaskAside(image, mask, labelmap=labelmap)
+        elif args.mask_alpha is not None:
+          image = drawMaskOnImage(image, mask, alpha=args.mask_alpha, labelmap=labelmap)
     else:
       mask = None
       logging.debug('No mask for this image.')
