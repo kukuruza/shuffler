@@ -202,6 +202,8 @@ def polygonsToMaskParser(subparsers):
     help='overwrite images or video.')
   parser.add_argument('--skip_empty_masks', action='store_true',
     help='do not write black masks with no objects.')
+  parser.add_argument('--substitute_with_box', action='store_true',
+    help='if a polygon is not available, allow to use the bounding box.')
 
 def polygonsToMask (c, args):
   imwriter = MediaWriter(media_type=args.media, rootdir=args.rootdir,
@@ -237,14 +239,22 @@ def polygonsToMask (c, args):
       if len(polygon_names) > 1:
         mask_per_object = mask_per_object // len(polygon_names)
 
+      # If there are no polygons, maybe substitute with roi.
+      elif len(polygon_names) == 0 and args.substitute_with_box:
+        c.execute('SELECT * FROM objects WHERE objectid=?', (objectid,))
+        object_entry = c.fetchone()
+        roi = objectField(object_entry, 'roi')
+        cv2.rectangle(mask_per_object, (roi[1],roi[0]), (roi[3],roi[2]), 255, thickness=-1)
+
       mask_per_image += mask_per_object
+    mask_per_image = np.minimum(mask_per_image, 255)  # Objects overlay on each other.
     mask_per_image = mask_per_image.astype(np.uint8)
 
     # Maybe skip empty mask.
     if np.sum(mask_per_image) == 0 and args.skip_empty_masks:
       continue
 
-    out_maskfile = imwriter.maskwrite(mask_per_image, namehint=imagefile)
+    out_maskfile = imwriter.maskwrite(mask_per_image, namehint='%s.png' % op.splitext(imagefile)[0])
     c.execute('UPDATE images SET maskfile=? WHERE imagefile=?', (out_maskfile, imagefile))
 
   imwriter.close()
