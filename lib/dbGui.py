@@ -329,7 +329,7 @@ def labelObjectsParser(subparsers):
   parser.add_argument('--winsize', type=int, default=500)
   parser.add_argument('--property', required=True,
     help='name of the property being labelled')
-  parser.add_argument('--key_dict', required=True,
+  parser.add_argument('--key_dict',
     default='{"-": "previous", "=": "next", 27: "exit", 127: "delete_label", '
             ' "r": "red", "g": "green", "b": "blue"}')
 

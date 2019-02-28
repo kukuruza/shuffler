@@ -9,9 +9,9 @@ from .backendDb import imageField
 
 
 def add_parsers(subparsers):
-  plotObjectsHistogramParser(subparsers)
-  plotObjectsScatterParser(subparsers)
-  plotObjectsStripParser(subparsers)
+  plotHistogramParser(subparsers)
+  plotScatterParser(subparsers)
+  plotStripParser(subparsers)
   printInfoParser(subparsers)
   dumpDbParser(subparsers)
 
@@ -24,34 +24,35 @@ def _maybeNumerizeProperty(values):
     return values
 
 
-def plotObjectsHistogramParser(subparsers):
-  parser = subparsers.add_parser('plotObjectsHistogram',
-    description='Get a 1d histogram plot of fields of objects.')
-  parser.set_defaults(func=plotObjectsHistogram)
-  parser.add_argument('--sql_query',
+def plotHistogramParser(subparsers):
+  parser = subparsers.add_parser('plotHistogram',
+    description='Get a 1d histogram plot of a field in the db.')
+  parser.set_defaults(func=plotHistogram)
+  parser.add_argument('--sql',
     help='SQL query for ONE field, the "x" in the plot. '
     'Example: \'SELECT value FROM properties WHERE key="pitch"\'')
   parser.add_argument('--xlabel', required=True)
   parser.add_argument('--ylog', action='store_true')
   parser.add_argument('--bins', type=int)
+  parser.add_argument('--xlim', type=float, nargs='+')
   parser.add_argument('--categorical', action='store_true')
   parser.add_argument('--display', action='store_true')
   parser.add_argument('--out_path')
 
-def plotObjectsHistogram(c, args):
+def plotHistogram(c, args):
   import matplotlib.pyplot as plt
 
-  c.execute(args.sql_query)
-  object_entries = c.fetchall()
+  c.execute(args.sql)
+  entries = c.fetchall()
   
   # Clean data.
-  if not object_entries:
-    logging.info('No objects, nothing to draw.')
+  if not entries:
+    logging.info('No entries, nothing to draw.')
     return
-  if len(object_entries[0]) != 1:
-    raise ValueError('Must query for 1 fields, not %d.' % len(object_entries[0]))
-  xlist = [x for x, in object_entries if x is not None]
-  logging.info('%d objects have a non-None field.' % len(xlist))
+  if len(entries[0]) != 1:
+    raise ValueError('Must query for 1 fields, not %d.' % len(entries[0]))
+  xlist = [x for x, in entries if x is not None]
+  logging.info('%d entries have a non-None field.' % len(xlist))
 
   # List to proper format.
   xlist = _maybeNumerizeProperty(xlist)
@@ -69,6 +70,10 @@ def plotObjectsHistogram(c, args):
     else:
       ax.hist(xlist)
 
+  if args.xlim:
+    if not len(args.xlim) == 2:
+      raise Exception('Argument xlim requires to numbers')
+    plt.xlim(args.xlim)
   if args.ylog:
     ax.set_yscale('log', nonposy='clip')
   plt.xlabel(args.xlabel)
@@ -80,11 +85,11 @@ def plotObjectsHistogram(c, args):
     plt.show()
 
 
-def plotObjectsStripParser(subparsers):
-  parser = subparsers.add_parser('plotObjectsStrip',
-    description='Get a 1d histogram plot of fields of objects.')
-  parser.set_defaults(func=plotObjectsStrip)
-  parser.add_argument('--sql_query',
+def plotStripParser(subparsers):
+  parser = subparsers.add_parser('plotStrip',
+    description='Get a "strip" plot of two fields in the db.')
+  parser.set_defaults(func=plotStrip)
+  parser.add_argument('--sql',
     help='SQL query for TWO fields, the "x" and the "y" in the plot. '
     'Example: \'SELECT p1.value, p2.value FROM properties p1 '
     'INNER JOIN properties p2 ON p1.objectid=p2.objectid '
@@ -99,22 +104,22 @@ def plotObjectsStripParser(subparsers):
   parser.add_argument('--display', action='store_true')
   parser.add_argument('--out_path')
 
-def plotObjectsStrip(c, args):
+def plotStrip(c, args):
   import matplotlib.pyplot as plt
   import pandas as pd
   import seaborn as sns
 
-  c.execute(args.sql_query)
-  object_entries = c.fetchall()
+  c.execute(args.sql)
+  entries = c.fetchall()
   
   # Clean data.
-  if not object_entries:
-    logging.info('No objects, nothing to draw.')
+  if not entries:
+    logging.info('No entries, nothing to draw.')
     return
-  if len(object_entries[0]) != 2:
-    raise ValueError('Must query for 2 fields, not %d.' % len(object_entries[0]))
-  xylist = [(x,y) for (x,y) in object_entries if x is not None and y is not None]
-  logging.info('%d objects have both fields non-None.' % len(xylist))
+  if len(entries[0]) != 2:
+    raise ValueError('Must query for 2 fields, not %d.' % len(entries[0]))
+  xylist = [(x,y) for (x,y) in entries if x is not None and y is not None]
+  logging.info('%d entries have both fields non-None.' % len(xylist))
 
   # From a list of tuples to two lists.
   xlist, ylist = tuple(map(list, zip(*xylist)))
@@ -137,11 +142,11 @@ def plotObjectsStrip(c, args):
     plt.show()
 
 
-def plotObjectsScatterParser(subparsers):
-  parser = subparsers.add_parser('plotObjectsScatter',
-    description='Get a 2d scatter plot of fields of objects.')
-  parser.set_defaults(func=plotObjectsScatter)
-  parser.add_argument('--sql_query',
+def plotScatterParser(subparsers):
+  parser = subparsers.add_parser('plotScatter',
+    description='Get a 2d scatter plot of TWO fields.')
+  parser.set_defaults(func=plotScatter)
+  parser.add_argument('--sql',
     help='SQL query for TWO fields, the "x" and the "y" in the plot. '
     'Example: \'SELECT p1.value, p2.value FROM properties p1 '
     'INNER JOIN properties p2 ON p1.objectid=p2.objectid '
@@ -151,20 +156,20 @@ def plotObjectsScatterParser(subparsers):
   parser.add_argument('--display', action='store_true')
   parser.add_argument('--out_path')
 
-def plotObjectsScatter(c, args):
+def plotScatter(c, args):
   import matplotlib.pyplot as plt
 
   c.execute(args.sql_query)
-  object_entries = c.fetchall()
+  entries = c.fetchall()
   
   # Clean data.
-  if not object_entries:
-    logging.info('No objects, nothing to draw.')
+  if not entries:
+    logging.info('No entry, nothing to draw.')
     return
-  if len(object_entries[0]) != 2:
-    raise ValueError('Must query for 2 fields, not %d.' % len(object_entries[0]))
-  xylist = [(x,y) for (x,y) in object_entries if x is not None and y is not None]
-  logging.info('%d objects have both fields non-None.' % len(xylist))
+  if len(entries[0]) != 2:
+    raise ValueError('Must query for 2 fields, not %d.' % len(entries[0]))
+  xylist = [(x,y) for (x,y) in entries if x is not None and y is not None]
+  logging.info('%d entries have both fields non-None.' % len(xylist))
 
   # From a list of tuples to two lists.
   xlist, ylist = tuple(map(list, zip(*xylist)))
