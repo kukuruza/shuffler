@@ -77,7 +77,7 @@ def examineImagesParser(subparsers):
   group = parser.add_mutually_exclusive_group()
   group.add_argument('--mask_aside', action='store_true',
     help='Image and mask side by side.')
-  group.add_argument('--mask_alpha', type=float, default=0.2,
+  group.add_argument('--mask_alpha', type=float,
     help='Mask will be overlaied on the image.' 
     'Transparency to overlay the label mask with, 1 means cant see the image behind the mask.')
   parser.add_argument('--shuffle', action='store_true')
@@ -125,7 +125,7 @@ def examineImages (c, args):
     # Overlay the mask.
     if maskfile is not None:
       mask = imreader.maskread(maskfile)
-      if args.mask_aside:  # Image and mask side by side
+      if args.mask_aside:
         image = drawMaskAside(image, mask, labelmap=labelmap)
       elif args.mask_alpha is not None:
         image = drawMaskOnImage(image, mask, alpha=args.mask_alpha, labelmap=labelmap)

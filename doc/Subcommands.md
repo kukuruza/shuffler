@@ -210,7 +210,8 @@ Import](#import) most common computer vision datasets. Currently support formats
 # Masks from polygons.
 ./shuffler.py --rootdir 'test' \
   --in_db_file 'test/cars/micro1_v4.db' \
-  polygonsToMask --mask_pictures_dir 'cars/mask_polygons' --skip_empty_masks
+  polygonsToMask --media "pictures" --mask_path 'cars/mask_polygons' \
+    --skip_empty_masks --substitute_with_box
 ```
 
 #### <a name="evaluate">Evaluation of ML tasks

@@ -10,7 +10,7 @@ from math import sqrt
 
 from .backendDb import objectField, polygonField, deleteImage, parseTimeString, makeTimeString
 from .backendMedia import MediaReader, MediaWriter
-from .util import drawTextOnImage, drawMaskOnImage, cropPatch, bbox2roi, applyLabelMappingToMask
+from .util import drawTextOnImage, drawMaskOnImage, drawMaskAside, cropPatch, bbox2roi, applyLabelMappingToMask
 
 
 def add_parsers(subparsers):
@@ -98,7 +98,10 @@ def writeMediaParser(subparsers):
     help='the directory for pictures OR video file, where to write masks.')
   parser.add_argument('--mask_mapping_dict', 
     help='how values in maskfile are drawn. E.g. "{\'[1,254]\': [0,0,0], 255: [128,128,30]}"')
-  parser.add_argument('--mask_alpha', type=float, default=0.0,
+  group = parser.add_mutually_exclusive_group()
+  group.add_argument('--mask_aside', action='store_true',
+    help='Image and mask side by side.')
+  group.add_argument('--mask_alpha', type=float,
     help='transparency to overlay the label mask with, 1 means cant see the image behind the mask.')
   parser.add_argument('--with_imageid', action='store_true', help='print frame number.')
   parser.add_argument('--with_objects', action='store_true', help='draw objects on top.')
@@ -136,7 +139,10 @@ def writeMedia (c, args):
     if maskfile is not None:
       mask = imreader.maskread(maskfile)
       if args.image_path is not None:
-        image = drawMaskOnImage(image, mask, alpha=args.mask_alpha, labelmap=labelmap)
+        if args.mask_aside:
+          image = drawMaskAside(image, mask, labelmap=labelmap)
+        elif args.mask_alpha is not None:
+          image = drawMaskOnImage(image, mask, alpha=args.mask_alpha, labelmap=labelmap)
     else:
       mask = None
       logging.debug('No mask for this image.')
@@ -202,6 +208,8 @@ def polygonsToMaskParser(subparsers):
     help='overwrite images or video.')
   parser.add_argument('--skip_empty_masks', action='store_true',
     help='do not write black masks with no objects.')
+  parser.add_argument('--substitute_with_box', action='store_true',
+    help='if a polygon is not available, allow to use the bounding box.')
 
 def polygonsToMask (c, args):
   imwriter = MediaWriter(media_type=args.media, rootdir=args.rootdir,
@@ -237,14 +245,22 @@ def polygonsToMask (c, args):
       if len(polygon_names) > 1:
         mask_per_object = mask_per_object // len(polygon_names)
 
+      # If there are no polygons, maybe substitute with roi.
+      elif len(polygon_names) == 0 and args.substitute_with_box:
+        c.execute('SELECT * FROM objects WHERE objectid=?', (objectid,))
+        object_entry = c.fetchone()
+        roi = objectField(object_entry, 'roi')
+        cv2.rectangle(mask_per_object, (roi[1],roi[0]), (roi[3],roi[2]), 255, thickness=-1)
+
       mask_per_image += mask_per_object
+    mask_per_image = np.minimum(mask_per_image, 255)  # Objects overlay on each other.
     mask_per_image = mask_per_image.astype(np.uint8)
 
     # Maybe skip empty mask.
     if np.sum(mask_per_image) == 0 and args.skip_empty_masks:
       continue
 
-    out_maskfile = imwriter.maskwrite(mask_per_image, namehint=imagefile)
+    out_maskfile = imwriter.maskwrite(mask_per_image) #, namehint='%s.png' % op.splitext(imagefile)[0])
     c.execute('UPDATE images SET maskfile=? WHERE imagefile=?', (out_maskfile, imagefile))
 
   imwriter.close()
@@ -383,14 +399,23 @@ def repaintMask (c, args):
 
   # Iterate images.
   c.execute('SELECT maskfile FROM images')
-  for maskfile, in progressbar(c.fetchall()):
+  maskfiles = c.fetchall()
+
+  # Find out if all the masks are in the same directory.
+  # If so, use a namehint, that is, new maskfiles will have the same name as original.
+  # Otherwise, new maskfiles will be named seqentially from 0.
+  # Regardless, namehint is currently only used when media=="pictures".
+  maskdirs = set([op.dirname(maskfile) for maskfile in maskfiles])
+  use_namehint = len(maskdirs) == 1
+
+  for maskfile, in progressbar(maskfiles):
     if maskfile is not None:
       # Read mask.
       mask = imreader.maskread(maskfile)
       # Repaint mask.
       mask = applyLabelMappingToMask(mask, labelmap).astype(np.uint8)
       # Write mask to video and to the db.
-      maskfile_new = imwriter.maskwrite(mask, namehint=maskfile)
+      maskfile_new = imwriter.maskwrite(mask, namehint=(maskfile if use_namehint else None))
       c.execute('UPDATE images SET maskfile=? WHERE maskfile=?', (maskfile_new,maskfile))
 
   imwriter.close()
