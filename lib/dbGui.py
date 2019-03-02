@@ -92,7 +92,7 @@ def examineImagesParser(subparsers):
 def examineImages (c, args):
   cv2.namedWindow("examineImages")
 
-  c.execute('SELECT imagefile,maskfile FROM images')
+  c.execute('SELECT imagefile,maskfile FROM images WHERE (%s)' % args.where_images)
   image_entries = c.fetchall()
   logging.info('%d images found.' % len(image_entries))
   if len(image_entries) == 0:
@@ -371,15 +371,21 @@ def labelObjects (c, args):
       imagefile    = objectField(object_entry, 'imagefile')
       image = imreader.imread(imagefile)
 
+      # Display an image, wait for the key from user, and parse that key.
+      scale = float(args.winsize) / max(image.shape[0:2])
+      image = cv2.resize(image, dsize=(0,0), fx=scale, fy=scale)
+
       logging.info ('objectid: %d, roi: %s' % (objectid, roi))
       c.execute('SELECT * FROM polygons WHERE objectid=?', (objectid,))
       polygon_entries = c.fetchall()
       if len(polygon_entries) > 0:
         logging.info('showing object with a polygon.')
         polygon = [(polygonField(p, 'x'), polygonField(p, 'y')) for p in polygon_entries]
+        polygon = [(int(scale * p[0]), int(scale * p[1])) for p in polygon_entries]
         drawScoredPolygon (image, polygon, label=None, score=None)
       elif roi is not None:
         logging.info('showing object with a bounding box.')
+        roi = [int(scale * r) for r in roi]  # For displaying the scaled image.
         drawScoredRoi (image, roi, label=None, score=None)
       else:
         raise Exception('Neither polygon, nor bbox is available for objectid %d' % objectid)
@@ -391,6 +397,7 @@ def labelObjects (c, args):
       if len(properties) > 1:
         logging.warning('Multiple values for object %s and property %s. '
           'If reassigned, both will be changed' % (objectid, args.property))
+
       for iproperty, (key, value) in enumerate(properties):
         cv2.putText (image, '%s: %s' % (key, value), (10, SCALE * (iproperty + 1)), 
             FONT, FONT_SIZE, (0,0,0), THICKNESS)
@@ -398,9 +405,6 @@ def labelObjects (c, args):
             FONT, FONT_SIZE, (255,255,255), THICKNESS-1)
         logging.info ('objectid: %d. %s = %s.' % (objectid, key, value))
 
-      # Display an image, wait for the key from user, and parse that key.
-      scale = float(args.winsize) / max(image.shape[0:2])
-      image = cv2.resize(image, dsize=(0,0), fx=scale, fy=scale)
       cv2.imshow('labelObjects', image[:,:,::-1])
       action = key_reader.parse (cv2.waitKey(-1))
       if action == 'exit':
