@@ -393,6 +393,7 @@ def labelObjects (c, args):
       # TODO: Multiple properties are possible because there is no contraint
       #   on uniqueness on table properties(objectid,key).
       #   Change when the uniqueness constraint is added to the database schema.
+      #   On the other hand, it's a feature.
       properties = c.fetchall()
       if len(properties) > 1:
         logging.warning('Multiple values for object %s and property %s. '
@@ -405,37 +406,37 @@ def labelObjects (c, args):
             FONT, FONT_SIZE, (255,255,255), THICKNESS-1)
         logging.info ('objectid: %d. %s = %s.' % (objectid, key, value))
 
-      cv2.imshow('labelObjects', image[:,:,::-1])
-      action = key_reader.parse (cv2.waitKey(-1))
-      if action == 'exit':
-        break
-      elif action == 'delete_label' and any_object_in_focus:
-        logging.info('Remove label from objectid "%s"' % objectid)
+    cv2.imshow('labelObjects', image[:,:,::-1])
+    action = key_reader.parse (cv2.waitKey(-1))
+    if action == 'exit':
+      break
+    elif action == 'delete_label' and any_object_in_focus:
+      logging.info('Remove label from objectid "%s"' % objectid)
+      c.execute('DELETE FROM properties WHERE objectid=? AND key=?', (objectid, args.property))
+      go_next_object = True
+    elif action is not None and action not in ['previous', 'next']:
+      # User pressed something else which has an assigned action, assume it is a new value.
+      logging.info('Setting name "%s" to objectid "%s"' % (action, objectid))
+      if len(properties) > 0:
         c.execute('DELETE FROM properties WHERE objectid=? AND key=?', (objectid, args.property))
-        go_next_object = True
-      elif action is not None and action not in ['previous', 'next']:
-        # User pressed something else which has an assigned action, assume it is a new value.
-        logging.info('Setting name "%s" to objectid "%s"' % (action, objectid))
-        if len(properties) > 0:
-          c.execute('DELETE FROM properties WHERE objectid=? AND key=?', (objectid, args.property))
-        c.execute('INSERT INTO properties(objectid,key,value) VALUES (?,?,?)',
-          (objectid, args.property, str(action)))
-        go_next_object = True
-      # Navigation.
-      if action == 'previous':
-        logging.debug ('previous object')
-        another_object = True
-        if index_object > 0:
-          index_object -= 1
-        else:
-          logging.warning('Already at the first object.')
-      elif action == 'next' or go_next_object == True:
-        logging.debug ('next object')
-        another_object = True
-        if index_object < len(object_entries) - 1:
-          index_object += 1
-        else:
-          logging.warning('Already at the last object. Press Esc to save and exit.')
+      c.execute('INSERT INTO properties(objectid,key,value) VALUES (?,?,?)',
+        (objectid, args.property, str(action)))
+      go_next_object = True
+    # Navigation.
+    if action == 'previous':
+      logging.debug ('previous object')
+      another_object = True
+      if index_object > 0:
+        index_object -= 1
+      else:
+        logging.warning('Already at the first object.')
+    elif action == 'next' or go_next_object == True:
+      logging.debug ('next object')
+      another_object = True
+      if index_object < len(object_entries) - 1:
+        index_object += 1
+      else:
+        logging.warning('Already at the last object. Press Esc to save and exit.')
 
   cv2.destroyWindow("labelObjects")
 
