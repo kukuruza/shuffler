@@ -5,6 +5,7 @@ import logging
 import sqlite3
 import imageio
 from math import ceil
+from random import shuffle
 from glob import glob
 from pprint import pformat
 from datetime import datetime
@@ -26,6 +27,7 @@ def add_parsers(subparsers):
   moduloAnglesParser(subparsers)
   expandBoxesParser(subparsers)
   moveMediaParser(subparsers)
+  moveRootdirParser(subparsers)
   addDbParser(subparsers)
   splitDbParser(subparsers)
   mergeObjectDuplicatesParser(subparsers)
@@ -266,9 +268,10 @@ def moveMedia (c, args):
     imagefiles = c.fetchall()
 
     for oldfile, in progressbar(imagefiles):
-      newfile = op.join (args.image_path, op.basename(oldfile))
-      c.execute('UPDATE images SET imagefile=? WHERE imagefile=?', (newfile, oldfile))
-      c.execute('UPDATE objects SET imagefile=? WHERE imagefile=?', (newfile, oldfile))
+      if oldfile is not None:
+        newfile = op.join (args.image_path, op.basename(oldfile))
+        c.execute('UPDATE images SET imagefile=? WHERE imagefile=?', (newfile, oldfile))
+        c.execute('UPDATE objects SET imagefile=? WHERE imagefile=?', (newfile, oldfile))
 
   if args.mask_path:
     logging.debug ('Moving mask dir to: %s' % args.mask_path)
@@ -279,6 +282,32 @@ def moveMedia (c, args):
       if oldfile is not None:
         newfile = op.join (args.mask_path, op.basename(oldfile))
         c.execute('UPDATE images SET maskfile=? WHERE maskfile=?', (newfile, oldfile))
+
+
+def moveRootdirParser(subparsers):
+  parser = subparsers.add_parser('moveRootdir',
+    description='Change imagefile and maskfile entries to be relative to the provided rootdir.')
+  parser.set_defaults(func=moveRootdir)
+  parser.add_argument('newrootdir',
+    help='All paths will be relative to the newrootdir.')
+
+def moveRootdir (c, args):
+  logging.info('Moving from rootdir %s to new rootdir %s' % (args.rootdir, args.newrootdir))
+  relpath = op.relpath(args.rootdir, args.newrootdir)
+  logging.info('The path of oldroot relative to newrootdir is %s' % relpath)
+
+  c.execute('SELECT imagefile FROM images')
+  for oldfile, in progressbar(c.fetchall()):
+    if oldfile is not None:
+      newfile = op.normpath(op.join(relpath, oldfile))
+      c.execute('UPDATE images SET imagefile=? WHERE imagefile=?', (newfile, oldfile))
+      c.execute('UPDATE objects SET imagefile=? WHERE imagefile=?', (newfile, oldfile))
+
+  c.execute('SELECT maskfile FROM images')
+  for oldfile, in progressbar(c.fetchall()):
+    if oldfile is not None:
+      newfile = op.normpath(op.join(relpath, oldfile))
+      c.execute('UPDATE images SET maskfile=? WHERE maskfile=?', (newfile, oldfile))
 
 
 def addDbParser(subparsers):
@@ -302,6 +331,8 @@ def addDb (c, args):
   # Find the max "match" in "matches" table. New matches will go after that value.
   c.execute('SELECT MAX(match) FROM matches')
   max_match = c.fetchone()[0]
+  if max_match is None:
+    max_match = 0
   
   # Copy all other tables.
   c_add.execute('SELECT * FROM objects')
@@ -350,7 +381,7 @@ def splitDb (c, args):
   c.execute('SELECT imagefile FROM images ORDER BY imagefile')
   imagefiles = c.fetchall()
   if args.randomly:
-    random.shuffle(imagefiles)
+    shuffle(imagefiles)
 
   assert len(args.out_names) == len(args.out_fractions), \
     'Sizes of not equal: %d != %d' % (len(args.out_names), len(args.out_fractions))

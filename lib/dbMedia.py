@@ -10,7 +10,7 @@ from math import sqrt
 
 from .backendDb import objectField, polygonField, deleteImage, parseTimeString, makeTimeString
 from .backendMedia import MediaReader, MediaWriter
-from .util import drawTextOnImage, drawMaskOnImage, drawMaskAside, cropPatch, bbox2roi, applyLabelMappingToMask
+from .util import drawTextOnImage, drawMaskOnImage, drawMaskAside, drawScoredPolygon, cropPatch, bbox2roi, applyLabelMappingToMask
 
 
 def add_parsers(subparsers):
@@ -154,7 +154,10 @@ def writeMedia (c, args):
     # Draw objects as polygons (preferred) or ROI.
     if args.with_objects:
       c.execute('SELECT * FROM objects WHERE imagefile=?', (imagefile,))
-      for object_entry, in c.fetchall():
+      object_entries = c.fetchall()
+      logging.debug('Found %d objects' % len(object_entries))
+      for object_entry in object_entries:
+        objectid   = objectField(object_entry, 'objectid')
         roi   = objectField(object_entry, 'roi')
         score = objectField(object_entry, 'score')
         name  = objectField(object_entry, 'name')

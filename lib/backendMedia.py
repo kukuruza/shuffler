@@ -173,7 +173,8 @@ class VideoWriter:
         raise FileExistsError('Video already exists: %s. A mistake?' % vpath)
         
     # check if dir exists
-    if not op.exists(op.dirname(vpath)):
+    logging.debug('vpath: "%s", dirname: "%s"' % (vpath, op.dirname(vpath)))
+    if not op.exists(op.abspath(op.dirname(vpath))):
       os.makedirs(op.dirname(vpath))
 
     if ismask:
