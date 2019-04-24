@@ -8,17 +8,79 @@ from ast import literal_eval
 from datetime import timedelta
 from math import sqrt
 
-from .backendDb import objectField, polygonField, deleteImage, parseTimeString, makeTimeString
+from .backendDb import imageField, objectField, polygonField, deleteImage, parseTimeString, makeTimeString
 from .backendMedia import MediaReader, MediaWriter
 from .util import drawTextOnImage, drawMaskOnImage, drawMaskAside, drawScoredPolygon, cropPatch, bbox2roi, applyLabelMappingToMask
 
 
 def add_parsers(subparsers):
   writeMediaParser(subparsers)
+  cropMediaParser(subparsers)
   cropObjectsParser(subparsers)
   polygonsToMaskParser(subparsers)
   writeMediaGridByTimeParser(subparsers)
   repaintMaskParser(subparsers)
+
+
+
+def cropMediaParser(subparsers):
+  parser = subparsers.add_parser('cropMedia',
+    description='Crops images to a single ROI.')
+  parser.set_defaults(func=cropMedia)
+  parser.add_argument('--media', choices=['pictures', 'video'], required=True,
+    help='output either a directory with pictures or a video file.')
+  parser.add_argument('--image_path', required=True,
+    help='the directory for pictures OR video file, where to write mask crop pictures.')
+  parser.add_argument('--mask_path',
+    help='the directory for pictures OR video file, where to write mask crop pictures.')
+  parser.add_argument('--x1', type=int, required=True)
+  parser.add_argument('--y1', type=int, required=True)
+  parser.add_argument('--x2', type=int, required=True)
+  parser.add_argument('--y2', type=int, required=True)
+  parser.add_argument('--overwrite', action='store_true', help='overwrite video if it exists.')
+
+def cropMedia(c, args):
+  imreader = MediaReader(rootdir=args.rootdir)
+  imwriter = MediaWriter(media_type=args.media, rootdir=args.rootdir,
+    image_media=args.image_path, mask_media=args.mask_path, overwrite=args.overwrite)
+
+  target_width  = args.x2 - args.x1
+  target_height = args.y2 - args.y1
+
+  c.execute('SELECT * FROM images')
+  for image_entry in progressbar(c.fetchall()):
+    imagefile = imageField(image_entry, 'imagefile')
+    maskfile = imageField(image_entry, 'maskfile')
+
+    image = imreader.imread(imagefile)
+    image = image[args.y1:args.y2, args.x1:args.x2, :]
+    if args.mask_path is not None and maskfile is not None:
+      mask = imreader.maskread(maskfile)
+      mask = mask[args.y1:args.y2, args.x1:args.x2]
+
+    # Write an image.
+    if args.image_path is not None:
+      imagefile_new = imwriter.imwrite(image)
+    else:
+      imagefile_new = None
+
+    # Write mask.
+    if args.mask_path is not None and maskfile is not None:
+      maskfile_new = imwriter.maskwrite(mask)
+    else:
+      maskfile_new = None
+
+    # Update the database entry.
+    if maskfile_new is not None:
+      c.execute('UPDATE images SET maskfile=?,width=?,height=? WHERE imagefile=?', (maskfile_new,target_width,target_height,imagefile))
+    if imagefile_new is not None:
+      c.execute('UPDATE images SET imagefile=?,width=?,height=? WHERE imagefile=?', (imagefile_new,target_width,target_height,imagefile))
+      c.execute('UPDATE objects SET imagefile=? WHERE imagefile=?', (imagefile_new, imagefile))
+
+  c.execute('UPDATE objects SET x1=(SELECT x1 FROM objects)-?, y1=(SELECT y1 FROM objects)-?', (args.x1, args.y1))
+  # TODO: update polygons.
+  imwriter.close()
+
 
 
 def cropObjectsParser(subparsers):
@@ -157,7 +219,7 @@ def writeMedia (c, args):
       object_entries = c.fetchall()
       logging.debug('Found %d objects' % len(object_entries))
       for object_entry in object_entries:
-        objectid   = objectField(object_entry, 'objectid')
+        objectid = objectField(object_entry, 'objectid')
         roi   = objectField(object_entry, 'roi')
         score = objectField(object_entry, 'score')
         name  = objectField(object_entry, 'name')
