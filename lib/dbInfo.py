@@ -28,10 +28,10 @@ def plotHistogramParser(subparsers):
   parser = subparsers.add_parser('plotHistogram',
     description='Get a 1d histogram plot of a field in the db.')
   parser.set_defaults(func=plotHistogram)
-  parser.add_argument('--sql',
+  parser.add_argument('sql',
     help='SQL query for ONE field, the "x" in the plot. '
     'Example: \'SELECT value FROM properties WHERE key="pitch"\'')
-  parser.add_argument('--xlabel', required=True)
+  parser.add_argument('--xlabel')
   parser.add_argument('--ylog', action='store_true')
   parser.add_argument('--bins', type=int)
   parser.add_argument('--xlim', type=float, nargs='+')
@@ -76,7 +76,8 @@ def plotHistogram(c, args):
     plt.xlim(args.xlim)
   if args.ylog:
     ax.set_yscale('log', nonposy='clip')
-  plt.xlabel(args.xlabel)
+  if args.xlabel:
+    plt.xlabel(args.xlabel)
   plt.ylabel('')
   if args.out_path:
     logging.info('Saving to %s' % args.out_path)
@@ -89,7 +90,7 @@ def plotStripParser(subparsers):
   parser = subparsers.add_parser('plotStrip',
     description='Get a "strip" plot of two fields in the db.')
   parser.set_defaults(func=plotStrip)
-  parser.add_argument('--sql',
+  parser.add_argument('sql',
     help='SQL query for TWO fields, the "x" and the "y" in the plot. '
     'Example: \'SELECT p1.value, p2.value FROM properties p1 '
     'INNER JOIN properties p2 ON p1.objectid=p2.objectid '
@@ -146,7 +147,7 @@ def plotScatterParser(subparsers):
   parser = subparsers.add_parser('plotScatter',
     description='Get a 2d scatter plot of TWO fields.')
   parser.set_defaults(func=plotScatter)
-  parser.add_argument('--sql',
+  parser.add_argument('sql',
     help='SQL query for TWO fields, the "x" and the "y" in the plot. '
     'Example: \'SELECT p1.value, p2.value FROM properties p1 '
     'INNER JOIN properties p2 ON p1.objectid=p2.objectid '
@@ -159,7 +160,7 @@ def plotScatterParser(subparsers):
 def plotScatter(c, args):
   import matplotlib.pyplot as plt
 
-  c.execute(args.sql_query)
+  c.execute(args.sql)
   entries = c.fetchall()
   
   # Clean data.
@@ -177,9 +178,11 @@ def plotScatter(c, args):
   ylist = _maybeNumerizeProperty(ylist)
   logging.debug('%s\n%s' % (str(xlist), str(ylist)))
 
-  plt.scatter(xlist, ylist, alpha=0.5)
+  plt.gcf().set_size_inches(4.5, 2.4)
+  plt.scatter(xlist, ylist, s=10, alpha=0.5)
   plt.xlabel(args.xlabel)
   plt.ylabel(args.ylabel)
+  plt.tight_layout()
   if args.display:
     plt.show()
   if args.out_path:

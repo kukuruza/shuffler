@@ -63,30 +63,30 @@ Import](#import) most common computer vision datasets. Currently support formats
 # Plot a histogram of value of field "yaw" of objects named "car".
 ./shuffler.py --rootdir 'test' \
   --in_db_file 'test/databases/micro1_v4.db' \
-  plotObjectsHistogram \
-  --sql_query 'SELECT value FROM objects 
-               INNER JOIN properties p1 ON objects.objectid=p1.objectid 
-               WHERE name="car" AND key="yaw"' \
+  plotHistogram \
+    'SELECT value FROM objects 
+     INNER JOIN properties p1 ON objects.objectid=p1.objectid 
+     WHERE name="car" AND key="yaw"' \
   --xlabel yaw --display
 
 # Plot a "strip" plot of values of field "yaw" and "pitch" of objects named "car".
 ./shuffler.py --rootdir 'test' \
   --in_db_file 'test/databases/micro1_v4.db' \
-  plotObjectsStrip \
-  --sql_query 'SELECT p1.value, p2.value FROM objects 
-               INNER JOIN properties p1 ON objects.objectid=p1.objectid 
-               INNER JOIN properties p2 ON p1.objectid=p2.objectid 
-               WHERE name="car" AND p1.key="yaw" AND p2.key="pitch"' \
+  plotStrip \
+    'SELECT p1.value, p2.value FROM objects 
+     INNER JOIN properties p1 ON objects.objectid=p1.objectid 
+     INNER JOIN properties p2 ON p1.objectid=p2.objectid 
+     WHERE name="car" AND p1.key="yaw" AND p2.key="pitch"' \
   --xlabel yaw --ylabel pitch --display
 
 # Plot a scatter plot of values of field "yaw" and "pitch" of objects named "car".
 ./shuffler.py --rootdir 'test' \
   --in_db_file 'test/databases/micro1_v4.db' \
-  plotObjectsScatter \
-  --sql_query 'SELECT p1.value, p2.value FROM objects 
-               INNER JOIN properties p1 ON objects.objectid=p1.objectid 
-               INNER JOIN properties p2 ON p1.objectid=p2.objectid 
-               WHERE name="car" AND p1.key="yaw" AND p2.key="pitch"' \
+  plotScatter \
+    'SELECT p1.value, p2.value FROM objects 
+     INNER JOIN properties p1 ON objects.objectid=p1.objectid 
+     INNER JOIN properties p2 ON p1.objectid=p2.objectid 
+     WHERE name="car" AND p1.key="yaw" AND p2.key="pitch"' \
   --xlabel yaw --ylabel pitch --display
 ```
 

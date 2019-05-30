@@ -9,7 +9,7 @@ import imageio
 from .util import drawTextOnImage, drawMaskOnImage, drawMaskAside
 from .util import bbox2roi, drawScoredRoi, drawScoredPolygon
 from .util import FONT, SCALE, FONT_SIZE, THICKNESS
-from .backendDb import deleteImage, deleteObject, objectField, polygonField
+from .backendDb import deleteImage, deleteObject, imageField, objectField, polygonField
 from .backendMedia import MediaReader, normalizeSeparators
 
 
@@ -83,6 +83,10 @@ def examineImagesParser(subparsers):
   parser.add_argument('--shuffle', action='store_true')
   parser.add_argument('--with_objects', action='store_true',
     help='draw all objects on top of the image.')
+  parser.add_argument('--with_score', action='store_true',
+    help='draw image score on top of the image.')
+  parser.add_argument('--with_imagefile', action='store_true',
+    help='draw imagefile on top of the image.')
   parser.add_argument('--winsize', type=int, default=500)
   parser.add_argument('--key_dict',
     default='{"-": "previous", "=": "next", " ": "snapshot", 127: "delete", 27: "exit"}')
@@ -92,7 +96,7 @@ def examineImagesParser(subparsers):
 def examineImages (c, args):
   cv2.namedWindow("examineImages")
 
-  c.execute('SELECT imagefile,maskfile FROM images WHERE (%s)' % args.where_images)
+  c.execute('SELECT * FROM images WHERE (%s)' % args.where_images)
   image_entries = c.fetchall()
   logging.info('%d images found.' % len(image_entries))
   if len(image_entries) == 0:
@@ -118,8 +122,13 @@ def examineImages (c, args):
 
   while True:  # Until a user hits the key for the "exit" action.
 
-    imagefile, maskfile = image_entries[index_image]
+    image_entry = image_entries[index_image]
+    imagefile = imageField(image_entry, 'imagefile')
+    maskfile = imageField(image_entry, 'maskfile')
+    imname = (imageField(image_entry, 'name'))
+    imscore = (imageField(image_entry, 'score'))
     logging.info ('Imagefile "%s"' % imagefile)
+    logging.debug ('Image name="%s", score=%s' % (imname, imscore))
     image = imreader.imread(imagefile)
 
     # Overlay the mask.
@@ -147,19 +156,24 @@ def examineImages (c, args):
         polygon_entries = c.fetchall()
         if len(polygon_entries) > 0:
           logging.info('showing object with a polygon.')
-          polygon = [(polygonField(p, 'x'), polygonField(p, 'y')) for p in polygon_entries]
+          polygon = [(int(polygonField(p, 'x')), int(polygonField(p, 'y'))) for p in polygon_entries]
           drawScoredPolygon (image, polygon, label=name, score=score)
         elif roi is not None:
           logging.info('showing object with a bounding box.')
           drawScoredRoi (image, roi, label=name, score=score)
         else:
-          raise Exception('Neither polygon, nor bbox is available for objectid %d' % objectid)
+          logging.warning('Neither polygon, nor bbox is available for objectid %d' % objectid)
 
     # Display an image, wait for the key from user, and parse that key.
     scale = float(args.winsize) / max(list(image.shape[0:2]))
     scaled_image = cv2.resize(image, dsize=(0,0), fx=scale, fy=scale)
     # Overlay imagefile.
-    drawTextOnImage(scaled_image, op.basename(normalizeSeparators(imagefile)))
+    if args.with_imagefile:
+      drawTextOnImage(scaled_image, op.basename(normalizeSeparators(imagefile)))
+    # Overlay score.
+    # TODO: add y offset, if necessary
+    if args.with_score:
+      drawTextOnImage(scaled_image, '%.3f' % imscore)
     # Display
     cv2.imshow('examineImages', scaled_image[:,:,::-1])
     action = key_reader.parse (cv2.waitKey(-1))
@@ -201,7 +215,7 @@ def examineObjectsParser(subparsers):
     description='Loop through objects.')
   parser.set_defaults(func=examineObjects)
   parser.add_argument('--shuffle', action='store_true')
-  parser.add_argument('--where_object', default='TRUE',
+  parser.add_argument('--where_objects', default='TRUE',
     help='the SQL "where" clause for the "objects" table.')
   parser.add_argument('--winsize', type=int, default=500)
   parser.add_argument('--key_dict', 
@@ -211,10 +225,10 @@ def examineObjectsParser(subparsers):
 def examineObjects (c, args):
   cv2.namedWindow("examineObjects")
 
-  c.execute('SELECT COUNT(*) FROM objects WHERE (%s) ' % args.where_object)
+  c.execute('SELECT COUNT(*) FROM objects WHERE (%s) ' % args.where_objects)
   logging.info('Found %d objects in db.' % c.fetchone()[0])
 
-  c.execute('SELECT DISTINCT imagefile FROM objects WHERE (%s) ' % args.where_object)
+  c.execute('SELECT DISTINCT imagefile FROM objects WHERE (%s) ' % args.where_objects)
   image_entries = c.fetchall()
   logging.info('%d images found.' % len(image_entries))
   if len(image_entries) == 0:
@@ -241,7 +255,7 @@ def examineObjects (c, args):
     scale = float(args.winsize) / max(image.shape[0:2])
     image = cv2.resize(image, dsize=(0,0), fx=scale, fy=scale)
 
-    c.execute('SELECT * FROM objects WHERE imagefile=? AND (%s)' % args.where_object, (imagefile,))
+    c.execute('SELECT * FROM objects WHERE imagefile=? AND (%s)' % args.where_objects, (imagefile,))
     object_entries = c.fetchall()
     logging.info ('Found %d objects for image %s' % (len(object_entries), imagefile))
 
@@ -324,7 +338,7 @@ def labelObjectsParser(subparsers):
     'i.e. assign the value of user-defined property.')
   parser.set_defaults(func=labelObjects)
   parser.add_argument('--shuffle', action='store_true')
-  parser.add_argument('--where_object', default='TRUE',
+  parser.add_argument('--where_objects', default='TRUE',
     help='the SQL "where" clause for the "objects" table.')
   parser.add_argument('--winsize', type=int, default=500)
   parser.add_argument('--property', required=True,
@@ -336,10 +350,10 @@ def labelObjectsParser(subparsers):
 def labelObjects (c, args):
   cv2.namedWindow("labelObjects")
 
-  c.execute('SELECT COUNT(*) FROM objects WHERE (%s) ' % args.where_object)
+  c.execute('SELECT COUNT(*) FROM objects WHERE (%s) ' % args.where_objects)
   logging.info('Found %d objects in db.' % c.fetchone()[0])
 
-  c.execute('SELECT * FROM objects WHERE (%s)' % args.where_object)
+  c.execute('SELECT * FROM objects WHERE (%s)' % args.where_objects)
   object_entries = c.fetchall()
   logging.info('Found %d objects in db.' % len(object_entries))
   if len(object_entries) == 0:
