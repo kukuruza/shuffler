@@ -62,8 +62,8 @@ def plotHistogram(c, args):
   if args.categorical:
     import pandas as pd
     import seaborn as sns
-    data = pd.DataFrame({args.x: xlist})
-    ax = sns.countplot(x="name", data=data, order=data[args.x].value_counts().index)
+    data = pd.DataFrame({args.xlabel: xlist})
+    ax = sns.countplot(x="name", data=data, order=data[args.xlabel].value_counts().index)
   else:
     if args.bins:
       ax.hist(xlist, args.bins)

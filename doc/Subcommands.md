@@ -1,8 +1,64 @@
-## Commands
+# Commands
+
+## List
+
+| Sub-command | Description |
+| --- | --- |
+| __Import__ | |
+| `importLabelme` | Import LabelMe annotations into the database. |
+| `importLabelmeObjects` | Import LabelMe annotations of objects. For each `objectid` in the database, will look for an annotation in the form `objectid.xml`. |
+| `importKitti` | Import KITTI annotations into the database. |
+| `importPascalVoc2012` | Import annotations in PASCAL VOC 2012 format into the database. |
+| `importBdd` | Import BDD annotations into a db (the format after 08-28-2018). Both image-level and object-level attributes are written to the "properties" table. "manualShape" and "manualAttributes" are ignored. Objects with open polygons are ignored. |
+| `importDetrac` | Import DETRAC annotations into the database. |
+| __Filter__ | |
+| `filterEmptyImages` | Delete images without objects. |
+| `filterImagesOfAnotherDb` | Delete images from the database that are not in the provided reference database. |
+| `filterImagesSQL` | Delete images (and their objects) based on the `where` argument, that acts as a WHERE clause for SQL. |
+| `filterObjectsAtBorder` | Delete bounding boxes closer than `border_thresh` to image border. |
+| `filterObjectsByIntersection` | Delete objects that have a high Intersection over Union (IoU) with other objects in the same image. |
+| `filterObjectsByName` | Delete objects with names not from the list. |
+| `filterObjectsByScore` | Delete all objects that have score less than `score_threshold`. |
+| `filterObjectsSQL` | Delete objects based on the SQL `where` argument, that acts as a WHERE clause for SQL. |
+| __Modify__ | |
+| `sql` | Run provided SQL commands. |
+| `addVideo` | Import frames from a video into the database. |
+| `addPictures` | Import picture files into the database. |
+| `writeMedia` | Export images as a directory with pictures or as a video, and change the `imagefile` and `maskfile` entries to match the new recordings. |
+| `cropObjects` | Crops object patches to pictures or video and saves their info as a db. All `imagefile` and `maskfile` entries in the database are deleted and path to the cropped images are recorded. |
+| `headImages` | Keep the first N image entries. |
+| `tailImages` | Keep the last N image entries. |
+| `expandBoxes` | Expand bounding box in the four directions. |
+| `moveMedia` | Change images and masks relative paths. |
+| `addDb` | Adds info from `db_file` to the current open database. Objects can be merged. Duplicate image entries are ignore, but all objects associated with the image duplicates are added. |
+| `splitDb` | Split the database into several sets (randomly or sequentially.) |
+| `mergeObjectDuplicates` | Merge objects with identical fields `imagefile, x1, y1, width, height`. |
+| `renameObjects` | Map object names. Can be used to make an imported dataset compatible with the database. |
+| `repaintMask` | Repaint specific colors in masks into different colors. |
+| `polygonsToMask` | Convert polygons of an object into a mask, and write it as \texttt{maskfile}. If there are polygon entries with different names, consider them as different polygons. Masks from each of these polygons are summed up and normalized to their number. The result is a black-and-white mask when there is only one polygon, and a grayscale mask when there are multiple polygons. |
+| __Info__ | |
+| `printInfo` | Print summary of the database. |
+| `dumpDb` | Print tables of the database. |
+| `plotHistogram` | Get a histogram plot of a field in the database. |
+| `plotScatter` | Get a scatter plot of two fields in the database. |
+| `plotStrip` | Get a "strip" plot of two fields in the database. |
+| __GUI__ | |
+| `examineImages` | Loop through images. Possibly, assign names to images. |
+| `examineObjects` | Loop through objects. |
+| `examineMatches` | Loop through matches. |
+| `labelObjectsProperty` | Loop through objects and manually label them, i.e. assign the value of a property. |
+| `labelMatches` | Loop through image pairs and label matching objects on the two images of each pair. |
+| __Evaluate__ | |
+| `evaluateDetection` | Evaluate bounding boxes in the current database w.r.t. a ground truth database. |
+| `evaluateSegmentationIoU` | Evaluate masks in the current database w.r.t. a ground truth database in terms of Intersection over Union (IoU). |
+| `evaluateBinarySegmentation` | Evaluate masks segmentation ROC curve w.r.t. a ground truth database. Ground truth values must be 0 for background, 255 for foreground, and the rest for dontcare. |
+
+
+## Examples
 
 ### <a name="import">Imports
  
-Import](#import) most common computer vision datasets. Currently support formats of [KITTI](http://www.cvlibs.net/datasets/kitti), [BDD](https://bair.berkeley.edu/blog/2018/05/30/bdd), and [PASCAL VOC 2012](http://host.robots.ox.ac.uk/pascal/VOC), and LabelMe. The list is growing, pull requests are welcome.
+[Import](#import) most common computer vision datasets. Currently support formats of [KITTI](http://www.cvlibs.net/datasets/kitti), [BDD](https://bair.berkeley.edu/blog/2018/05/30/bdd), and [PASCAL VOC 2012](http://host.robots.ox.ac.uk/pascal/VOC), and LabelMe. The list is growing, pull requests are welcome.
 
 #### Import KITTI
 ```bash

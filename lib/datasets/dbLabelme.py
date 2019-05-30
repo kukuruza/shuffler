@@ -61,11 +61,11 @@ def importLabelme (c, args):
 
     # Find annotation files that match the imagefile.
     # There may be 1 or 2 dots because of some bug/feature in LabelMe.
-    imagename = re.compile('0*%s[\.]{1,2}xml' % op.splitext(op.basename(jpgpath))[0])
+    regex = re.compile('0*%s[\.]{1,2}xml' % op.splitext(op.basename(imagefile))[0])
     logging.debug('Will try to match %s' % regex)
     matches = [f for f in annotations_paths if re.match(regex, f)]
     if len(matches) == 0:
-      logging.info('Annotation file does not exist: "%s". Skip image.' % annotation_file)
+      logging.info('Annotation file does not exist: "%s". Skip image.' % imagefile)
       continue
     elif len(matches) > 1:
       logging.warning('Found multiple files: %s' % pformat(matches))
