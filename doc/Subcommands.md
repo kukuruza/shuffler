@@ -60,47 +60,46 @@
  
 [Import](#import) most common computer vision datasets. Currently support formats of [KITTI](http://www.cvlibs.net/datasets/kitti), [BDD](https://bair.berkeley.edu/blog/2018/05/30/bdd), and [PASCAL VOC 2012](http://host.robots.ox.ac.uk/pascal/VOC), and LabelMe. The list is growing, pull requests are welcome.
 
-#### Import KITTI
 ```bash
 # Import KITTI segmentation
-./shuffler.py --rootdir ${KITTI} \
-  -o '/tmp/kitti.db' \
+./shuffler.py --rootdir ${KITTI_DIR} \
+  -o '/tmp/kitti_segm.db' \
   importKitti \
-  --images_dir=${KITTI}/data_semantics/training/image_2  \
-  --segmentation_dir=${KITTI}/data_semantics/training/instance
+  --images_dir=${KITTI_DIR}/data_semantics/training/image_2  \
+  --segmentation_dir=${KITTI_DIR}/data_semantics/training/instance
 
 # Import KITTI detection (does not share images with segmentation)
-./shuffler.py --rootdir ${KITTI} \
-  -o '/tmp/kitti.db' \
+./shuffler.py --rootdir ${KITTI_DIR} \
+  -o '/tmp/kitti_det.db' \
   importKitti \
-  --images_dir=${KITTI}/data_semantics/training/image_2  \
-  --detection_dir=${KITTI}/data_object_image_2/training/label_2
+  --images_dir=${KITTI_DIR}/data_object_image_2/training/image_2  \
+  --detection_dir=${KITTI_DIR}/data_object_image_2/training/label_2
 
 # Import LabelMe.
+# First make a database from images, then import labelme annotations.
 ./shuffler.py --rootdir '.' \
-  -i 'test/labelme/init.db' \
-  importLabelme --annotations_dir 'test/labelme/w55-e04-images1'
-
-# Import LabelMe, objects by ids.
-./shuffler.py --rootdir '.' \
-  -i test/labelme/init.db \
-  importLabelmeObjects --annotations_dir test/labelme/w55-e04-objects1 \
-  --keep_original_object_name --polygon_name objects1
+  -o '/tmp/labelme.db' \
+  addMedia --image_pattern ${LABELME_IMAGE_DIR}'/*.jpg' \| \
+  importLabelme --annotations_dir ${LABELME_XML_DIR}
 
 # Import Pascal.
 ./shuffler.py --rootdir '.' \
   -o '/tmp/pascal.db' \
-  importPascalVoc2012 \
-  --images_dir ${VOC2012}/JPEGImages \
-  --detection_dir ${VOC2012}/Annotations \
-  --segmentation_dir ${VOC2012}/SegmentationClass
+  importPascalVoc2012 --pascal_dir ${VOC2012_DIR} --segmentation_class
 
 # Import BDD.
 ./shuffler.py  --rootdir '.' \
   -o '/tmp/bdd100k_train.db' \
   importBdd \
-  --images_dir ${BDD}/bdd100k/images/100k/train \
-  --detection_json ${BDD}/bdd100k/labels/bdd100k_labels_images_train.json
+  --images_dir ${BDD_DIR}/bdd100k/images/100k/train \
+  --detection_json ${BDD_DIR}/bdd100k/labels/bdd100k_labels_images_train.json
+
+# Import CityScapes.
+./shuffler.py  --rootdir '.' \
+  -o '/tmp/cityscapes_trainval_labelIds.db' \
+  importCityscapes \
+  --cityscapes_dir ${CITYSCAPES_DIR} \
+  --split train val --type "gtFine" --mask_type labelIds
 ```
 
 #### <a name="info">Info

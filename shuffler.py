@@ -10,7 +10,7 @@ from itertools import groupby
 from lib.util import copyWithBackup
 from lib.backendDb import createDb
 from lib import dbGui, dbInfo, dbFilter, dbModify, dbMedia, dbEvaluate, dbLabel
-from lib.datasets import dbLabelme, dbKitti, dbPascal, dbBdd, dbDetrac
+from lib.datasets import dbLabelme, dbKitti, dbPascal, dbBdd, dbDetrac, dbCityscapes
 
 
 def connect (in_db_path=None, out_db_path=None):
@@ -90,6 +90,7 @@ dbKitti.add_parsers(subparsers)
 dbPascal.add_parsers(subparsers)
 dbBdd.add_parsers(subparsers)
 dbDetrac.add_parsers(subparsers)
+dbCityscapes.add_parsers(subparsers)
 
 # Split command-line arguments into subcommands by special symbol "|".
 argv_splits = [list(group) for k, group in groupby(sys.argv[1:], lambda x: x == '|') if not k]
@@ -110,9 +111,11 @@ cursor = conn.cursor()
 if not hasattr(args, 'func'):
   raise ValueError('Provide a sub-command. Use "./shuffler.py -h" for options.')
 
-# Go thourgh the pipeline.
+# Main arguments and sub-command #1.
 print('=== %s ===' % args.func.__name__)
 args.func(cursor, args)
+
+# Sub-commands #2 to last.
 for argv_split in argv_splits[1:]:
   args = parser.parse_args(argv_split)
   args.rootdir = rootdir  # This is the only argument that is used in all subcommands.
