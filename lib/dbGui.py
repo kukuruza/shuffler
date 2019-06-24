@@ -274,7 +274,8 @@ def examineObjects (c, args):
       if len(polygon_entries) > 0:
         logging.info('showing object with a polygon.')
         polygon = [(polygonField(p, 'x'), polygonField(p, 'y')) for p in polygon_entries]
-        drawScoredPolygon (image, polygon, label=None, score=score)
+        scaled_polygon = [(int(scale * x), int(scale * y)) for x, y in polygon]
+        drawScoredPolygon (image, scaled_polygon, label=None, score=score)
       elif roi is not None:
         logging.info('showing object with a bounding box.')
         drawScoredRoi (image, scaledroi, label=None, score=score)

@@ -96,7 +96,7 @@
 
 # Import CityScapes.
 ./shuffler.py  --rootdir '.' \
-  -o '/tmp/cityscapes_trainval_labelIds.db' \
+  -o '/tmp/cityscapes_trainval_gtfine.db' \
   importCityscapes \
   --cityscapes_dir ${CITYSCAPES_DIR} \
   --split train val --type "gtFine" --mask_type labelIds

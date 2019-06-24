@@ -53,7 +53,7 @@ def evaluateDetectionParser(subparsers):
 def evaluateDetection (c, args):
 
   # Attach the ground truth database.
-  c.execute('ATTACH ? AS "gt"', (args.gt_db_file,))
+  c.execute('ATTACH DATABASE ? AS "gt"', (args.gt_db_file,))
   c.execute('SELECT DISTINCT(name) FROM gt.objects')
   names = [x for x, in c.fetchall()]
   aps = []  # Average precision per class.
@@ -152,6 +152,7 @@ def evaluateDetection (c, args):
     aps.append(ap)
   print ('Mean average precision: %.3f' % np.array(aps).mean())
 
+  c.execute('DETACH DATABASE "gt"')
 
 
 def fast_hist(a, b, n):

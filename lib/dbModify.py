@@ -14,11 +14,13 @@ from ast import literal_eval
 
 from .backendDb import makeTimeString, deleteImage, objectField, createDb
 from .backendMedia import getPictureSize, MediaReader
-from .util import drawScoredRoi, roi2bbox
+from .util import drawScoredRoi, roi2bbox, bboxes2polygons, polygons2bboxes
 from .utilExpandBoxes import expandRoiToRatio, expandRoi
 
 
 def add_parsers(subparsers):
+  bboxesToPolygonsParser(subparsers)
+  polygonsToBboxesParser(subparsers)
   sqlParser(subparsers)
   addVideoParser(subparsers)
   addPicturesParser(subparsers)
@@ -30,8 +32,28 @@ def add_parsers(subparsers):
   moveRootdirParser(subparsers)
   addDbParser(subparsers)
   splitDbParser(subparsers)
-  mergeObjectDuplicatesParser(subparsers)
+  mergeIntersectingObjectsParser(subparsers)
   renameObjectsParser(subparsers)
+  resizeAnnotationsParser(subparsers)
+
+
+def bboxesToPolygonsParser(subparsers):
+  parser = subparsers.add_parser('bboxesToPolygons',
+    description='If polygons dont exist for an object, '
+      'create a rectangular polygon from the bounding box.')
+  parser.set_defaults(func=bboxesToPolygons)
+
+def bboxesToPolygons(c, args):
+  bboxes2polygons(c)
+
+
+def polygonsToBboxesParser(subparsers):
+  parser = subparsers.add_parser('polygonsToBboxes',
+    description='Update bounding box in the "objects" table with values from "polygons".')
+  parser.set_defaults(func=polygonsToBboxes)
+
+def polygonsToBboxes(c, args):
+  polygons2bboxes(c)
 
 
 def sqlParser(subparsers):
@@ -44,6 +66,7 @@ def sqlParser(subparsers):
 
 def sql (c, args):
   for sql in args.sql:
+    logging.info('Executing SQL command: %s' % sql)
     c.execute(sql)
 
 
@@ -316,17 +339,17 @@ def addDbParser(subparsers):
     'Duplicate "imagefile" entries are ignore, but all associated objects are added.')
   parser.set_defaults(func=addDb)
   parser.add_argument('--db_file', required=True)
+  parser.add_argument('--db_rootdir',
+    help='If specified, imagefiles from add_db are considered relative to db_rootdir. '
+    'They will be modified to be relative to rootdir of the active database.')
   parser.add_argument('--merge_duplicate_objects', action='store_true')
-    
+
 def addDb (c, args):
-  conn_add = sqlite3.connect('file:%s?mode=ro' % args.db_file, uri=True)
-  c_add = conn_add.cursor()
+  c.execute('ATTACH ? AS "added"', (args.db_file,))
+  c.execute('BEGIN TRANSACTION')
 
   # Copy images.
-  c_add.execute('SELECT * FROM images')
-  logging.info('Copying images.')
-  for image_entry in progressbar(c_add.fetchall()):
-    c.execute('INSERT OR REPLACE INTO images VALUES (?,?,?,?,?,?,?)', image_entry)
+  c.execute('INSERT OR REPLACE INTO images SELECT * FROM added.images')
 
   # Find the max "match" in "matches" table. New matches will go after that value.
   c.execute('SELECT MAX(match) FROM matches')
@@ -335,9 +358,9 @@ def addDb (c, args):
     max_match = 0
   
   # Copy all other tables.
-  c_add.execute('SELECT * FROM objects')
+  c.execute('SELECT * FROM added.objects')
   logging.info('Copying objects.')
-  for object_entry_add in progressbar(c_add.fetchall()):
+  for object_entry_add in progressbar(c.fetchall()):
     objectid_add = objectField(object_entry_add, 'objectid')
 
     # Copy objects.
@@ -346,22 +369,31 @@ def addDb (c, args):
     objectid = c.lastrowid
 
     # Copy properties.
-    c_add.execute('SELECT key,value FROM properties WHERE objectid=?', (objectid_add,))
-    for key, value in c_add.fetchall():
+    c.execute('SELECT key,value FROM added.properties WHERE objectid=?', (objectid_add,))
+    for key, value in c.fetchall():
       c.execute('INSERT INTO properties(objectid,key,value) VALUES (?,?,?)', (objectid,key,value))
 
     # Copy polygons.
-    c_add.execute('SELECT x,y,name FROM polygons WHERE objectid=?', (objectid_add,))
-    for x, y, name in c_add.fetchall():
+    c.execute('SELECT x,y,name FROM added.polygons WHERE objectid=?', (objectid_add,))
+    for x, y, name in c.fetchall():
       c.execute('INSERT INTO polygons(objectid,x,y,name) VALUES (?,?,?,?)', (objectid,x,y,name))
 
     # Copy matches.
-    c_add.execute('SELECT match FROM matches WHERE objectid=?', (objectid_add,))
-    for match, in c_add.fetchall():
+    c.execute('SELECT match FROM added.matches WHERE objectid=?', (objectid_add,))
+    for match, in c.fetchall():
       c.execute('INSERT INTO matches(objectid,match) VALUES (?,?)', (objectid, match + max_match))
 
-  conn_add.close()
+  # Change all the added imagefiles so that they are relative 
+  # to args.rootdir instead of args.db_rootdir.
+  if args.db_rootdir is not None:
+    c.execute('SELECT imagefile FROM added.images')
+    for imagefile, in c.fetchall():
+      imagefile_new = op.relpath(op.join(args.db_rootdir, imagefile), args.rootdir)
+      c.execute('UPDATE images SET imagefile=? WHERE imagefile=?', (imagefile_new, imagefile))
+      c.execute('UPDATE objects SET imagefile=? WHERE imagefile=?', (imagefile_new, imagefile))
 
+  c.execute('END TRANSACTION')
+  c.execute('DETACH DATABASE "added"')
 
 
 def splitDbParser(subparsers):
@@ -432,88 +464,177 @@ def splitDb (c, args):
 
 
 
-def mergeObjectDuplicatesParser(subparsers):
-  parser = subparsers.add_parser('mergeObjectDuplicates',
-    description='Merge objects with identical fields imagefile,x1,y1,width,height.')
-  parser.set_defaults(func=mergeObjectDuplicates)
+def _mergeNObjects(c, objectids):
+  ' Merge N objects given by their objectids. '
+
+  logging.debug('Merging objects %s' % str(objectids))
+  objectid_new = objectids[0]
+
+  # No duplicates.
+  if len(objectids) == 1:
+    return
+
+  # String from the list.
+  objectids_str = (','.join([str(x) for x in objectids]))
+
+  # Merge properties.
+  for objectid in objectids[1:]:
+    c.execute('UPDATE properties SET objectid=? WHERE objectid=?;', (objectid_new, objectid))
+  c.execute('SELECT key,COUNT(DISTINCT(value)) FROM properties WHERE objectid=? GROUP BY key', (objectid_new,))
+  for key, num in c.fetchall():
+    if num > 1:
+      logging.info('Deleting %d duplicate properties for key=%s and objectid=%s' % (num, key, objectid_new))
+      c.execute('DELETE FROM properties WHERE objectid=? AND key=?', (objectid_new, key))
+
+  # Merge polygons by adding all the polygons together.
+  c.execute('SELECT COUNT(1) FROM polygons WHERE objectid IN (%s) GROUP BY objectid;' % objectids_str)
+  num = c.fetchone()
+  num = num[0] if num is not None else 0
+  logging.debug('Found %d polygons for objectids %s' % (num, objectids_str))
+  if num > 1:
+    c.execute('UPDATE polygons SET objectid=?, name=(ifnull(name, "")  || objectid) WHERE objectid IN (%s);' % 
+      objectids_list, (objectid_new,))
+  if num >= 1:
+    c.execute('UPDATE polygons SET objectid=? WHERE objectid IN (%s);' % objectids_str, (objectid_new,))
+
+  # Merge matches.
+  c.execute('UPDATE matches SET objectid=? WHERE objectid IN (%s);' % objectids_str, (objectid_new,))
+  # Remove duplicate entries with the same (match, objectid) after merging.
+  c.execute('DELETE FROM matches WHERE objectid=? AND match=? AND id NOT IN '
+   '(SELECT MIN(id) FROM matches WHERE objectid=? AND match=?)')
+
+  # Merge score.
+  c.execute('SELECT DISTINCT(score) FROM objects WHERE objectid IN (%s) AND score IS NOT NULL' % objectids_str)
+  names = [x for x, in c.fetchall()]
+  logging.debug('Merged objects %s have names %s' % (objectids_str, names))
+  if len(names) > 1:
+    logging.debug('Several distinct score values (%s) for objectids (%s). Will set NULL.' % (str(names), objectids_str))
+    c.execute('UPDATE objects SET score=NULL WHERE objectid=?;', (objectid_new,))
+  elif len(names) == 1:
+    logging.debug('Writing score=%s to objectid=%s.' % (names[0], objectid_new))
+    c.execute('UPDATE objects SET score=? WHERE objectid=?;', (names[0], objectid_new))
+  else:
+    logging.debug('No score found for objectid=%s.' % (objectid_new,))
+
+  # Merge name.
+  c.execute('SELECT DISTINCT(name) FROM objects WHERE objectid IN (%s) AND name IS NOT NULL' % objectids_str)
+  names = [x for x, in c.fetchall()]
+  logging.debug('Merged objects %s have names %s' % (objectids_str, names))
+  if len(names) > 1:
+    logging.debug('Several distinct name values (%s) for objectids (%s). Will set NULL.' % (str(names), objectids_str))
+    c.execute('UPDATE objects SET name=NULL WHERE objectid=?;', (objectid_new,))
+  elif len(names) == 1:
+    logging.debug('Writing name=%s to objectid=%s.' % (names[0], objectid_new))
+    c.execute('UPDATE objects SET name=? WHERE objectid=?;', (names[0], objectid_new))
+  else:
+    logging.debug('No name found for objectid=%s.' % (objectid_new,))
+
+  # Delete all duplicates from "objects" table. (i.e. except for the 1st object).
+  c.execute('DELETE FROM objects WHERE objectid IN (%s) AND objectid != ?' % objectids_str, (objectid_new,))
+  return objectid_new
+
+
+def mergeIntersectingObjectsParser(subparsers):
+  parser = subparsers.add_parser('mergeIntersectingObjects',
+    description='Merge objects that intersect. '
+    'Currently only pairwise, does not merge groups. That is left for future. '
+    'Currently implements only intersection by bounding boxes.')
+  parser.add_argument('--IoU_threshold', type=float, default=0.5,
+    help='Intersection over Union threshold to consider merging.')
+  parser.add_argument('--target_name',
+    help='Name to assign to merged objects. If not specified, '
+    'the name is assigned only if the names of the two merged objects match.')
+  parser.add_argument('--where_objects1', default='TRUE',
+    help='SQL "where" clause for the "from" objects. The default is any object. '
+    'Objects "from" are merged with objects "to".')
+  parser.add_argument('--where_objects2', default='TRUE',
+    help='SQL "where" clause for the "to" objects. The default is any object. '
+    'Objects "from" are merged with objects "to".')
+  parser.add_argument('--where_image', default='TRUE',
+    help='the SQL "where" clause for "images" table. '
+    'E.g. to change imagefile of JPG pictures from directory "from/mydir" only, use: '
+    '\'imagefile LIKE "from/mydir/%%"\'')
+  parser.set_defaults(func=mergeIntersectingObjects)
     
-def mergeObjectDuplicates (c, args):
-  c.execute('SELECT imagefile FROM images')
+def mergeIntersectingObjects (c, args):
+
+  def _getIoU(roi1, roi2):
+    ' Computes intersection over union for two rectangles. '
+    intersection_y = max(0, (min(roi1[2], roi2[2]) - max(roi1[0], roi2[0])))
+    intersection_x = max(0, (min(roi1[3], roi2[3]) - max(roi1[1], roi2[1])))
+    intersection = intersection_x * intersection_y
+    area1 = (roi1[3] - roi1[1]) * (roi1[2] - roi1[0])
+    area2 = (roi2[3] - roi2[1]) * (roi2[2] - roi2[0])
+    union = area1 + area2 - intersection
+    IoU = intersection / union if union > 0 else 0.
+    return IoU
+
+  # Make polygons if necessary
+  logging.info('Making rectangular polygons from bounding boxes.')
+#  bboxesToPolygons(c, args=None)
+
+  c.execute('SELECT imagefile FROM images WHERE (%s)' % args.where_image)
   for imagefile, in progressbar(c.fetchall()):
-    logging.debug('Image %s' % imagefile)
 
-    # Duplicates are defined by fields x1,y1,width,height.
-    c.execute('SELECT x1,y1,width,height,COUNT(1) FROM objects WHERE imagefile=? '
-            'GROUP BY x1,y1,width,height HAVING COUNT(1) > 1', (imagefile,))
-    duplicates = c.fetchall()
-    logging.info('Found %d duplicates in imagefile "%s"' % (len(duplicates), imagefile))
+    # Get objects of interest from imagefile.
+    c.execute('SELECT * FROM objects WHERE imagefile=? AND (%s)' 
+        % args.where_objects1, (imagefile,))
+    objects1 = c.fetchall()
+    c.execute('SELECT * FROM objects WHERE imagefile=? AND (%s)' 
+        % args.where_objects2, (imagefile,))
+    objects2 = c.fetchall()
+    logging.debug('Image %s has %d and %d objects to match' % imagefile)
 
-    for x1, y1, width, height, num in duplicates:
-      logging.debug('Duplicate (x1,y1,width,height): %d,%d,%d,%d is in %d objects' %
-        (x1, y1, width, height, num))
+    # Compute pairwise distances between rectangles.
+    pairwise_IoU = np.zeros(shape=(len(objects1), len(objects2)), dtype=float)
+    for i1, object1 in enumerate(objects1):
+      for i2, object2 in enumerate(objects2):
+        # Do not merge an object with itself.
+        if objectField(object1, 'objectid') == objectField(object2, 'objectid'):
+          pairwise_IoU[i1, i2] = np.inf
+        else:
+          #print (imagefile)
+          roi1 = objectField(object1, 'roi')
+          roi2 = objectField(object2, 'roi')
+          pairwise_IoU[i1, i2] = _getIoU(roi1, roi2)
 
-      # Get all object entries for the duplicates.
-      c.execute('SELECT objectid FROM objects WHERE imagefile=? AND x1=? AND y1=? AND width=? AND height=?',
-        (imagefile, x1, y1, width, height))
-      objectids = [x for x, in c.fetchall()]
-      if len(objectids) == 1:  # No duplicates.
-        continue
-      objectids_list = (','.join([str(x) for x in objectids]))
-      objectids_list_but1 = (','.join([str(x) for x in objectids[1:]]))
+    # Greedy search for pairs.
+    pairs_to_merge = []
+    for step in range(min(len(objects1), len(objects2))):
+      i1, i2 = np.argmin(pairwise_IoU)
+      IoU = pairwise_IoU[i1, i2]
+      # Stop if no more good pairs.
+      if IoU > args.IoU_threshold:
+        break
+      # Disable these objects for the next step.
+      pairwise_IoU[i1, :] = np.inf
+      pairwise_IoU[:, i2] = np.inf
+      # Add a pair to the list.
+      pairs_to_merge.append([i1, i2])
 
-      # Merge score.
-      c.execute('SELECT DISTINCT(score) FROM objects WHERE objectid IN (%s) AND score IS NOT NULL' % objectids_list)
-      scores = [x for x, in c.fetchall()]
-      logging.debug('Merged objects %s have scores %s' % (objectids_list, scores))
-      if len(scores) > 1:
-        raise ValueError('Too many distinct "score" (%s) for objectids (%s)' % (str(scores), objectids_list))
-      logging.debug('Writing score=%f to objectid=%s.' % (scores[0], objectids[0]))
-      c.execute('UPDATE objects SET score=? WHERE objectid=?;', (scores[0], objectids[0]))
+    # Merge pairs.
+    for i1, i2 in pairs_to_merge:
+      objectid1 = objectField(objects1[i1], 'objectid')
+      objectid2 = objectField(objects2[i2], 'objectid')
 
-      # Merge name.
-      c.execute('SELECT DISTINCT(name) FROM objects WHERE objectid IN (%s) AND name IS NOT NULL' % objectids_list)
-      names = [x for x, in c.fetchall()]
-      logging.debug('Merged objects %s have names %s' % (objectids_list, names))
-      if len(names) > 1:
-        raise ValueError('Too many distinct "name" (%s) for objectids (%s)' % (str(names), objectids_list))
-      logging.debug('Writing name=%s to objectid=%s.' % (names[0], objectids[0]))
-      c.execute('UPDATE objects SET name=? WHERE objectid=?;', (names[0], objectids[0]))
+      # Change the name to the target first.
+      if args.target_name is not None:
+        c.execute('UPDATE objects SET name=? WHERE objectid IN (?,?);',
+          (args.target_name, objectid1, objectid2))
 
-      # Delete all duplicate entries of "objects" table.
-      c.execute('DELETE FROM objects WHERE objectid IN (%s);' % objectids_list_but1)
+      _mergeObjects(c, [objectid1, objectid2])
 
-      # Merge properties.
-      for objectid in objectids[1:]:
-        c.execute('UPDATE properties SET objectid=? WHERE objectid=?;', (objectids[0], objectid))
-      c.execute('SELECT key,COUNT(DISTINCT(value)) FROM properties WHERE objectid=? GROUP BY key', (objectids[0],))
-      for key, num in c.fetchall():
-        if num > 1:
-          raise ValueError('%d duplicate values for key=%s for objectid=%s' % (num, key, objectids[0]))
-
-      # Merge polygons.
-      c.execute('SELECT COUNT(1) FROM polygons WHERE objectid IN (%s) GROUP BY objectid;' % objectids_list)
-      num = c.fetchone()
-      num = num[0] if num is not None else 0
-      logging.debug('Found %d polygons for objectids %s' % (num, objectids_list))
-      if num > 1:
-        c.execute('UPDATE polygons SET objectid=?, name=(ifnull(name, "")  || objectid) WHERE objectid IN (%s);' % 
-          objectids_list, (objectids[0],))
-      if num >= 1:
-        c.execute('UPDATE polygons SET objectid=? WHERE objectid IN (%s);' % objectids_list, (objectids[0],))
-
-      # Matches not implemented yet, because there were not tasks for them so far.
-      c.execute('SELECT COUNT(1) FROM matches WHERE objectid IN (%s)' % objectids_list_but1)
-      if c.fetchone()[0] > 0:
-        raise NotImplementedError('Marging matches table not implemented yet.')
+  # Update bboxes with new polygons.
+  polygonsToBboxes(c, args=None)
 
 
 def renameObjectsParser(subparsers):
   parser = subparsers.add_parser('renameObjects',
-    description='Map object names. '
+    description='Map object names. Can delete names not to be mapped.'
     'Can be used to make an imported dataset compatible with the database.')
   parser.set_defaults(func=renameObjects)
   parser.add_argument('--names_dict', required=True,
-    help='Map from old names to new names. E.g. {"Car": "car", "Truck": "car"}')
+    help='Map from old names to new names. E.g. \'{"Car": "car", "Truck": "car"}\'')
   parser.add_argument('--where_object', default='TRUE',
     help='SQL "where" clause for the "objects" table.')
   parser.add_argument('--discard_other_objects', action='store_true',
@@ -534,3 +655,50 @@ def renameObjects (c, args):
   # Remap the rest.
   for key, value in namesmap.items():
     c.execute('UPDATE objects SET name=? WHERE name=? AND (%s)' % args.where_object, (value, key))
+
+
+
+def resizeAnnotationsParser(subparsers):
+  parser = subparsers.add_parser('resizeAnnotations',
+    description='Resize all information about images and objects. '
+      'Use when images were scaled and the annotations need to be updated. '
+      'This command does not scale images themselves.')
+#  parser.add_argument('--where_image', default='TRUE',
+#    help='the SQL "where" clause for "images" table. '
+#    'E.g. to change imagefile of JPG pictures from directory "from/mydir" only, use: '
+#    '\'imagefile LIKE "from/mydir/%%"\'')
+  parser.add_argument('--target_width', type=int, required=True,
+    help='The width each image was scaled to.')
+  parser.add_argument('--target_height', type=int, required=True,
+    help='The height each image was scaled to.')
+  parser.set_defaults(func=resizeAnnotations)
+
+# A very simple one, all images share the original and target widht,height.
+def resizeAnnotations(c, args):
+  c.execute('SELECT width,height FROM images')
+  width,height = c.fetchone()
+  c.execute('UPDATE images SET width=?,height=?', (args.target_width, args.target_height))
+  percent_x = args.target_width / float(width)
+  percent_y = args.target_height / float(height)
+  logging.info('Scaling with percent_x=%f, percent_y=%f' % (percent_x, percent_y))
+
+  c.execute('SELECT objectid,x1,y1,width,height FROM objects')
+  for objectid,x1,y1,width,height in c.fetchall():
+    if x1 is not None:
+      x1 = int(x1 * percent_x)
+    if y1 is not None:
+      y1 = int(y1 * percent_y)
+    if width is not None:
+      width = int(width * percent_x)
+    if height is not None:
+      height = int(height * percent_y)
+    c.execute('UPDATE objects SET x1=?,y1=?,width=?,height=? WHERE objectid=?',
+      (x1,y1,width,height,objectid))
+
+  c.execute('SELECT id,x,y FROM polygons')
+  for id_,x,y in c.fetchall():
+    x = int(x * percent_x)
+    y = int(y * percent_y)
+    c.execute('UPDATE polygons SET x=?,y=? WHERE id=?', (x,y,id_))
+
+

@@ -2,6 +2,7 @@ import os, os.path as op
 import logging
 import sqlite3
 from datetime import datetime
+from progressbar import progressbar
 
 
 def doesTableExist (cursor, table):
@@ -183,4 +184,3 @@ def deleteImage (cursor, imagefile):
   cursor.execute('DELETE FROM properties WHERE objectid IN (SELECT objectid FROM objects WHERE imagefile=?);', (imagefile,))
   cursor.execute('DELETE FROM objects WHERE imagefile=?;', (imagefile,))
   cursor.execute('DELETE FROM images WHERE imagefile=?;', (imagefile,))
-

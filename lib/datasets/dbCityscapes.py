@@ -1,7 +1,6 @@
 import os, sys, os.path as op
 import numpy as np
 import cv2
-import collections
 import logging
 from glob import glob
 import shutil
@@ -12,7 +11,7 @@ from pprint import pformat
 
 from ..backendDb import objectField
 from ..backendMedia import MediaReader, getPictureSize
-from ..util import drawScoredRoi, drawScoredPolygon, drawMaskAside
+from ..util import drawScoredPolygon
 
 
 def add_parsers(subparsers):

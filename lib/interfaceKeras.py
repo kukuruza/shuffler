@@ -4,29 +4,20 @@ import argparse
 import logging
 import sqlite3
 from pprint import pformat
-from torch.utils.data import Dataset
+from keras.utils import Sequence
 
 from backendDb import imageField, objectField
 from backendMedia import MediaReader
 
 
-class ImagesDataset(Dataset):
-  ''' Items of a dataset are images. '''
 
-  def __init__(self, db_file, rootdir='.', where_image='TRUE', where_object='TRUE', copy_to_memory=True):
+class ImageGenerator(Sequence):
+  ' Generates images with all the objects for Keras. '
 
-    if copy_to_memory:
-      self.conn = sqlite3.connect(':memory:') # create a memory database
-      disk_conn = sqlite3.connect(db_file)
-      query = ''.join(line for line in disk_conn.iterdump())
-      self.conn.executescript(query)
-    else:
-      try:
-        self.conn = sqlite3.connect('file:%s?mode=ro' % db_file, uri=True)
-      except TypeError:
-        logging.debug('This Python version does not support connecting to SQLite by uri, '
-                      'will connect in regular mode (without readonly.)')
-        self.conn = sqlite3.connect(db_file)
+  def __init__(self, db_file, rootdir='.', where_image='TRUE', where_object='TRUE',
+               copy_to_memory=True, batch_size=32, shuffle=True):
+    self.batch_size = batch_size
+    self.shuffle = shuffle
 
     self.c = self.conn.cursor()
     self.c.execute('SELECT * FROM images WHERE %s ORDER BY imagefile' % where_image)
@@ -34,6 +25,12 @@ class ImagesDataset(Dataset):
 
     self.imreader = MediaReader(rootdir=rootdir)
     self.where_object = where_object
+
+    self.on_epoch_end()
+
+  def __len__(self):
+      ' Denotes the number of batches per epoch. '
+      return int(np.floor(len(self.image_entries) / self.batch_size))
 
   def close(self):
     self.conn.close()
@@ -47,19 +44,7 @@ class ImagesDataset(Dataset):
       mask = self.imreader.maskread (imageField(image_entry, 'maskfile'))
     return img, mask
 
-  def __len__(self):
-    return len(self.image_entries)
-
-  def __getitem__(self, index):
-    '''Used to train for the detection/segmentation task.
-    Args:
-      index:      an index of an image in the dataset
-    Returns a dict with keys:
-      image:      np.uint8 array corresponding to an image
-      mask:       np.uint8 array corresponding to a mask if exists, or None
-      objects:    np.int32 array of shape [Nx5]. Each row is x1,y1,width,height,classname
-      imagefile:  the image id
-    '''
+  def _loadEntry(self, index):
     image_entry = self.image_entries[index]
     img, mask = self._load_image(image_entry)
 
@@ -70,15 +55,38 @@ class ImagesDataset(Dataset):
       self.where_object, (imagefile,))
     object_entries = self.c.fetchall()
 
-    return {'image': img, 'mask': mask, 'objects': object_entries,
+    return {'input': img}, \
+           {'mask': mask, 'objects': object_entries,
             'imagefile': imagefile, 'name': imagename}
 
+  def __getitem__(self, index):
+    ' Generate one batch of data. '
+
+    # Generate indexes of the batch.
+    indexes = self.indexes[index*self.batch_size:(index+1)*self.batch_size]
+    Xs, Ys = [self._loadEntry(index) for index in indexes]
+
+    # A list of dicts to a dict of lists, for both Xs and Ys.
+    Xs = {k: [dic[k] for dic in Xs] for k in Xs[0]}
+    Ys = {k: [dic[k] for dic in Ys] for k in Ys[0]}
+
+    return Xs, Ys
+
+  def on_epoch_end(self):
+    ' Updates indexes after each epoch. '
+    self.indexes = np.arange(len(self.image_entries))
+    if self.shuffle:
+      np.random.shuffle(self.indexes)
 
 
-class ObjectsDataset(Dataset):
+class ObjectsGenerator(Sequence):
   ''' Items of a dataset are objects. '''
 
-  def __init__(self, db_file, rootdir='.', where_object='TRUE', copy_to_memory=True):
+  def __init__(self, db_file, rootdir='.', where_object='TRUE',
+               copy_to_memory=True, batch_size=32, shuffle=True):
+
+    self.batch_size = batch_size
+    self.shuffle = shuffle
 
     if copy_to_memory:
       self.conn = sqlite3.connect(':memory:') # create a memory database
@@ -98,23 +106,15 @@ class ObjectsDataset(Dataset):
 
     self.imreader = MediaReader(rootdir=rootdir)
 
+    self.on_epoch_end()
+
   def close(self):
     self.conn.close()
 
   def __len__(self):
     return len(self.object_entries)
 
-  def __getitem__(self, index):
-    '''Used to train for classification / segmentation of individual objects.
-    Args:
-      index:      an index of an image in the dataset
-    Returns a dict with keys:
-      image:      np.uint8 array corresponding to an image
-      mask:       np.uint8 array corresponding to a mask if exists, or None
-      class:      a string with object class name
-      imagefile:  the image id
-      all key-value pairs from the "properties" table
-    '''
+  def _loadEntry(self, index):
     object_entry = self.object_entries[index]
 
     objectid = objectField(object_entry, 'objectid')
@@ -134,16 +134,35 @@ class ObjectsDataset(Dataset):
     img = img[roi[0]:roi[2], roi[1]:roi[3]]
     mask = mask[roi[0]:roi[2], roi[1]:roi[3]] if mask is not None else None
 
-    item = {'image': img, 'mask': mask, 'class': name, 'imagefile': imagefile,
-            'objectid': objectid}
+    X = {'image': img}
+    Y = {'mask': mask, 'class': name, 'imagefile': imagefile, 'objectid': objectid}
 
     # Add properties.
     self.c.execute('SELECT key,value FROM properties WHERE objectid=?', (objectid,))
     for key, value in self.c.fetchall():
-      item[key] = value
+      X[key] = value
 
-    return item
+    return X, Y
     
+  def __getitem__(self, index):
+    ' Generate one batch of data. '
+
+    # Generate indexes of the batch.
+    indexes = self.indexes[index*self.batch_size:(index+1)*self.batch_size]
+    Xs, Ys = [self._loadEntry(index) for index in indexes]
+
+    # A list of dicts to a dict of lists, for both Xs and Ys.
+    Xs = {k: [dic[k] for dic in Xs] for k in Xs[0]}
+    Ys = {k: [dic[k] for dic in Ys] for k in Ys[0]}
+
+    return Xs, Ys
+
+  def on_epoch_end(self):
+    ' Updates indexes after each epoch. '
+    self.indexes = np.arange(len(self.object_entries))
+    if self.shuffle:
+      np.random.shuffle(self.indexes)
+
 
 
 if __name__ == "__main__":
@@ -155,11 +174,11 @@ if __name__ == "__main__":
   args = parser.parse_args()
 
   if args.dataset_type == 'images':
-    dataset = ImagesDataset(args.in_db_file, rootdir=args.rootdir)
+    dataset = ImageGenerator(args.in_db_file, rootdir=args.rootdir)
     item = dataset.__getitem__(1)
     print (pformat(item))
 
   elif args.dataset_type == 'objects':
-    dataset = ObjectsDataset(args.in_db_file, rootdir=args.rootdir)
+    dataset = ObjectsGenerator(args.in_db_file, rootdir=args.rootdir)
     item = dataset.__getitem__(1)
     print (pformat(item))

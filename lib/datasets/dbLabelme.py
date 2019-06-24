@@ -10,9 +10,11 @@ import sqlite3
 from progressbar import progressbar
 from pprint import pformat
 import re
+from datetime import datetime
 
-from ..backendMedia import MediaReader
-from ..util import drawScoredPolygon
+from ..backendDb import makeTimeString
+from ..backendMedia import MediaReader, getPictureSize
+from ..util import drawScoredPolygon, polygons2bboxes
 
 
 def add_parsers(subparsers):
@@ -41,14 +43,31 @@ def importLabelmeParser(subparsers):
   parser = subparsers.add_parser('importLabelme',
     description='Import LabelMe annotations for a db.')
   parser.set_defaults(func=importLabelme)
+  parser.add_argument('--images_dir', required=True,
+      help='Directory with jpg files. '
+      'Images should be already imported with "addPictures" or "addVideo".')
   parser.add_argument('--annotations_dir', required=True,
       help='Directory with xml files. '
-      'Images should be already imported with "addPictures" or "addImages".')
+      'Images should be already imported with "addPictures" or "addVideo".')
   parser.add_argument('--with_display', action='store_true')
 
 def importLabelme (c, args):
   if args.with_display:
     imreader = MediaReader(args.rootdir)
+
+  # Adding images.
+  image_paths = (glob(op.join(args.images_dir, '*.jpg')) + 
+                 glob(op.join(args.images_dir, '*.JPG')))
+  logging.info('Adding %d images.' % len(image_paths))
+  for image_path in progressbar(image_paths):
+    height, width = getPictureSize(image_path)
+    imagefile = op.relpath(op.abspath(image_path), args.rootdir)
+    timestamp = makeTimeString(datetime.now())
+    c.execute('INSERT INTO images('
+      'imagefile, width, height, timestamp) VALUES (?,?,?,?)',
+      (imagefile, width, height, timestamp))
+
+  # Adding annotations.
 
   c.execute('SELECT imagefile FROM images')
   imagefiles = c.fetchall()
@@ -57,7 +76,7 @@ def importLabelme (c, args):
   annotations_paths = os.listdir(args.annotations_dir)
 
   for imagefile, in progressbar(imagefiles):
-    logging.info ('Processing imagefile: "%s"' % imagefile)
+    logging.debug ('Processing imagefile: "%s"' % imagefile)
 
     # Find annotation files that match the imagefile.
     # There may be 1 or 2 dots because of some bug/feature in LabelMe.
@@ -65,12 +84,12 @@ def importLabelme (c, args):
     logging.debug('Will try to match %s' % regex)
     matches = [f for f in annotations_paths if re.match(regex, f)]
     if len(matches) == 0:
-      logging.info('Annotation file does not exist: "%s". Skip image.' % imagefile)
+      logging.debug('Annotation file does not exist: "%s". Skip image.' % imagefile)
       continue
     elif len(matches) > 1:
       logging.warning('Found multiple files: %s' % pformat(matches))
     annotation_file = op.join(args.annotations_dir, matches[0])
-    logging.info('Got a match %s' % annotation_file)
+    logging.debug('Got a match %s' % annotation_file)
 
     # get dimensions
     c.execute('SELECT height,width FROM images WHERE imagefile=?', (imagefile,))
@@ -113,6 +132,7 @@ def importLabelme (c, args):
         args.with_display = False
         cv2.destroyWindow('importLabelmeImages')
 
+  polygons2bboxes(c)
 
 
 def importLabelmeObjectsParser(subparsers):

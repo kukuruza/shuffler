@@ -328,3 +328,55 @@ def cropPatch(image, roi, target_height, target_width, edge):
 
   patch = cv2.resize(patch, dsize=(target_width, target_height))
   return patch
+
+
+def bboxes2polygons(cursor):
+  cursor.execute('SELECT * FROM objects WHERE objectid NOT IN '
+           '(SELECT objectid FROM polygons)')
+  for object_entry in progressbar(cursor.fetchall()):
+    objectid = objectField(object_entry, 'objectid')
+    cursor.execute('SELECT x,y FROM polygons WHERE objectid=?', (objectid,))
+    polygons = cursor.fetchall()
+    if len(polygons) == 0:
+      y1,x1,y2,x2 = objectField(object_entry, 'roi')
+      for x, y in [(x1,y1), (x2,y1), (x2,y2), (x1,y2)]:
+        cursor.execute('INSERT INTO polygons(objectid,x,y,name) VALUES (?,?,?,"bounding box")', (objectid,x,y))
+
+
+def polygons2bboxes(cursor):
+  cursor.execute('SELECT objectid FROM objects')
+  for objectid, in progressbar(cursor.fetchall()):
+    cursor.execute('SELECT COUNT(1) FROM polygons WHERE objectid == ?', (objectid,))
+    if cursor.fetchone()[0] == 0:
+      logging.debug('Objectid %d does not have polygons.' % objectid)
+      continue
+    cursor.execute('UPDATE objects SET x1=(SELECT MIN(x) FROM polygons WHERE objectid=?) WHERE objectid=?', (objectid, objectid))
+    cursor.execute('UPDATE objects SET y1=(SELECT MIN(y) FROM polygons WHERE objectid=?) WHERE objectid=?', (objectid, objectid))
+    cursor.execute('UPDATE objects SET width=(SELECT MAX(x) FROM polygons WHERE objectid=?) - x1 WHERE objectid=?', (objectid, objectid))
+    cursor.execute('UPDATE objects SET height=(SELECT MAX(y) FROM polygons WHERE objectid=?) - y1 WHERE objectid=?', (objectid, objectid))
+
+
+def polygons2mask(cursor, objectid):
+
+  c.execute('SELECT width,height FROM images i INNER JOIN '
+            'objects o ON i.imagefile=o.imagefile WHERE objectid=?', (objectid,))
+  width, height = c.fetchone()
+  mask = np.zeros((height, width), dtype=np.int32)
+
+  # Iterate multiple polygons (if any) of the object.
+  c.execute('SELECT DISTINCT(name) FROM polygons WHERE objectid=?', (objectid,))
+  polygon_names = c.fetchall()
+  for polygon_name, in polygon_names:
+
+    # Draw a polygon.
+    if polygon_name is None:
+      c.execute('SELECT x,y FROM polygons WHERE objectid=?', (objectid,))
+    else:
+      c.execute('SELECT x,y FROM polygons WHERE objectid=? AND name=?', (objectid, polygon_name))
+    pts = [[pt[0], pt[1]] for pt in c.fetchall()]
+    logging.debug('Polygon "%s" of object %d consists of points: %s' % (polygon_name, objectid, str(pts)))
+    cv2.fillPoly(mask, np.asarray(pts, dtype=np.int32), 255)
+
+  mask = mask.astype(np.uint8)
+  return mask
+  

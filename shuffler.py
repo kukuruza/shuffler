@@ -10,7 +10,8 @@ from itertools import groupby
 from lib.util import copyWithBackup
 from lib.backendDb import createDb
 from lib import dbGui, dbInfo, dbFilter, dbModify, dbMedia, dbEvaluate, dbLabel
-from lib.datasets import dbLabelme, dbKitti, dbPascal, dbBdd, dbDetrac, dbCityscapes
+from lib.datasets import dbLabelme, dbKitti, dbPascal, dbBdd, dbDetrac
+from lib.datasets import dbCityscapes, dbCoco
 
 
 def connect (in_db_path=None, out_db_path=None):
@@ -91,6 +92,7 @@ dbPascal.add_parsers(subparsers)
 dbBdd.add_parsers(subparsers)
 dbDetrac.add_parsers(subparsers)
 dbCityscapes.add_parsers(subparsers)
+dbCoco.add_parsers(subparsers)
 
 # Split command-line arguments into subcommands by special symbol "|".
 argv_splits = [list(group) for k, group in groupby(sys.argv[1:], lambda x: x == '|') if not k]
