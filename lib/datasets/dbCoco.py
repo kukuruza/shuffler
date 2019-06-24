@@ -161,7 +161,7 @@ def exportCoco (c, args):
     # Get polygons.
     c.execute('SELECT DISTINCT(name) FROM polygons WHERE objectid=?', (objectid,))
     polygon_names = c.fetchall()
-    polygons = []
+    polygons_coco = []
     for polygon_name, in polygon_names:
       if polygon_name is None:
         c.execute('SELECT x,y FROM polygons WHERE objectid=? AND name IS NULL', (objectid,))
@@ -174,7 +174,7 @@ def exportCoco (c, args):
 
     # Get area.
     mask = polygons2mask(c, objectid)
-    area = mask.count_nonzero()
+    area = np.count_nonzero(mask)
 
     annotations.append({
       "id" : objectid, "image_id" : imageid, "category_id" : categoryids[name],

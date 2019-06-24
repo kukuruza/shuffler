@@ -303,7 +303,7 @@ def polygonsToMask (c, args):
         pts = [[pt[0], pt[1]] for pt in c.fetchall()]
         logging.debug('Polygon "%s" of object %d consists of points: %s' % (polygon_name, objectid, str(pts)))
         mask_per_polygon = np.zeros((height, width), dtype=np.int32)
-        cv2.fillPoly(mask_per_polygon, np.asarray(pts, dtype=np.int32), 255)
+        cv2.fillConvexPoly(mask_per_polygon, np.asarray(pts, dtype=np.int32), 255)
         mask_per_object += mask_per_polygon
 
       # Area inside all polygons is white, outside all polygons is black, else gray.
