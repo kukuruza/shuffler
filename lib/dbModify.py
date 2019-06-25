@@ -679,44 +679,70 @@ def renameObjects (c, args):
 def resizeAnnotationsParser(subparsers):
   parser = subparsers.add_parser('resizeAnnotations',
     description='Resize all information about images and objects. '
-      'Use when images were scaled and the annotations need to be updated. '
-      'This command does not scale images themselves.')
-#  parser.add_argument('--where_image', default='TRUE',
-#    help='the SQL "where" clause for "images" table. '
-#    'E.g. to change imagefile of JPG pictures from directory "from/mydir" only, use: '
-#    '\'imagefile LIKE "from/mydir/%%"\'')
-  parser.add_argument('--target_width', type=int, required=True,
+    'Use when images were scaled and the annotations need to be updated. '
+    'This command does not scale images themselves. '
+    'The "old" image size is obtrained from "images" table.')
+  parser.add_argument('--where_image', default='TRUE',
+    help='the SQL "where" clause for "images" table. '
+    'E.g. to change imagefile of JPG pictures from directory "from/mydir" only, use: '
+    '\'imagefile LIKE "from/mydir/%%"\'')
+  parser.add_argument('--target_width', type=int, required=False,
     help='The width each image was scaled to.')
-  parser.add_argument('--target_height', type=int, required=True,
+  parser.add_argument('--target_height', type=int, required=False,
     help='The height each image was scaled to.')
   parser.set_defaults(func=resizeAnnotations)
 
-# A very simple one, all images share the original and target widht,height.
 def resizeAnnotations(c, args):
-  c.execute('SELECT width,height FROM images')
-  width,height = c.fetchone()
-  c.execute('UPDATE images SET width=?,height=?', (args.target_width, args.target_height))
-  percent_x = args.target_width / float(width)
-  percent_y = args.target_height / float(height)
-  logging.info('Scaling with percent_x=%f, percent_y=%f' % (percent_x, percent_y))
+  
+  if args.target_width is None and args.target_height is None:
+    raise ValueError('One or both "target_width", "target_height" should be specified.')
 
-  c.execute('SELECT objectid,x1,y1,width,height FROM objects')
-  for objectid,x1,y1,width,height in c.fetchall():
-    if x1 is not None:
-      x1 = int(x1 * percent_x)
-    if y1 is not None:
-      y1 = int(y1 * percent_y)
-    if width is not None:
-      width = int(width * percent_x)
-    if height is not None:
-      height = int(height * percent_y)
-    c.execute('UPDATE objects SET x1=?,y1=?,width=?,height=? WHERE objectid=?',
-      (x1,y1,width,height,objectid))
+  # Process image by image.
+  c.execute('SELECT imagefile,width,height FROM images WHERE (%s)' % args.where_image)
+  for imagefile, old_width, old_height in progressbar(c.fetchall()):
 
-  c.execute('SELECT id,x,y FROM polygons')
-  for id_,x,y in c.fetchall():
-    x = int(x * percent_x)
-    y = int(y * percent_y)
-    c.execute('UPDATE polygons SET x=?,y=? WHERE id=?', (x,y,id_))
+    # Figure out scaling, depending on which of target_width and target_height is given.
+    if args.target_width is not None and args.target_height is not None:
+      percent_x = args.target_width / float(old_width)
+      percent_y = args.target_height / float(old_height)
+      target_width = args.target_width
+      target_height = args.target_height
+    if args.target_width is None and args.target_height is not None:
+      percent_y = args.target_height / float(old_height)
+      percent_x = percent_y
+      target_width = int(old_width * percent_x)
+      target_height = args.target_height
+    if args.target_width is not None and args.target_height is None:
+      percent_x = args.target_width / float(old_width)
+      percent_y = percent_x
+      target_width = args.target_width
+      target_height = int(old_height * percent_y)
+    logging.info('Scaling "%s" with percent_x=%.2f, percent_y=%.2f' % 
+        (imagefile, percent_x, percent_y))
+
+    # Update images.
+    c.execute('UPDATE images SET width=?,height=? WHERE imagefile=?',
+        (target_width, target_height, imagefile))
+
+    # Update objects.
+    c.execute('SELECT objectid,x1,y1,width,height FROM objects WHERE imagefile=?', (imagefile,))
+    for objectid,x1,y1,width,height in c.fetchall():
+      if x1 is not None:
+        x1 = int(x1 * percent_x)
+      if y1 is not None:
+        y1 = int(y1 * percent_y)
+      if width is not None:
+        width = int(width * percent_x)
+      if height is not None:
+        height = int(height * percent_y)
+      c.execute('UPDATE objects SET x1=?,y1=?,width=?,height=? WHERE objectid=?',
+        (x1,y1,width,height,objectid))
+
+    # Update polygons.
+    c.execute('SELECT id,x,y FROM polygons p INNER JOIN objects o ON o.objectid=p.objectid WHERE imagefile=?', (imagefile,))
+    for id_,x,y in c.fetchall():
+      x = int(x * percent_x)
+      y = int(y * percent_y)
+      c.execute('UPDATE polygons SET x=?,y=? WHERE id=?', (x,y,id_))
 
 
