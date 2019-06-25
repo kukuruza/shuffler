@@ -168,7 +168,6 @@ def exportCoco (c, args):
       else:
         c.execute('SELECT x,y FROM polygons WHERE objectid=? AND name=?', (objectid,polygon_name))
       polygon = c.fetchall()
-      cv2.drawContours
       polygon_coco = np.array(polygon).flatten().tolist()  # to [x1, y1, x2, y2, ... xn, yn].
       polygons_coco.append(polygon_coco)
 

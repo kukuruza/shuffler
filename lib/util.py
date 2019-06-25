@@ -365,6 +365,7 @@ def polygons2mask(cursor, objectid):
   mask = np.zeros((height, width), dtype=np.int32)
 
   # Iterate multiple polygons (if any) of the object.
+  polygons = []
   cursor.execute('SELECT DISTINCT(name) FROM polygons WHERE objectid=?', (objectid,))
   for polygon_name, in cursor.fetchall():
 
@@ -375,7 +376,10 @@ def polygons2mask(cursor, objectid):
       cursor.execute('SELECT x,y FROM polygons WHERE objectid=? AND name=?', (objectid, polygon_name))
     pts = [[pt[0], pt[1]] for pt in cursor.fetchall()]
     logging.debug('Polygon "%s" of object %d consists of points: %s' % (polygon_name, objectid, str(pts)))
-    cv2.fillConvexPoly(mask, np.asarray(pts, dtype=np.int32), 255)
+    polygons.append(pts)
+
+  logging.info('objectid %d has %d polygons.' % (objectid, len(polygons)))
+  cv2.fillPoly(mask, np.asarray(polygons, dtype=np.int32), 255)
 
   mask = mask.astype(np.uint8)
   return mask
