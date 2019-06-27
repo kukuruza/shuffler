@@ -250,11 +250,15 @@ def filterObjectsByName (c, args):
 
 def filterEmptyImagesParser(subparsers):
   parser = subparsers.add_parser('filterEmptyImages')
+  parser.add_argument('--where_image', default='TRUE',
+    help='the SQL "where" clause for "images" table. '
+    'E.g. to change imagefile of JPG pictures from directory "from/mydir" only, use: '
+    '\'imagefile LIKE "from/mydir/%%"\'')
   parser.set_defaults(func=filterEmptyImages)
 
 def filterEmptyImages(c, args):
-  c.execute('SELECT imagefile FROM images WHERE imagefile NOT IN '
-            '(SELECT imagefile FROM objects)')
+  c.execute('SELECT imagefile FROM images WHERE (%s) AND imagefile NOT IN '
+            '(SELECT imagefile FROM objects)' % args.where_image)
   for imagefile, in progressbar(c.fetchall()):
     deleteImage(c, imagefile)
 

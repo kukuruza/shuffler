@@ -146,7 +146,6 @@ def exportCoco (c, args):
 
   # Objects.
   logging.info('Writing objects.')
-  polygons2bboxes(c)  # make sure we will write proper bboxes.
   annotations = []    # big list of images.
   categories_str = ', '.join(['"%s"' % c for c in categories])
   logging.debug('Will execute: "SELECT * FROM objects WHERE name IN (%s)"' % categories_str)
@@ -157,6 +156,7 @@ def exportCoco (c, args):
     imagefile = objectField(object_entry, 'imagefile')
     bbox      = objectField(object_entry, 'bbox')
     imageid = imageids[imagefile]
+    polygons2bboxes(c, objectid)  # Write proper bboxes.
     
     # Get polygons.
     c.execute('SELECT DISTINCT(name) FROM polygons WHERE objectid=?', (objectid,))

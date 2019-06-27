@@ -12,6 +12,7 @@ def add_parsers(subparsers):
   plotHistogramParser(subparsers)
   plotScatterParser(subparsers)
   plotStripParser(subparsers)
+  plotViolinParser(subparsers)
   printInfoParser(subparsers)
   dumpDbParser(subparsers)
 
@@ -28,13 +29,15 @@ def plotHistogramParser(subparsers):
   parser = subparsers.add_parser('plotHistogram',
     description='Get a 1d histogram plot of a field in the db.')
   parser.set_defaults(func=plotHistogram)
-  parser.add_argument('sql',
+  parser.add_argument('--sql',
     help='SQL query for ONE field, the "x" in the plot. '
     'Example: \'SELECT value FROM properties WHERE key="pitch"\'')
   parser.add_argument('--xlabel')
   parser.add_argument('--ylog', action='store_true')
   parser.add_argument('--bins', type=int)
   parser.add_argument('--xlim', type=float, nargs='+')
+  parser.add_argument('--rotate_xlabels', type=float, default=0.,
+    help='Rotate labels of x-axis ticks.')
   parser.add_argument('--categorical', action='store_true')
   parser.add_argument('--display', action='store_true')
   parser.add_argument('--out_path')
@@ -63,12 +66,11 @@ def plotHistogram(c, args):
     import pandas as pd
     import seaborn as sns
     data = pd.DataFrame({args.xlabel: xlist})
-    ax = sns.countplot(x="name", data=data, order=data[args.xlabel].value_counts().index)
+    ax = sns.countplot(x=args.xlabel, data=data, order=data[args.xlabel].value_counts().index)
   else:
-    if args.bins:
-      ax.hist(xlist, args.bins)
-    else:
-      ax.hist(xlist)
+    ax.hist(xlist, bins=args.bins)
+  plt.xticks(rotation=args.rotate_xlabels)
+  #fig.subplots_adjust(bottom=0.25)
 
   if args.xlim:
     if not len(args.xlim) == 2:
@@ -90,7 +92,7 @@ def plotStripParser(subparsers):
   parser = subparsers.add_parser('plotStrip',
     description='Get a "strip" plot of two fields in the db.')
   parser.set_defaults(func=plotStrip)
-  parser.add_argument('sql',
+  parser.add_argument('--sql',
     help='SQL query for TWO fields, the "x" and the "y" in the plot. '
     'Example: \'SELECT p1.value, p2.value FROM properties p1 '
     'INNER JOIN properties p2 ON p1.objectid=p2.objectid '
@@ -102,6 +104,8 @@ def plotStripParser(subparsers):
   parser.add_argument('--ylabel', required=True)
   parser.add_argument('--jitter', action='store_true')
   parser.add_argument('--ylog', action='store_true')
+  parser.add_argument('--rotate_xlabels', type=float, default=0.,
+    help='Rotate labels of x-axis ticks.')
   parser.add_argument('--display', action='store_true')
   parser.add_argument('--out_path')
 
@@ -131,9 +135,67 @@ def plotStrip(c, args):
   fig, ax = plt.subplots()
   data = pd.DataFrame({args.xlabel: xlist, args.ylabel: ylist})
   ax = sns.stripplot(x=args.xlabel, y=args.ylabel, data=data, jitter=args.jitter)
+  plt.xticks(rotation=args.rotate_xlabels)
+  #fig.subplots_adjust(bottom=0.25)
 
   if args.ylog:
     ax.set_yscale('log', nonposy='clip')
+  plt.xlabel(args.xlabel)
+  plt.ylabel(args.ylabel)
+  if args.out_path:
+    logging.info('Saving to %s' % args.out_path)
+    plt.savefig(args.out_path)
+  if args.display:
+    plt.show()
+
+
+def plotViolinParser(subparsers):
+  parser = subparsers.add_parser('plotViolin',
+    description='Get a "violin" plot of two fields in the db.')
+  parser.set_defaults(func=plotViolin)
+  parser.add_argument('--sql',
+    help='SQL query for TWO fields, the "x" and the "y" in the plot. '
+    'Example: \'SELECT p1.value, p2.value FROM properties p1 '
+    'INNER JOIN properties p2 ON p1.objectid=p2.objectid '
+    'WHERE p1.key="pitch" AND p2.key="yaw"\'')
+#    'Example: \'SELECT name, p1.value, p2.value FROM objects '
+#    'INNER JOIN properties p1 ON objects.objectid=p1.objectid INNER JOIN properties p2 '
+#    'ON p1.objectid=p2.objectid WHERE name="bus" AND p1.key="pitch" AND p2.key="yaw"\'')
+  parser.add_argument('--xlabel', required=True)
+  parser.add_argument('--ylabel', required=True)
+  parser.add_argument('--rotate_xlabels', type=float, default=0.,
+    help='Rotate labels of x-axis ticks.')
+  parser.add_argument('--display', action='store_true')
+  parser.add_argument('--out_path')
+
+def plotViolin(c, args):
+  import matplotlib.pyplot as plt
+  import pandas as pd
+  import seaborn as sns
+
+  c.execute(args.sql)
+  entries = c.fetchall()
+  
+  # Clean data.
+  if not entries:
+    logging.info('No entries, nothing to draw.')
+    return
+  if len(entries[0]) != 2:
+    raise ValueError('Must query for 2 fields, not %d.' % len(entries[0]))
+  xylist = [(x,y) for (x,y) in entries if x is not None and y is not None]
+  logging.info('%d entries have both fields non-None.' % len(xylist))
+
+  # From a list of tuples to two lists.
+  xlist, ylist = tuple(map(list, zip(*xylist)))
+  xlist = _maybeNumerizeProperty(xlist)
+  ylist = _maybeNumerizeProperty(ylist)
+  logging.debug('%s\n%s' % (str(xlist), str(ylist)))
+
+  data = pd.DataFrame({args.xlabel: xlist, args.ylabel: ylist})
+  g = sns.catplot(x=args.xlabel, y=args.ylabel, kind="violin", inner="quartiles", split=True, data=data)
+  plt.xticks(rotation=args.rotate_xlabels)
+  #fig.subplots_adjust(bottom=0.25)
+
   plt.xlabel(args.xlabel)
   plt.ylabel(args.ylabel)
   if args.out_path:
@@ -147,13 +209,15 @@ def plotScatterParser(subparsers):
   parser = subparsers.add_parser('plotScatter',
     description='Get a 2d scatter plot of TWO fields.')
   parser.set_defaults(func=plotScatter)
-  parser.add_argument('sql',
+  parser.add_argument('--sql',
     help='SQL query for TWO fields, the "x" and the "y" in the plot. '
     'Example: \'SELECT p1.value, p2.value FROM properties p1 '
     'INNER JOIN properties p2 ON p1.objectid=p2.objectid '
     'WHERE p1.key="pitch" AND p2.key="yaw"\'')
   parser.add_argument('--xlabel', required=True)
   parser.add_argument('--ylabel', required=True)
+  parser.add_argument('--rotate_xlabels', type=float, default=0.,
+    help='Rotate labels of x-axis ticks.')
   parser.add_argument('--display', action='store_true')
   parser.add_argument('--out_path')
 
@@ -183,6 +247,9 @@ def plotScatter(c, args):
   plt.xlabel(args.xlabel)
   plt.ylabel(args.ylabel)
   plt.tight_layout()
+  plt.xticks(rotation=args.rotate_xlabels)
+  #fig.subplots_adjust(bottom=0.25)
+
   if args.display:
     plt.show()
   if args.out_path:

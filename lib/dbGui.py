@@ -70,7 +70,7 @@ def examineImagesParser(subparsers):
   parser = subparsers.add_parser('examineImages',
     description='Loop through images. Possibly, assign names to images.')
   parser.set_defaults(func=examineImages)
-  parser.add_argument('--where_images', default='TRUE',
+  parser.add_argument('--where_image', default='TRUE',
     help='the SQL "where" clause for the "images" table.')
   parser.add_argument('--mask_mapping_dict', 
     help='how values in maskfile are displayed. E.g. "{\'[1,254]\': [0,0,0], 255: [128,128,30]}"')
@@ -87,7 +87,7 @@ def examineImagesParser(subparsers):
     help='draw image score on top of the image.')
   parser.add_argument('--with_imagefile', action='store_true',
     help='draw imagefile on top of the image.')
-  parser.add_argument('--winsize', type=int, default=500)
+  parser.add_argument('--winsize', type=int, default=1000)
   parser.add_argument('--key_dict',
     default='{"-": "previous", "=": "next", " ": "snapshot", 127: "delete", 27: "exit"}')
   parser.add_argument('--snapshot_dir',
@@ -96,7 +96,7 @@ def examineImagesParser(subparsers):
 def examineImages (c, args):
   cv2.namedWindow("examineImages")
 
-  c.execute('SELECT * FROM images WHERE (%s)' % args.where_images)
+  c.execute('SELECT * FROM images WHERE (%s)' % args.where_image)
   image_entries = c.fetchall()
   logging.info('%d images found.' % len(image_entries))
   if len(image_entries) == 0:
@@ -215,9 +215,9 @@ def examineObjectsParser(subparsers):
     description='Loop through objects.')
   parser.set_defaults(func=examineObjects)
   parser.add_argument('--shuffle', action='store_true')
-  parser.add_argument('--where_objects', default='TRUE',
+  parser.add_argument('--where_object', default='TRUE',
     help='the SQL "where" clause for the "objects" table.')
-  parser.add_argument('--winsize', type=int, default=500)
+  parser.add_argument('--winsize', type=int, default=1000)
   parser.add_argument('--key_dict', 
     default='{"-": "previous", "=": "next", 27: "exit", 127: "delete", " ": "unname"}')
   # TODO: add display of mask.
@@ -225,10 +225,10 @@ def examineObjectsParser(subparsers):
 def examineObjects (c, args):
   cv2.namedWindow("examineObjects")
 
-  c.execute('SELECT COUNT(*) FROM objects WHERE (%s) ' % args.where_objects)
+  c.execute('SELECT COUNT(*) FROM objects WHERE (%s) ' % args.where_object)
   logging.info('Found %d objects in db.' % c.fetchone()[0])
 
-  c.execute('SELECT DISTINCT imagefile FROM objects WHERE (%s) ' % args.where_objects)
+  c.execute('SELECT DISTINCT imagefile FROM objects WHERE (%s) ' % args.where_object)
   image_entries = c.fetchall()
   logging.info('%d images found.' % len(image_entries))
   if len(image_entries) == 0:
@@ -255,7 +255,7 @@ def examineObjects (c, args):
     scale = float(args.winsize) / max(image.shape[0:2])
     image = cv2.resize(image, dsize=(0,0), fx=scale, fy=scale)
 
-    c.execute('SELECT * FROM objects WHERE imagefile=? AND (%s)' % args.where_objects, (imagefile,))
+    c.execute('SELECT * FROM objects WHERE imagefile=? AND (%s)' % args.where_object, (imagefile,))
     object_entries = c.fetchall()
     logging.info ('Found %d objects for image %s' % (len(object_entries), imagefile))
 
@@ -274,8 +274,10 @@ def examineObjects (c, args):
       if len(polygon_entries) > 0:
         logging.info('showing object with a polygon.')
         polygon = [(polygonField(p, 'x'), polygonField(p, 'y')) for p in polygon_entries]
-        scaled_polygon = [(int(scale * x), int(scale * y)) for x, y in polygon]
-        drawScoredPolygon (image, scaled_polygon, label=None, score=score)
+        logging.debug('nonscaled polygon: %s' % pformat(polygon))
+        polygon = [(int(scale * x), int(scale * y)) for x, y in polygon]
+        logging.debug('scaled polygon: %s' % pformat(polygon))
+        drawScoredPolygon (image, polygon, label=None, score=score)
       elif roi is not None:
         logging.info('showing object with a bounding box.')
         drawScoredRoi (image, scaledroi, label=None, score=score)
@@ -323,11 +325,6 @@ def examineObjects (c, args):
     elif action == 'unname' and len(object_entries) > 0:
       logging.info('Remove the name from objectid "%s"' % objectid)
       c.execute('UPDATE objects SET name=NULL WHERE objectid=?', (objectid,))
-    elif len(object_entries) > 0:
-      # User pressed something else which has an assigned action, assume it is a new name.
-      objectid = objectField(object_entry, 'objectid')
-      logging.info('Setting name "%s" to objectid "%s"' % (action, objectid))
-      c.execute('UPDATE objects SET name=? WHERE objectid=?', (action, objectid))
     index_image = index_image % len(image_entries)
 
   cv2.destroyWindow("examineObjects")
@@ -339,9 +336,9 @@ def labelObjectsParser(subparsers):
     'i.e. assign the value of user-defined property.')
   parser.set_defaults(func=labelObjects)
   parser.add_argument('--shuffle', action='store_true')
-  parser.add_argument('--where_objects', default='TRUE',
+  parser.add_argument('--where_object', default='TRUE',
     help='the SQL "where" clause for the "objects" table.')
-  parser.add_argument('--winsize', type=int, default=500)
+  parser.add_argument('--winsize', type=int, default=1000)
   parser.add_argument('--property', required=True,
     help='name of the property being labelled')
   parser.add_argument('--key_dict',
@@ -351,10 +348,10 @@ def labelObjectsParser(subparsers):
 def labelObjects (c, args):
   cv2.namedWindow("labelObjects")
 
-  c.execute('SELECT COUNT(*) FROM objects WHERE (%s) ' % args.where_objects)
+  c.execute('SELECT COUNT(*) FROM objects WHERE (%s) ' % args.where_object)
   logging.info('Found %d objects in db.' % c.fetchone()[0])
 
-  c.execute('SELECT * FROM objects WHERE (%s)' % args.where_objects)
+  c.execute('SELECT * FROM objects WHERE (%s)' % args.where_object)
   object_entries = c.fetchall()
   logging.info('Found %d objects in db.' % len(object_entries))
   if len(object_entries) == 0:
@@ -384,10 +381,12 @@ def labelObjects (c, args):
       bbox         = objectField(object_entry, 'bbox')
       roi          = objectField(object_entry, 'roi')
       imagefile    = objectField(object_entry, 'imagefile')
+      logging.info('imagefile: %s' % imagefile)
       image = imreader.imread(imagefile)
 
       # Display an image, wait for the key from user, and parse that key.
       scale = float(args.winsize) / max(image.shape[0:2])
+      logging.debug('Will resize image and annotations with scale: %f' % scale)
       image = cv2.resize(image, dsize=(0,0), fx=scale, fy=scale)
 
       logging.info ('objectid: %d, roi: %s' % (objectid, roi))
@@ -396,11 +395,15 @@ def labelObjects (c, args):
       if len(polygon_entries) > 0:
         logging.info('showing object with a polygon.')
         polygon = [(polygonField(p, 'x'), polygonField(p, 'y')) for p in polygon_entries]
-        polygon = [(int(scale * p[0]), int(scale * p[1])) for p in polygon_entries]
+        logging.debug('nonscaled polygon: %s' % pformat(polygon))
+        polygon = [(int(scale * p[0]), int(scale * p[1])) for p in polygon]
+        logging.debug('scaled polygon: %s' % pformat(polygon))
         drawScoredPolygon (image, polygon, label=None, score=None)
       elif roi is not None:
         logging.info('showing object with a bounding box.')
+        logging.debug('nonscaled roi: %s' % pformat(roi))
         roi = [int(scale * r) for r in roi]  # For displaying the scaled image.
+        logging.debug('scaled roi: %s' % pformat(roi))
         drawScoredRoi (image, roi, label=None, score=None)
       else:
         raise Exception('Neither polygon, nor bbox is available for objectid %d' % objectid)
@@ -431,7 +434,7 @@ def labelObjects (c, args):
       go_next_object = True
     elif action is not None and action not in ['previous', 'next']:
       # User pressed something else which has an assigned action, assume it is a new value.
-      logging.info('Setting name "%s" to objectid "%s"' % (action, objectid))
+      logging.info('Setting label "%s" to objectid "%s"' % (action, objectid))
       if len(properties) > 0:
         c.execute('DELETE FROM properties WHERE objectid=? AND key=?', (objectid, args.property))
       c.execute('INSERT INTO properties(objectid,key,value) VALUES (?,?,?)',
@@ -462,7 +465,7 @@ def examineMatchesParser(subparsers):
                    Any key will scroll to the next image.''')
   parser.set_defaults(func=examineMatches)
   parser.add_argument('--shuffle', action='store_true')
-  parser.add_argument('--winsize', type=int, default=500)
+  parser.add_argument('--winsize', type=int, default=1000)
   parser.add_argument('--key_dict', 
       default='{"-": "previous", "=": "next", " ": "next", 27: "exit"}')
 
@@ -585,10 +588,10 @@ def labelMatchesParser(subparsers):
     'Press "exit" (key "Esc" by default) to save changes and exit. '
     'Pass "min_imagefile" to start with a certain image pair.')
   parser.set_defaults(func=labelMatches)
-  parser.add_argument('--where_images', default='TRUE',
+  parser.add_argument('--where_image', default='TRUE',
     help='the SQL "where" clause for the "images" table.')
   parser.add_argument('--shuffle', action='store_true')
-  parser.add_argument('--winsize', type=int, default=500)
+  parser.add_argument('--winsize', type=int, default=1000)
   parser.add_argument('--key_dict',
     default='{"-": "previous", "=": "next", 127: "delete_match", 27: "exit"}')
 
@@ -597,7 +600,7 @@ def labelMatches (c, args):
   cv2.setMouseCallback('labelMatches', _monitorPressRelease)
   global mousePressed, mouseReleased, xpress, ypress
 
-  c.execute('SELECT imagefile FROM images WHERE %s' % args.where_images)
+  c.execute('SELECT imagefile FROM images WHERE %s' % args.where_image)
   image_entries = c.fetchall()
   logging.debug ('Found %d images' % len(image_entries))
   if len(image_entries) < 2:

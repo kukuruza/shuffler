@@ -8,6 +8,8 @@ from progressbar import progressbar
 import simplejson as json
 import matplotlib.pyplot as plt  # for colormaps
 
+from .backendDb import objectField
+
 
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 SCALE = 28
@@ -331,30 +333,32 @@ def cropPatch(image, roi, target_height, target_width, edge):
   return patch
 
 
-def bboxes2polygons(cursor):
-  cursor.execute('SELECT * FROM objects WHERE objectid NOT IN '
-           '(SELECT objectid FROM polygons)')
-  for object_entry in progressbar(cursor.fetchall()):
-    objectid = objectField(object_entry, 'objectid')
-    cursor.execute('SELECT x,y FROM polygons WHERE objectid=?', (objectid,))
-    polygons = cursor.fetchall()
-    if len(polygons) == 0:
-      y1,x1,y2,x2 = objectField(object_entry, 'roi')
-      for x, y in [(x1,y1), (x2,y1), (x2,y2), (x1,y2)]:
-        cursor.execute('INSERT INTO polygons(objectid,x,y,name) VALUES (?,?,?,"bounding box")', (objectid,x,y))
+def bboxes2polygons(cursor, objectid):
+  # If there are already polygon entries, do nothing.
+  cursor.execute('SELECT COUNT(1) FROM polygons WHERE objectid=?', (objectid,))
+  if cursor.fetchone()[0] > 0:
+    return
+
+  cursor.execute('SELECT * FROM objects WHERE objectid=?', (objectid,))
+  object_entry = cursor.fetchone()
+  if object_entry is None:
+    raise ValueError('Objectid %d does not exist.' % objectid)
+  y1,x1,y2,x2 = objectField(object_entry, 'roi')
+  for x, y in [(x1,y1), (x2,y1), (x2,y2), (x1,y2)]:
+    cursor.execute('INSERT INTO polygons(objectid,x,y,name) VALUES (?,?,?,"bounding box")', (objectid,x,y))
+  logging.debug('Added polygon from bbox y1=%d,x1=%d,y2=%d,x2=%d to objectid %d' %
+      (y1, x1, y2, x2, objectid))
 
 
-def polygons2bboxes(cursor):
-  cursor.execute('SELECT objectid FROM objects')
-  for objectid, in progressbar(cursor.fetchall()):
-    cursor.execute('SELECT COUNT(1) FROM polygons WHERE objectid == ?', (objectid,))
-    if cursor.fetchone()[0] == 0:
-      logging.debug('Objectid %d does not have polygons.' % objectid)
-      continue
-    cursor.execute('UPDATE objects SET x1=(SELECT MIN(x) FROM polygons WHERE objectid=?) WHERE objectid=?', (objectid, objectid))
-    cursor.execute('UPDATE objects SET y1=(SELECT MIN(y) FROM polygons WHERE objectid=?) WHERE objectid=?', (objectid, objectid))
-    cursor.execute('UPDATE objects SET width=(SELECT MAX(x) FROM polygons WHERE objectid=?) - x1 WHERE objectid=?', (objectid, objectid))
-    cursor.execute('UPDATE objects SET height=(SELECT MAX(y) FROM polygons WHERE objectid=?) - y1 WHERE objectid=?', (objectid, objectid))
+def polygons2bboxes(cursor, objectid=None):
+  cursor.execute('SELECT COUNT(1) FROM polygons WHERE objectid == ?', (objectid,))
+  if cursor.fetchone()[0] == 0:
+    logging.debug('Objectid %d does not have polygons.' % objectid)
+    return
+  cursor.execute('UPDATE objects SET x1=(SELECT MIN(x) FROM polygons WHERE objectid=?) WHERE objectid=?', (objectid, objectid))
+  cursor.execute('UPDATE objects SET y1=(SELECT MIN(y) FROM polygons WHERE objectid=?) WHERE objectid=?', (objectid, objectid))
+  cursor.execute('UPDATE objects SET width=(SELECT MAX(x) FROM polygons WHERE objectid=?) - x1 WHERE objectid=?', (objectid, objectid))
+  cursor.execute('UPDATE objects SET height=(SELECT MAX(y) FROM polygons WHERE objectid=?) - y1 WHERE objectid=?', (objectid, objectid))
 
 
 def polygons2mask(cursor, objectid):

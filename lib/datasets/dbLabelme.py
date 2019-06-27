@@ -122,6 +122,8 @@ def importLabelme (c, args):
         c.execute('INSERT INTO polygons(objectid,x,y) VALUES (?,?,?);',
           (objectid, xs[i], ys[i]))
 
+      polygons2bboxes(c, objectid)  # Write proper bounding box.
+
       if args.with_display:
         pts = np.array([xs, ys], dtype=np.int32).transpose()
         drawScoredPolygon (img, pts, name, score=1)
@@ -131,8 +133,6 @@ def importLabelme (c, args):
       if cv2.waitKey(-1) == 27:
         args.with_display = False
         cv2.destroyWindow('importLabelmeImages')
-
-  polygons2bboxes(c)
 
 
 def importLabelmeObjectsParser(subparsers):
