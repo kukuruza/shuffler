@@ -83,6 +83,12 @@ conda install -y pandas seaborn
 conda install -y nose scikit-image
 ```
 
+The basic installation is okay if the following command does not break with an import error:
+
+```bash
+./shuffler.py printInfo
+```
+
 
 ## Instructions for the annotators
 

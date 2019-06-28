@@ -108,7 +108,8 @@ def exportCoco (c, args):
     timestamp = imageField(image_entry, 'timestamp')
     file_name = op.basename(imagefile)
     license = 1 if len(licenses) == 1 else None  # Only one license is supported.
-    date_captured = datetime.strftime(parseTimeString(timestamp), '%Y-%m-%d %H:%M:%S')
+    date_captured = datetime.strftime(parseTimeString(timestamp),
+        '%Y-%m-%d %H:%M:%S') if timestamp is not None else None
     # For reference in objects.
     imageids[imagefile] = imageid
     # Add to the big list of images.
@@ -124,7 +125,7 @@ def exportCoco (c, args):
         (old_image_path, args.rootdir))
     new_image_path = op.join(new_image_dir, file_name)
     if args.copy_images:
-      os.copyfile(old_image_path, new_image_path)
+      shutil.copyfile(old_image_path, new_image_path)
     elif args.symlink_images:
       os.symlink(op.abspath(old_image_path), new_image_path, target_is_directory=False)
     elif args.symlink_image_folder and not op.exists(new_image_dir):
