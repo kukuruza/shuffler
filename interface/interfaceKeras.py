@@ -45,20 +45,19 @@ class BareImageGenerator(Sequence):
     image_entry = self.image_entries[index]
     img = self._load_image(image_entry)
     imagefile = imageField(image_entry, 'imagefile')
-    return {'input': img}, {'imagefile': imagefile}
+    return {'image': img, 'imagefile': imagefile}
 
   def __getitem__(self, index):
     ' Generate one batch of data. '
 
     # Generate indexes of the batch.
     indexes = self.indexes[index*self.batch_size:(index+1)*self.batch_size]
-    Xs, Ys = [self._loadEntry(index) for index in indexes]
+    Xs = [self._loadEntry(index) for index in indexes]
 
     # A list of dicts to a dict of lists, for both Xs and Ys.
     Xs = {k: [dic[k] for dic in Xs] for k in Xs[0]}
-    Ys = {k: [dic[k] for dic in Ys] for k in Ys[0]}
 
-    return Xs, Ys
+    return Xs
 
   def on_epoch_end(self):
     ' Updates indexes after each epoch. '
