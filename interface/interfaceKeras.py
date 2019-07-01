@@ -1,4 +1,5 @@
-import sys, os, os.path as op
+import os, sys, os.path as op
+sys.path.append( os.path.dirname( os.path.dirname( os.path.abspath(__file__) ) ) )
 import numpy as np
 import argparse
 import logging
@@ -6,8 +7,62 @@ import sqlite3
 from pprint import pformat
 from keras.utils import Sequence
 
-from backendDb import imageField, objectField
-from backendMedia import MediaReader
+from utils import openConnection
+from lib.backendDb import imageField, objectField
+from lib.backendMedia import MediaReader
+
+
+class BareImageGenerator(Sequence):
+  ' Generates only images for Keras. '
+
+  def __init__(self, db_file, rootdir='.', where_image='TRUE',
+               copy_to_memory=True, batch_size=1, shuffle=True):
+    self.batch_size = batch_size
+    self.shuffle = shuffle
+
+    self.conn = openConnection(db_file, copy_to_memory=copy_to_memory)
+    self.c = self.conn.cursor()
+    self.c.execute('SELECT * FROM images WHERE %s ORDER BY imagefile' % where_image)
+    self.image_entries = self.c.fetchall()
+
+    self.imreader = MediaReader(rootdir=rootdir)
+
+    self.on_epoch_end()
+
+  def __len__(self):
+      ' Denotes the number of batches per epoch. '
+      return int(np.floor(len(self.image_entries) / self.batch_size))
+
+  def close(self):
+    self.conn.close()
+
+  def _load_image(self, image_entry):
+    logging.debug ('Reading image "%s"' % imageField(image_entry, 'imagefile'))
+    img = self.imreader.imread (imageField(image_entry, 'imagefile'))
+    return img
+
+  def _loadEntry(self, index):
+    image_entry = self.image_entries[index]
+    img = self._load_image(image_entry)
+    return {'input': img}
+
+  def __getitem__(self, index):
+    ' Generate one batch of data. '
+
+    # Generate indexes of the batch.
+    indexes = self.indexes[index*self.batch_size:(index+1)*self.batch_size]
+    Xs = [self._loadEntry(index) for index in indexes]
+
+    # A list of dicts to a dict of lists, for both Xs and Ys.
+    Xs = {k: [dic[k] for dic in Xs] for k in Xs[0]}
+
+    return Xs
+
+  def on_epoch_end(self):
+    ' Updates indexes after each epoch. '
+    self.indexes = np.arange(len(self.image_entries))
+    if self.shuffle:
+      np.random.shuffle(self.indexes)
 
 
 
@@ -19,6 +74,7 @@ class ImageGenerator(Sequence):
     self.batch_size = batch_size
     self.shuffle = shuffle
 
+    self.conn = openConnection(db_file, copy_to_memory=copy_to_memory)
     self.c = self.conn.cursor()
     self.c.execute('SELECT * FROM images WHERE %s ORDER BY imagefile' % where_image)
     self.image_entries = self.c.fetchall()
@@ -88,18 +144,7 @@ class ObjectsGenerator(Sequence):
     self.batch_size = batch_size
     self.shuffle = shuffle
 
-    if copy_to_memory:
-      self.conn = sqlite3.connect(':memory:') # create a memory database
-      disk_conn = sqlite3.connect(db_file)
-      query = ''.join(line for line in disk_conn.iterdump())
-      self.conn.executescript(query)
-    else:
-      try:
-        self.conn = sqlite3.connect('file:%s?mode=ro' % db_file, uri=True)
-      except TypeError:
-        logging.info('This Python version does not support connecting to SQLite by uri.')
-        self.conn = sqlite3.connect(db_file)
-
+    self.conn = openConnection(db_file, copy_to_memory=copy_to_memory)
     self.c = self.conn.cursor()
     self.c.execute('SELECT * FROM objects WHERE %s ORDER BY objectid' % where_object)
     self.object_entries = self.c.fetchall()
@@ -170,10 +215,15 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('-i', '--in_db_file', required=True)
   parser.add_argument('--rootdir', required=True)
-  parser.add_argument('--dataset_type', required=True, choices=['images', 'objects'])
+  parser.add_argument('--dataset_type', required=True, choices=['bare', 'images', 'objects'])
   args = parser.parse_args()
 
-  if args.dataset_type == 'images':
+  if args.dataset_type == 'bare':
+    dataset = BareImageGenerator(args.in_db_file, rootdir=args.rootdir)
+    item = dataset.__getitem__(1)
+    print (pformat(item))
+
+  elif args.dataset_type == 'images':
     dataset = ImageGenerator(args.in_db_file, rootdir=args.rootdir)
     item = dataset.__getitem__(1)
     print (pformat(item))

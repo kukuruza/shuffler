@@ -1,4 +1,5 @@
-import sys, os, os.path as op
+import os, sys, os.path as op
+sys.path.append( os.path.dirname( os.path.dirname( os.path.abspath(__file__) ) ) )
 import numpy as np
 import argparse
 import logging
@@ -6,8 +7,8 @@ import sqlite3
 from pprint import pformat
 from torch.utils.data import Dataset
 
-from backendDb import imageField, objectField
-from backendMedia import MediaReader
+from lib.backendDb import imageField, objectField
+from lib.backendMedia import MediaReader
 
 
 class ImagesDataset(Dataset):
