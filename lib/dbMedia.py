@@ -29,6 +29,8 @@ def cropMediaParser(subparsers):
   parser.set_defaults(func=cropMedia)
   parser.add_argument('--media', choices=['pictures', 'video'], required=True,
     help='output either a directory with pictures or a video file.')
+  parser.add_argument('--out_rootdir',
+    help='Specify, if rootdir changed for the output imagery.')
   parser.add_argument('--image_path', required=True,
     help='the directory for pictures OR video file, where to write mask crop pictures.')
   parser.add_argument('--mask_path',
@@ -41,7 +43,9 @@ def cropMediaParser(subparsers):
 
 def cropMedia(c, args):
   imreader = MediaReader(rootdir=args.rootdir)
-  imwriter = MediaWriter(media_type=args.media, rootdir=args.rootdir,
+  # Create a writer. Rootdir may be changed.
+  out_rootdir = args.out_rootdir if args.out_rootdir is not None else args.rootdir
+  imwriter = MediaWriter(rootdir=out_rootdir, media_type=args.media,
     image_media=args.image_path, mask_media=args.mask_path, overwrite=args.overwrite)
 
   target_width  = args.x2 - args.x1
@@ -148,6 +152,7 @@ def writeMediaParser(subparsers):
   parser = subparsers.add_parser('writeMedia',
     description='Export images as a directory with pictures or as a video, '
     'and change the database imagefiles and maskfiles to match the recordings.')
+  parser.set_defaults(func=writeMedia)
   parser.add_argument('--out_rootdir',
     help='Specify, if rootdir changed for the output imagery.')
   parser.add_argument('--where_image', default='TRUE',
@@ -168,7 +173,6 @@ def writeMediaParser(subparsers):
   parser.add_argument('--with_imageid', action='store_true', help='print frame number.')
   parser.add_argument('--with_objects', action='store_true', help='draw objects on top.')
   parser.add_argument('--overwrite', action='store_true', help='overwrite video if it exists.')
-  parser.set_defaults(func=writeMedia)
 
 def writeMedia (c, args):
   imreader = MediaReader(rootdir=args.rootdir)
@@ -226,11 +230,11 @@ def writeMedia (c, args):
         c.execute('SELECT * FROM polygons WHERE objectid=?', (objectid,))
         polygon_entries = c.fetchall()
         if len(polygon_entries) > 0:
-          logging.info('showing object with a polygon.')
+          logging.debug('showing object with a polygon.')
           polygon = [(polygonField(p, 'x'), polygonField(p, 'y')) for p in polygon_entries]
           drawScoredPolygon (image, polygon, label=name, score=score)
         elif roi is not None:
-          logging.info('showing object with a bounding box.')
+          logging.debug('showing object with a bounding box.')
           drawScoredRoi (image, roi, label=name, score=score)
         else:
           raise Exception('Neither polygon, nor bbox is available for objectid %d' % objectid)
@@ -335,6 +339,7 @@ def writeMediaGridByTimeParser(subparsers):
   parser = subparsers.add_parser('writeMediaGridByTime',
     description='Export images, arranged in a grid, as a directory with pictures or as a video. '
     'Grid arranged by directory of imagefile (imagedir), and can be set manually.')
+  parser.set_defaults(func=writeMediaGridByTime)
   parser.add_argument('--media', choices=['pictures', 'video'], required=True,
     help='output either a directory with pictures or a video file.')
   parser.add_argument('--image_path', required=True,
@@ -352,7 +357,6 @@ def writeMediaGridByTimeParser(subparsers):
     help='Draw time on top.')
   parser.add_argument('--overwrite', action='store_true',
     help='overwrite video if it exists.')
-  parser.set_defaults(func=writeMediaGridByTime)
 
 def writeMediaGridByTime (c, args):
   imreader = MediaReader(rootdir=args.rootdir)
