@@ -1,6 +1,5 @@
 import os, sys, os.path as op
 sys.path.append( os.path.dirname( os.path.dirname( os.path.abspath(__file__) ) ) )
-import os, sys, os.path as op
 import numpy as np
 import logging
 from pprint import pformat
@@ -25,6 +24,9 @@ class DatasetWriter:
 
   def __init__(self, out_db_file, rootdir='.', media='pictures',
                image_path=None, mask_path=None, overwrite=False):
+
+    if out_db_file is None:
+      raise TypeError('out_db_file is None')
 
     self.rootdir = rootdir
     self.media = media
@@ -58,6 +60,12 @@ class DatasetWriter:
 
   def __exit__(self, type, value, traceback):
       self.close()
+
+
+  def _checkValueIsNoneOrType(self, value, type_, name):
+    if value is not None and not isinstance(value, type_):
+      raise TypeError('%s should be of type %s, got %s' %
+          (name, str(type_), type(value)))
 
 
   def addImage(self, image_dict):
@@ -118,16 +126,18 @@ class DatasetWriter:
       # Check video on disk, and get the dimensions from user's input.
       elif self.media == 'video':
         videopath = op.join(self.rootdir, op.dirname(imagefile))
-        if not op.exists(imagepath):
+        if not op.exists(videopath):
           raise ValueError('Got imagefile "%s" with rootdir "%s", '
             'but cant find the video at "%s"' % (imagefile, self.rootdir, videopath))
         if 'height' not in image_dict or 'width' not in image_dict:
           # TODO: get the dimensions once for every video and store them,
           #       instead of asking user to provide it. Do it only if anybody
           #       is interested in this scenario.
-          raise ValueError('"height" and "width" should be specified in image_dict.')
+          raise KeyError('"height" and "width" should be specified in image_dict.')
         height = image_dict['height']
         width  = image_dict['width']
+        self._checkValueIsNoneOrType(value=height, type_=int, name='height')
+        self._checkValueIsNoneOrType(value=width, type_=int, name='width')
       else:
         assert False  # No other type of "media" for now.
 
@@ -155,7 +165,7 @@ class DatasetWriter:
       # Check video on disk, and get the dimensions from user's input.
       elif self.media == 'video':
         videopath = op.join(self.rootdir, op.dirname(maskfile))
-        if not op.exists(maskpath):
+        if not op.exists(videopath):
           raise ValueError('Got maskfile "%s" with rootdir "%s", '
             'but cant find the video at "%s"' % (maskfile, self.rootdir, videopath))
       else:
@@ -229,19 +239,34 @@ class DatasetWriter:
     name   = object_dict['name']   if 'name' in object_dict else None
     score  = object_dict['score']  if 'score' in object_dict else None
     
+    self._checkValueIsNoneOrType(value=width, type_=int, name='width')
+    self._checkValueIsNoneOrType(value=height, type_=int, name='height')
+    self._checkValueIsNoneOrType(value=x1, type_=int, name='x1')
+    self._checkValueIsNoneOrType(value=y1, type_=int, name='y1')
+    self._checkValueIsNoneOrType(value=score, type_=float, name='score')
+    
+    # Insert values into "objects" table.
     if 'objectid' in object_dict:
       objectid = object_dict['objectid']
-      self.c.execute('INSERT INTO objects(objectid,imagefile,x1,y1,width,height,name,score) '
-             'VALUES (?,?,?,?,?,?,?,?)', (objectid,imagefile,x1,y1,width,height,name,score))
+      object_entry = (objectid,imagefile,x1,y1,width,height,name,score)
+      s =    'objects(objectid,imagefile,x1,y1,width,height,name,score)'
+      logging.debug('Writing %s to %s (objectid is provided.)' % (object_entry, s))
+      self.c.execute('INSERT INTO %s VALUES (?,?,?,?,?,?,?,?)' % s, object_entry)
     else:
-      self.c.execute('INSERT INTO objects(imagefile,x1,y1,width,height,name,score) '
-               'VALUES (?,?,?,?,?,?,?)', (imagefile,x1,y1,width,height,name,score))
+      object_entry = (imagefile,x1,y1,width,height,name,score)
+      s =    'objects(imagefile,x1,y1,width,height,name,score)'
+      logging.debug('Writing %s to %s (objectid not provided.)' % (object_entry, s))
+      self.c.execute('INSERT INTO %s VALUES (?,?,?,?,?,?,?)' % s, object_entry)
       objectid = self.c.lastrowid
-    
+   
+    # Insert values into "properties" table.
     for key in object_dict:
       if key not in ['objectid', 'imagefile', 'x1', 'y1', 'width', 'height', 'name', 'score']:
-        self.c.execute('INSERT INTO properties(objectid,key,value) VALUES (?,?,?)',
-          (objectid, key, str(object_dict[key])))
+        property_entry = (objectid,key,str(object_dict[key]))
+        s =   'properties(objectid,key,value)'
+        logging.debug('Writing %s to %s' % (property_entry, s))
+        self.c.execute('INSERT INTO %s VALUES (?,?,?)' % s, property_entry)
+
     return objectid
     
 

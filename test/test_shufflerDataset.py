@@ -45,6 +45,8 @@ class TestDatasetWriter (unittest.TestCase):
   def test_init_needs_argument (self):
     with self.assertRaises(TypeError):
       self.writer = DatasetWriter()
+    with self.assertRaises(TypeError):
+      self.writer = DatasetWriter(None)
 
 
   def test_record_images (self):
@@ -149,7 +151,7 @@ class TestDatasetWriter (unittest.TestCase):
     self.assertEqual(image_entries[1][1], None)
 
 
-  def test_record_imagefile_maskfile_properties (self):
+  def test_record_imagefile_maskfile_and_fields (self):
     out_db_file = op.join(self.WORK_DIR, 'out.db')
     timestamp = '2019-07-01 11:42:43.001000'
     timestamp_start = datetime.now()
@@ -188,7 +190,7 @@ class TestDatasetWriter (unittest.TestCase):
     self.assertEqual(image_entries[0][3], 100)
     timestamp_written = datetime.strptime(image_entries[0][4], '%Y-%m-%d %H:%M:%S.%f')
     # The generated timestamp should be a fracetion of a second after timestamp_start.
-    self.assertLess(timestamp_written - timestamp_start, timedelta(seconds=0.1))
+    self.assertLess(timestamp_written - timestamp_start, timedelta(seconds=10))
     self.assertEqual(image_entries[0][5], None)
     self.assertEqual(image_entries[0][6], None)
 
@@ -200,6 +202,32 @@ class TestDatasetWriter (unittest.TestCase):
     self.assertEqual(image_entries[1][4], timestamp)
     self.assertEqual(image_entries[1][5], 'myname')
     self.assertEqual(image_entries[1][6], 0.5)
+
+
+  def test_record_imagefile_maskfile_from_video (self):
+    out_db_file = op.join(self.WORK_DIR, 'out.db')
+    video_path = op.join(self.WORK_DIR, 'images.avi')
+    # Write a dummy video file.
+    with open(video_path, 'w'):
+      pass
+
+    self.writer = DatasetWriter(out_db_file, rootdir=self.WORK_DIR, media='video')
+    self.writer.addImage({'imagefile': 'images.avi/000001',
+        'maskfile': 'images.avi/000001', 'width': 100, 'height': 100})
+
+    with self.assertRaises(TypeError):  # Bad "height" type.
+      self.writer.addImage({'imagefile': 'images.avi/000001',
+                            'width': 100, 'height': 100.1})
+    with self.assertRaises(TypeError):  # Bad "width" type.
+      self.writer.addImage({'imagefile': 'images.avi/000001',
+                            'width': np.ones(shape=(1,), dtype=int), 'height': 100.1})
+    with self.assertRaises(KeyError):  # Need keys "height", "width".
+      self.writer.addImage({'imagefile': 'images.avi/000001'})
+    with self.assertRaises(ValueError):
+      self.writer.addImage({'imagefile': 'nonexistant.avi/000001'})
+    with self.assertRaises(ValueError):
+      self.writer.addImage({'imagefile': 'images.avi/000001',
+          'maskfile': 'nonexistant.avi/000001', 'width': 100, 'height': 100})
 
 
   def test_record_objects (self):
@@ -238,6 +266,23 @@ class TestDatasetWriter (unittest.TestCase):
     self.assertEqual(objectid2, 2)
     self.assertEqual(objectField(object_entries[1], 'objectid'), 2)
     self.assertEqual(objectField(object_entries[1], 'imagefile'), 'myimagefile2')
+
+
+  def test_object_types (self):
+    out_db_file = op.join(self.WORK_DIR, 'out.db')
+
+    self.writer = DatasetWriter(out_db_file)
+
+    with self.assertRaises(TypeError):
+      self.writer.addObject({'imagefile': 'myimagefile', 'x1': 0.5})
+    with self.assertRaises(TypeError):
+      self.writer.addObject({'imagefile': 'myimagefile', 'y1': np.zeros(shape=(1,), dtype=int)})
+    with self.assertRaises(TypeError):
+      self.writer.addObject({'imagefile': 'myimagefile', 'width': 'badtype'})
+    with self.assertRaises(TypeError):
+      self.writer.addObject({'imagefile': 'myimagefile', 'height': 0.5})
+    with self.assertRaises(TypeError):
+      self.writer.addObject({'imagefile': 'myimagefile', 'score': 1})
 
 
   def test_record_matches (self):
