@@ -26,6 +26,9 @@ def connect (in_db_path=None, out_db_path=None):
     sqlite3.Connection
   '''
 
+  if in_db_path is not None and not op.exists(in_db_path):
+    raise FileNotFoundError('in_db_path specified but does not exist: %s' % in_db_path)
+      
   logging.info('in_db_path:  %s' % in_db_path)
   logging.info('out_db_path: %s' % out_db_path)
 
@@ -61,6 +64,13 @@ def connect (in_db_path=None, out_db_path=None):
     assert False
 
   return conn
+
+
+def runSubcommand(cursor, args):
+  print('=== %s ===' % args.func.__name__)
+  #cursor.execute('BEGIN TRANSACTION')
+  args.func(cursor, args)
+  #cursor.execute('END TRANSACTION')
 
 
 parser = argparse.ArgumentParser(description=
@@ -114,15 +124,13 @@ if not hasattr(args, 'func'):
   raise ValueError('Provide a sub-command. Use "./shuffler.py -h" for options.')
 
 # Main arguments and sub-command #1.
-print('=== %s ===' % args.func.__name__)
-args.func(cursor, args)
+runSubcommand(cursor, args)
 
 # Sub-commands #2 to last.
 for argv_split in argv_splits[1:]:
   args = parser.parse_args(argv_split)
   args.rootdir = rootdir  # This is the only argument that is used in all subcommands.
-  print('=== %s ===' % args.func.__name__)
-  args.func(cursor, args)
+  runSubcommand(cursor, args)
 
 if do_commit:
   conn.commit()

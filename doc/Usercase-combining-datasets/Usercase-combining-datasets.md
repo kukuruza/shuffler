@@ -299,7 +299,7 @@ sqlite3 combined.db '
   '
 ```
 
-The last SELECT yielded the folllowing output. Notice how the number of "dont care" class went up from 35K to 290K.
+The last SELECT yielded the folllowing output. Notice how the number of "dont care" class went up from 27K to 290K.
 
 ```
 bicycle|8265

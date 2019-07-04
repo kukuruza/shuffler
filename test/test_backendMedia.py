@@ -157,17 +157,13 @@ class TestVideoWriter (unittest.TestCase):
     # For image.
     image_media = op.join(self.WORK_DIR, 'images.avi')
     with open(image_media, 'w'): pass
-    writer = backendMedia.MediaWriter(media_type='video', image_media=image_media)
-    with self.assertRaises(FileExistsError):
-      writer.imwrite(np.zeros((100,100,3), dtype=np.uint8))
-    writer.close()
+    with self.assertRaises(ValueError):
+      writer = backendMedia.MediaWriter(media_type='video', image_media=image_media)
     # For mask.
     mask_media = op.join(self.WORK_DIR, 'masks.avi')
     with open(mask_media, 'w'): pass
-    writer = backendMedia.MediaWriter(media_type='video', mask_media=mask_media)
-    with self.assertRaises(FileExistsError):
-      writer.maskwrite(np.zeros((100,100), dtype=np.uint8))
-    writer.close()
+    with self.assertRaises(ValueError):
+      writer = backendMedia.MediaWriter(media_type='video', mask_media=mask_media)
 
   def test_init_overwrite_files (self):
     image_media = op.join(self.WORK_DIR, 'images.avi')

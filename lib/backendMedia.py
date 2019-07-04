@@ -3,7 +3,6 @@ import numpy as np
 import imageio
 import logging
 import shutil
-import cv2
 import traceback
 from pprint import pformat
 from operator import itemgetter
@@ -122,7 +121,7 @@ class VideoReader:
         logging.debug ('maskread: found mask in cache')
         return self.mask_cache[mask_id]  # get cached mask if possible
     mask = self.readImpl (mask_id, ismask=True)
-    mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
+    mask = mask[:,:,0]  # Take the 1st channel to make the mask grayscale.
     logging.debug ('imread: new mask, updating cache')
     self.mask_cache = {mask_id: mask}   # currently only 1 image in the cache
     return mask
@@ -145,6 +144,12 @@ class VideoWriter:
     self.mask_current_frame = -1
     self.frame_size = None        # used for checks
     self.fps = fps
+    if vimagefile is not None and op.exists(vimagefile) and not overwrite:
+      raise ValueError('VideoWriter tried is given video "%s" for writing, '
+        'but that file already exists. Pass overwrite=True.' % vimagefile)
+    if vmaskfile is not None and op.exists(vmaskfile) and not overwrite:
+      raise ValueError('VideoWriter tried is given video "%s" for writing, '
+        'but that file already exists. Pass overwrite=True.' % vimagefile)
     
   def _openVideo (self, ref_frame, ismask):
     ''' open a video for writing with parameters from the reference video (from reader) '''
@@ -170,7 +175,7 @@ class VideoWriter:
       if self.overwrite:
         os.remove(vpath)
       else:
-        raise FileExistsError('Video already exists: %s. A mistake?' % vpath)
+        raise ValueError('Video already exists: %s. A mistake?' % vpath)
         
     # check if dir exists
     logging.debug('vpath: "%s", dirname: "%s"' % (vpath, op.dirname(vpath)))
@@ -189,6 +194,7 @@ class VideoWriter:
   def imwrite (self, image):
     # Multiple checks and lazy init.
     assert self.vimagefile is not None
+    # Open video in imwrite (lazily) in order to fetch image size.
     if self.image_writer is None:
       self._openVideo (image, ismask=False)
     assert len(image.shape) == 3 and image.shape[2] == 3, image.shape

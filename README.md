@@ -70,11 +70,11 @@ We have images with objects. Images have masks with those objects. We would like
 Shuffler requires Python3. The installation instructions assume Conda package management system.
 
 ```bash
-# If desired, add support for datasets stored as video (needs to go first).
-conda install -y -c conda-forge ffmpeg=4.0
+conda create -n shuffler python=3
+conda activate shuffler
 
-conda install -y imageio matplotlib lxml simplejson progressbar2 Pillow scipy
-conda install -y opencv=3.4.2  # Require opencv3.
+conda install -y -c conda-forge ffmpeg=4.0
+conda install -y imageio matplotlib lxml simplejson progressbar2 pillow scipy opencv=3
 
 # If desired, add support for plotting commands
 conda install -y pandas seaborn
@@ -88,6 +88,16 @@ The basic installation is okay if the following command does not break with an i
 ```bash
 ./shuffler.py printInfo
 ```
+
+### Install only interface to Keras, Pytorch, and DatasetWriter
+
+While `shuffler.py` tool requires Python 3, the Keras generators, Pytorch datasets, and Shuffler Dataset Writer can be run in Python 2 or Python 3.
+
+```bash
+conda install -y -c conda-forge ffmpeg=4.0
+conda install -y imageio progressbar2 pillow numpy opencv=3
+```
+
 
 
 ## Instructions for the annotators
