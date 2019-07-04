@@ -20,6 +20,9 @@ class BareImageGenerator(Sequence):
     self.batch_size = batch_size
     self.shuffle = shuffle
 
+    if not op.exists(db_file):
+      raise ValueError('db_file does not exist: %s' % db_file)
+      
     self.conn = openConnection(db_file, copy_to_memory=copy_to_memory)
     self.c = self.conn.cursor()
     self.c.execute('SELECT * FROM images WHERE %s ORDER BY imagefile' % where_image)
@@ -75,6 +78,9 @@ class ImageGenerator(Sequence):
     self.batch_size = batch_size
     self.shuffle = shuffle
 
+    if not op.exists(db_file):
+      raise ValueError('db_file does not exist: %s' % db_file)
+      
     self.conn = openConnection(db_file, copy_to_memory=copy_to_memory)
     self.c = self.conn.cursor()
     self.c.execute('SELECT * FROM images WHERE %s ORDER BY imagefile' % where_image)
@@ -136,7 +142,7 @@ class ImageGenerator(Sequence):
       np.random.shuffle(self.indexes)
 
 
-class ObjectsGenerator(Sequence):
+class ObjectGenerator(Sequence):
   ''' Items of a dataset are objects. '''
 
   def __init__(self, db_file, rootdir='.', where_object='TRUE',
@@ -145,6 +151,9 @@ class ObjectsGenerator(Sequence):
     self.batch_size = batch_size
     self.shuffle = shuffle
 
+    if not op.exists(db_file):
+      raise ValueError('db_file does not exist: %s' % db_file)
+      
     self.conn = openConnection(db_file, copy_to_memory=copy_to_memory)
     self.c = self.conn.cursor()
     self.c.execute('SELECT * FROM objects WHERE %s ORDER BY objectid' % where_object)
@@ -216,7 +225,7 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument('-i', '--in_db_file', required=True)
   parser.add_argument('--rootdir', required=True)
-  parser.add_argument('--dataset_type', required=True, choices=['bare', 'images', 'objects'])
+  parser.add_argument('--dataset_type', required=True, choices=['bare', 'image', 'object'])
   args = parser.parse_args()
 
   if args.dataset_type == 'bare':
@@ -224,12 +233,12 @@ if __name__ == "__main__":
     item = dataset.__getitem__(1)
     print (pformat(item))
 
-  elif args.dataset_type == 'images':
+  elif args.dataset_type == 'image':
     dataset = ImageGenerator(args.in_db_file, rootdir=args.rootdir)
     item = dataset.__getitem__(1)
     print (pformat(item))
 
-  elif args.dataset_type == 'objects':
-    dataset = ObjectsGenerator(args.in_db_file, rootdir=args.rootdir)
+  elif args.dataset_type == 'object':
+    dataset = ObjectGenerator(args.in_db_file, rootdir=args.rootdir)
     item = dataset.__getitem__(1)
     print (pformat(item))

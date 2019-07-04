@@ -11,7 +11,7 @@ from lib.backendDb import imageField, objectField
 from lib.backendMedia import MediaReader
 
 
-class ImagesDataset(Dataset):
+class ImageDataset(Dataset):
   ''' Items of a dataset are images. '''
 
   def __init__(self, db_file, rootdir='.', where_image='TRUE', where_object='TRUE', copy_to_memory=True):
@@ -76,7 +76,7 @@ class ImagesDataset(Dataset):
 
 
 
-class ObjectsDataset(Dataset):
+class ObjectDataset(Dataset):
   ''' Items of a dataset are objects. '''
 
   def __init__(self, db_file, rootdir='.', where_object='TRUE', copy_to_memory=True):
@@ -156,7 +156,7 @@ if __name__ == "__main__":
   args = parser.parse_args()
 
   if args.dataset_type == 'images':
-    dataset = ImagesDataset(args.in_db_file, rootdir=args.rootdir)
+    dataset = ImageDataset(args.in_db_file, rootdir=args.rootdir)
     item = dataset.__getitem__(1)
     print (pformat(item))
 
