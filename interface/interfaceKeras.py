@@ -34,7 +34,7 @@ class BareImageGenerator(Sequence):
 
   def __len__(self):
       ' Denotes the number of batches per epoch. '
-      return int(np.floor(len(self.image_entries) / self.batch_size))
+      return int(np.ceil(len(self.image_entries) / self.batch_size))
 
   def close(self):
     self.conn.close()
@@ -54,7 +54,11 @@ class BareImageGenerator(Sequence):
     ' Generate one batch of data. '
 
     # Generate indexes of the batch.
-    indexes = self.indexes[index*self.batch_size:(index+1)*self.batch_size]
+    if (index+1)*self.batch_size < len(self.image_entries):
+      last_index = (index+1)*self.batch_size
+    else:
+      last_index = len(self.image_entries)
+    indexes = self.indexes[index*self.batch_size:last_index]
     Xs = [self._loadEntry(index) for index in indexes]
 
     # A list of dicts to a dict of lists, for both Xs and Ys.
