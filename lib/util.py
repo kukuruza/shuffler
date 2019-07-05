@@ -350,8 +350,8 @@ def bboxes2polygons(cursor, objectid):
       (y1, x1, y2, x2, objectid))
 
 
-def polygons2bboxes(cursor, objectid=None):
-  cursor.execute('SELECT COUNT(1) FROM polygons WHERE objectid == ?', (objectid,))
+def polygons2bboxes(cursor, objectid):
+  cursor.execute('SELECT COUNT(1) FROM polygons WHERE objectid=?', (objectid,))
   if cursor.fetchone()[0] == 0:
     logging.debug('Objectid %d does not have polygons.' % objectid)
     return

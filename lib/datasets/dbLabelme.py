@@ -12,14 +12,15 @@ from pprint import pformat
 import re
 from datetime import datetime
 
-from ..backendDb import makeTimeString
-from ..backendMedia import MediaReader, getPictureSize
-from ..util import drawScoredPolygon, polygons2bboxes
+from ..backendDb import makeTimeString, parseTimeString, objectField
+from ..backendMedia import MediaReader, MediaWriter, getPictureSize
+from ..util import drawScoredPolygon, polygons2bboxes, bboxes2polygons
 
 
 def add_parsers(subparsers):
   importLabelmeParser(subparsers)
   importLabelmeObjectsParser(subparsers)
+  exportLabelmeParser(subparsers)
 
 
 
@@ -44,11 +45,9 @@ def importLabelmeParser(subparsers):
     description='Import LabelMe annotations for a db.')
   parser.set_defaults(func=importLabelme)
   parser.add_argument('--images_dir', required=True,
-      help='Directory with jpg files. '
-      'Images should be already imported with "addPictures" or "addVideo".')
+      help='Directory with jpg files.')
   parser.add_argument('--annotations_dir', required=True,
-      help='Directory with xml files. '
-      'Images should be already imported with "addPictures" or "addVideo".')
+      help='Directory with xml files.')
   parser.add_argument('--with_display', action='store_true')
 
 def importLabelme (c, args):
@@ -79,7 +78,7 @@ def importLabelme (c, args):
     logging.debug ('Processing imagefile: "%s"' % imagefile)
 
     # Find annotation files that match the imagefile.
-    # There may be 1 or 2 dots because of some bug/feature in LabelMe.
+    # There may be 1 or 2 dots in the extension because of some bug/feature in LabelMe.
     regex = re.compile('0*%s[\.]{1,2}xml' % op.splitext(op.basename(imagefile))[0])
     logging.debug('Will try to match %s' % regex)
     matches = [f for f in annotations_paths if re.match(regex, f)]
@@ -106,7 +105,7 @@ def importLabelme (c, args):
         continue
 
       # find the name of object.
-      name = object_.find('name').text
+      name = object_.find('name').text.encode('utf-8')
 
       # get all the points
       xs, ys = _pointsOfPolygon(object_)
@@ -121,6 +120,16 @@ def importLabelme (c, args):
       for i in range(len(xs)):
         c.execute('INSERT INTO polygons(objectid,x,y) VALUES (?,?,?);',
           (objectid, xs[i], ys[i]))
+
+      if object_.find('occluded').text == 'yes':
+        c.execute('INSERT INTO properties(objectid,key,value) VALUES (?,?,?);',
+          (objectid, 'occluded', 'true'))
+
+      for attrib in object_.findall('attributes'):
+        if not attrib.text:
+          continue
+        c.execute('INSERT INTO properties(objectid,key,value) VALUES (?,?,?);',
+          (objectid, attrib.text.encode('utf-8'), 'true'))
 
       polygons2bboxes(c, objectid)  # Write proper bounding box.
 
@@ -182,9 +191,19 @@ def importLabelmeObjects(c, args):
     object_ = objects_[0]
 
     # find the name of object.
-    name = object_.find('name').text
+    name = object_.find('name').text.encode('utf-8')
     if not args.keep_original_object_name:
       c.execute('UPDATE objects SET name=? WHERE objectid=?', (name, objectid))
+
+    if object_.find('occluded').text == 'yes':
+      c.execute('INSERT INTO properties(objectid,key,value) VALUES (?,?,?);',
+        (objectid, 'occluded', 'true'))
+
+    for attrib in object_.findall('attributes'):
+      if not attrib.text:
+        continue
+      c.execute('INSERT INTO properties(objectid,key,value) VALUES (?,?,?);',
+        (objectid, attrib.text.encode('utf-8'), 'true'))
 
     # get all the points
     xs, ys = _pointsOfPolygon(object_)
@@ -212,3 +231,129 @@ def importLabelmeObjects(c, args):
       if cv2.waitKey(-1) == 27:
         args.with_display = False
         cv2.destroyWindow('importLabelmeObjects')
+
+
+
+def exportLabelmeParser(subparsers):
+  parser = subparsers.add_parser('exportLabelme',
+      description='Import LabelMe annotations for a db.')
+  parser.set_defaults(func=exportLabelme)
+  parser.add_argument('--images_dir',
+      help='Directory to write jpg files to. If not specified, will not write jpg.')
+  parser.add_argument('--annotations_dir', required=True,
+      help='Directory to write xml files to.')
+  parser.add_argument('--username',
+      help='Optional LabelMe username. If left blank and if polygons have names,')
+  parser.add_argument('--source_image', default='',
+      help='Optional field to fill in the annotation files.')
+  parser.add_argument('--source_annotation', default='LabelMe Webtool',
+      help='Optional field to fill in the annotation files.')
+  parser.add_argument('--overwrite', action='store_true',
+      help='overwrite image and/or annotation files if they exist.')
+
+def exportLabelme(c, args):
+  print_warning_for_multiple_polygons_in_the_end = False
+
+  if not op.exists(args.annotations_dir):
+    os.makedirs(args.annotations_dir)
+
+  if args.images_dir is not None:
+    imreader = MediaReader(rootdir=args.rootdir)
+    imwriter = MediaWriter(media_type='pictures', rootdir=args.rootdir,
+      image_media=args.images_dir, overwrite=args.overwrite)
+
+  c.execute('SELECT imagefile,height,width,timestamp FROM images')
+  for imagefile,imheight,imwidth,timestamp in progressbar(c.fetchall()):
+
+    el_root = ET.Element("annotation")
+    ET.SubElement(el_root, "filename").text = imagefile
+    ET.SubElement(el_root, "folder").text = op.dirname(args.images_dir) if args.images_dir else ''
+
+    el_source = ET.SubElement(el_root, "source")
+    ET.SubElement(el_source, 'sourceImage').text = args.source_image
+    ET.SubElement(el_source, 'sourceAnnotation').text = args.source_annotation
+
+    el_imagesize = ET.SubElement(el_root, "imagesize")
+    ET.SubElement(el_imagesize, 'nrows').text = str(imheight)
+    ET.SubElement(el_imagesize, 'ncols').text = str(imwidth)
+
+    time = parseTimeString(timestamp)
+    timestamp = datetime.strftime(time, '%Y-%m-%d %H:%M:%S')
+
+    c.execute('SELECT * FROM objects WHERE imagefile=?', (imagefile,))
+    for object_entry in c.fetchall():
+      objectid = objectField(object_entry, 'objectid')
+      name     = objectField(object_entry, 'name')
+
+      # In case bboxes were not recorded as polygons.
+      bboxes2polygons(c, objectid)
+
+      el_object = ET.SubElement(el_root, "object")
+      ET.SubElement(el_object, 'name').text = name if name is not None else 'object'
+      ET.SubElement(el_object, 'deleted').text = '0'
+      ET.SubElement(el_object, 'verified').text = '0'
+      ET.SubElement(el_object, 'type').text = 'bounding_box'
+      ET.SubElement(el_object, 'id').text = str(objectid)
+      ET.SubElement(el_object, 'date').text = timestamp
+
+      # Parts.
+      el_parts = ET.SubElement(el_object, 'parts')
+      ET.SubElement(el_parts, 'hasparts')
+      ET.SubElement(el_parts, 'ispartof')
+
+      # Attributes.
+      c.execute('SELECT key FROM properties WHERE objectid=?', (objectid,))
+      for key, in c.fetchall():
+        ET.SubElement(el_object, 'property').text = key
+
+      # Polygons.
+      c.execute('SELECT DISTINCT(name) FROM polygons WHERE objectid=?', (objectid,))
+      pol_names = [x for x, in c.fetchall()]
+      if len(pol_names) > 1:
+        print_warning_for_multiple_polygons_in_the_end = True
+        logging.warning('objectid %d has multiple polygons: %s. Wrote only the first.' %
+          (objectid, pformat(pol_names)))
+      for pol_name in pol_names:
+        el_polygon = ET.SubElement(el_parts, 'polygon')
+        # Recording the username.
+        if args.username is not None:
+          username = args.username
+        elif pol_name is not None:
+          username = pol_name
+        else:
+          username = 'anonymous'
+        ET.SubElement(el_polygon, 'username').text = username
+        # Recording points.
+        c.execute('SELECT x,y FROM polygons WHERE objectid=? AND name=?', (objectid, pol_name))
+        for x, y in c.fetchall():
+          el_point = ET.SubElement(el_polygon, 'pt')
+          ET.SubElement(el_point, 'x').text = str(x)
+          ET.SubElement(el_point, 'y').text = str(y)
+
+      #logging.debug('Wrote objectid %d as:\n%s' %
+      #  (objectid, ET.tostring(el_object, pretty_print=True).decode("utf-8")))
+    logging.debug('Wrote imagefile %s as:\n%s' %
+      (imagefile, ET.tostring(el_root, pretty_print=True).decode("utf-8")))
+
+    # Write annotation.
+    imagename = op.basename(imagefile)
+    annotation_name = '%s.xml' % op.splitext(imagename)[0]
+    annotation_path = op.join(args.annotations_dir, annotation_name)
+    logging.debug('Will write annotation to "%s"' % annotation_path)
+    if op.exists(annotation_path) and not args.overwrite:
+      raise FileExistsError('Annotation file "%s" already exists. '
+        'Maybe pass "overwrite" argument.')
+    with open(annotation_path, 'wb') as f:
+      f.write(ET.tostring(el_root, pretty_print=True))
+
+    # Write image.
+    if args.images_dir is not None:
+      image = imreader.imread(imagefile)
+      imagefile = imwriter.imwrite(image, namehint=imagename)
+
+
+  if print_warning_for_multiple_polygons_in_the_end:
+    loggin.warning('There were multiple polygons for some object. '
+      'Multiple polygons are not supported in LabelMe: '
+      'https://github.com/wkentaro/labelme/issues/35. '
+      'We wrote all polygons but probably only one will be used by LabelMe.')
