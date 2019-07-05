@@ -314,7 +314,7 @@ def exportLabelme(c, args):
         logging.warning('objectid %d has multiple polygons: %s. Wrote only the first.' %
           (objectid, pformat(pol_names)))
       for pol_name in pol_names:
-        el_polygon = ET.SubElement(el_parts, 'polygon')
+        el_polygon = ET.SubElement(el_object, 'polygon')
         # Recording the username.
         if args.username is not None:
           username = args.username
