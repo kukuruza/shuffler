@@ -309,6 +309,7 @@ def exportLabelme(c, args):
       # Polygons.
       c.execute('SELECT DISTINCT(name) FROM polygons WHERE objectid=?', (objectid,))
       pol_names = [x for x, in c.fetchall()]
+      logging.debug('For objectid %d found %d polygons' % (objectid, len(pol_names)))
       if len(pol_names) > 1:
         print_warning_for_multiple_polygons_in_the_end = True
         logging.warning('objectid %d has multiple polygons: %s. Wrote only the first.' %
@@ -324,11 +325,16 @@ def exportLabelme(c, args):
           username = 'anonymous'
         ET.SubElement(el_polygon, 'username').text = username
         # Recording points.
-        c.execute('SELECT x,y FROM polygons WHERE objectid=? AND name=?', (objectid, pol_name))
-        for x, y in c.fetchall():
+        if pol_name is None:
+          c.execute('SELECT x,y FROM polygons WHERE objectid=? AND name IS NULL', (objectid,))
+        else:
+          c.execute('SELECT x,y FROM polygons WHERE objectid=? AND name=?', (objectid, pol_name))
+        xy_entries = c.fetchall()
+        for x, y in xy_entries:
           el_point = ET.SubElement(el_polygon, 'pt')
           ET.SubElement(el_point, 'x').text = str(x)
           ET.SubElement(el_point, 'y').text = str(y)
+        logging.debug('Polygon %s has %d points.' % (pol_name, len(xy_entries)))
 
       #logging.debug('Wrote objectid %d as:\n%s' %
       #  (objectid, ET.tostring(el_object, pretty_print=True).decode("utf-8")))
