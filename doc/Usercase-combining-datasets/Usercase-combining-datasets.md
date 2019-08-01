@@ -28,6 +28,7 @@ Our goal is to combine all those objects, filter out unnecessary classes, and re
 
 Please follow [Installation Instructions](https://github.com/kukuruza/shuffler#installation).
 
+Export the path to the Shuffler repo to an environmental variable `SHUFFLER_DIR`.
 
 ### Download datasets.
 
