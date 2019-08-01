@@ -69,6 +69,8 @@ We have images with objects. Images have masks with those objects. We would like
 
 Shuffler requires Python3. The installation instructions assume Conda package management system.
 
+Install dependencies:
+
 ```bash
 conda create -n shuffler python=3
 conda activate shuffler
@@ -81,6 +83,13 @@ conda install -y pandas seaborn
 
 # If desired, add support for unit tests
 conda install -y nose scikit-image
+```
+
+Clone this project:
+
+```bash
+git clone https://github.com/kukuruza/shuffler
+cd shuffler
 ```
 
 The basic installation is okay if the following command does not break with an import error:
