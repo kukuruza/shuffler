@@ -4,11 +4,14 @@ Toolbox for playing with data when preparing to train a model in computer vision
 
 - [Motivation](#motivation)
 - [Functionality](#functionality)
-- [Example use cases](#example-use-cases)
 - [Installation](#installation)
 - [Gentle introduction](#gentle-introduction)
+- [Example use cases](#example-use-cases)
+- [Running unittests](#running-unittests)
 
 ![data preparation pipeline](fig/data-preparation-pipeline.png)
+
+
 
 ## Motivation
 
@@ -17,6 +20,8 @@ Practitioners train computer vision models to tackle practical problems, such as
 In the process of fighting for better performance, a researcher plays with data -- filters some objects out of the training data, changes bounding boxes, manually adds some labels, etc. 
 
 **Shuffler allows to easily play with data** by providing a multipurpose tool to import, modify, visualize, and export annotations for common computer vision tasks.
+
+
 
 ## Functionality
 
@@ -38,32 +43,10 @@ Operations fall under these categories:
 - Export. We provide a [PyTorch Dataset class](https://pytorch.org/tutorials/beginner/data_loading_tutorial.html#dataset-class) to directly load data from PyTorch. I plan to implement [Keras Dataset class](https://keras.io/utils/#sequence) and export to popular formats such as PASCAL.
 
 
-## Shuffler's format for annotations
 
-Shuffler provides its own format to store annotations. That is, you play with a dataset, and save the result as `dataset1.db`. Then you play a bit more and save the result as `dataset2.db`. Without Shuffler, you would probably have to copy and change the whole folder with annotations, and perhaps also with images.
+## Installation with Conda
 
-You can import most well-known formats and save them in Shuffler's format. For example, importing Pascal VOC looks like this (we assume you have downloaded Pascal VOC to `${VOC_DIR}`):
-
-```bash
-./shuffler.py -o myPascal.db \
-  importPascalVoc2012 ${VOC_DIR} --annotations
-```
-
-In the meantime, you can open `myPascal.db` with any SQLite3 editor/viewer and manually inspect data entries, or run some SQL on it.
-
-Once you dataset is ready for machine learning, you can export data to one of the well-known formats, or even better, feed it directly to Keras or PyTorch using provided data loader classes.
-
-```bash
-./shuffler.py -i myPascal.db \
-  exportCoco --coco_dir ${COCO_DIR} --subset myTrainSubset
-```
-
-The toolbox supports datasets consisting of 1) images and masks, 2) objects annotated with masks, polygons, and bounding boxes, and 3) matches between objects. It stores annotations as a SQL database of its custom format. This database can be viewed and edited manually with any SQL viewer.
-
-
-## Installation 
-
-### Using conda
+### The whole Shuffler package
 
 Shuffler requires Python3. The installation instructions assume Conda package management system.
 
@@ -90,14 +73,14 @@ To test the installation, run the following commands. The installation succeeded
 
 ```bash
 cd shuffler
-./shuffler.py -i test/cars/micro1_v4.db --rootdir 'test' examineImages
+./shuffler.py -i 'test/cars/micro1_v4.db' --rootdir 'test' examineImages
 ```
 
-#### Installing only interface to Keras, Pytorch, and DatasetWriter
+### Only an interface to Keras, Pytorch, and DatasetWriter
 
-The `shuffler.py` tool requires Python 3, but the Keras generators, Pytorch datasets, and Shuffler Dataset Writer can be run in Python 2 or Python 3.
+The `shuffler.py` tool requires Python3, but the Keras generators, Pytorch datasets, and Shuffler Dataset Writer can be run in Python2 or Python3.
 
-The following commands will install the dependencies necessary for using them:
+The commands below will install the dependencies necessary for using them. Conda environment may be using Python2 or Python3
 
 ```bash
 conda install -y -c conda-forge ffmpeg=4.0
@@ -105,20 +88,44 @@ conda install -y imageio progressbar2 pillow numpy opencv=3
 ```
 
 
+
 ## Gentle introduction
+
+### Shuffler's format for annotations
+
+Shuffler provides its own format to store annotations. That is, you play with a dataset, and save the result as `dataset1.db`. Then you play a bit more and save the result as `dataset2.db`. Without Shuffler, you would probably have to copy and change the whole folder with annotations, and perhaps also with images.
+
+You can import most well-known formats and save them in Shuffler's format. For example, importing Pascal VOC looks like this (we assume you have downloaded Pascal VOC to `${VOC_DIR}`):
+
+```bash
+./shuffler.py -o myPascal.db \
+  importPascalVoc2012 ${VOC_DIR} --annotations
+```
+
+You can open `myPascal.db` with any SQLite3 editor/viewer and manually inspect data entries, or run some SQL on it.
+
+Once you dataset is ready for machine learning, you can export data to one of the well-known formats, or even better, feed it directly to Keras or PyTorch using provided data loader classes.
+
+```bash
+./shuffler.py -i myPascal.db \
+  exportCoco --coco_dir ${COCO_DIR} --subset myTrainSubset
+```
+
+The toolbox supports datasets consisting of 1) images and masks, 2) objects annotated with masks, polygons, and bounding boxes, and 3) matches between objects. It stores annotations as a SQL database of its custom format. This database can be viewed and edited manually with any SQL viewer.
+
 
 ### Chaining commands
 
 Sub-commands can be chained via the special symbol "\|" (here, the backslash escapes the following vertical bar from a Unix shell.)
 
 ```bash
-./shuffler.py --rootdir 'test' --in_db_file 'test/cars/micro1_v4.db' \
+./shuffler.py --rootdir 'test' -i 'test/cars/micro1_v4.db' \
   addVideo --image_video_path 'test/moon/images.avi' --mask_video_path 'test/moon/masks.avi' \| \
   printInfo \| \
   moveMedia --image_path 'test/cars/images' --where_image 'imagefile LIKE "cars/images/%"' \| \
   dumpDb --tables 'images' 'objects'
 
-./shuffler.py --rootdir 'test' --in_db_file 'test/cars/micro1_v4.db' \
+./shuffler.py --rootdir 'test' -i 'test/cars/micro1_v4.db' \
   addDb --db_file 'test/cars/micro1_v4_singleim.db' \| \
   mergeObjectDuplicates \| \
   polygonsToMask --media='pictures' --mask_path 'cars/mask_polygons' --skip_empty_masks \| \
@@ -130,15 +137,15 @@ Sub-commands can be chained via the special symbol "\|" (here, the backslash esc
 
 ## Example use cases
 
-#### An image dataset has objects named "car". Need to manually assign label "type" to them ([link to the tutorial](https://github.com/kukuruza/shuffler/blob/master/doc/Usercase-labelling/Usercase-labelling.md).)
+#### An image dataset has objects named "car". Need to manually assign label "type" to them ([link to the tutorial](https://github.com/kukuruza/shuffler/blob/master/doc/Usercase-labelling/Usercase-labelling.md)).
 
 An image dataset contains objects of class "car", among other classes. We would like to additionally classify cars by type for more fine-grained detection. An image annotator needs to go through all the "car" objects, and assign one of the following types to them: "passenger", "truck", "van", "bus", "taxi".
 
-#### Import annotations from [LabelMe](http://labelme.csail.mit.edu/Release3.0). Each image is labelled by multiple annotators ([link to the tutorial](https://github.com/kukuruza/shuffler/blob/master/doc/Usercase-merge-annotations/Usercase-merge-annotations.md))
+#### Import annotations from [LabelMe](http://labelme.csail.mit.edu/Release3.0). Each image is labelled by multiple annotators ([link to the tutorial](https://github.com/kukuruza/shuffler/blob/master/doc/Usercase-merge-annotations/Usercase-merge-annotations.md)).
 
 A user has collected a dataset of images with objects. Images were handed out to annotators who use LabelMeAnootationTool. Each image was annotated with polygons by multiple annotators for the purposes of cross-validation. A user would like to to 1) import labels from all annotators, 2) merge polygons corresponding to the same object, 3) make black-gray-white image masks, where the gray area marks the inconsistency among annotators.
 
-#### Combine [KITTI](http://www.cvlibs.net/datasets/kitti), [BDD](https://bair.berkeley.edu/blog/2018/05/30/bdd), and [PASCAL VOC 2012](http://host.robots.ox.ac.uk/pascal/VOC) datasets into one ([link to the tutorial](https://github.com/kukuruza/shuffler/blob/master/doc/Usercase-combining-datasets/Usercase-combining-datasets.md).)
+#### Combine [KITTI](http://www.cvlibs.net/datasets/kitti), [BDD](https://bair.berkeley.edu/blog/2018/05/30/bdd), and [PASCAL VOC 2012](http://host.robots.ox.ac.uk/pascal/VOC) datasets into one ([link to the tutorial](https://github.com/kukuruza/shuffler/blob/master/doc/Usercase-combining-datasets/Usercase-combining-datasets.md)).
 
 A user works on object detection tasks for the autonomous car scenario, and would like to use as many annotated images as possible. In particular, they aim to combine certain classes from the datasets KITTI, BDD, and PASCAL VOC 2012. Then the combined dataset is exported in COCO format.
 
@@ -161,22 +168,29 @@ We have images with objects. Images have masks with those objects. We would like
 
 The beauty of storing annotations in a relational SQLite3 database is that one can use standard SQL editors to explore them. For example, UNIX has a command line tool `sqlite3`. 
 
-The commands below illustrate using `sqlite3` to get some statistics about the database `test/cars/micro1_v4.db` bundled into this repository:
+The commands below illustrate using `sqlite3` to get some statistics about the database `test/cars/micro1_v4.db` bundled into this repository.
+
+Find the total number of images:
 
 ```bash
-# Get inside the Shuffler directory.
-cd shuffler
-
-# Find the total number of images.
 sqlite3 test/cars/micro1_v4.db 'SELECT COUNT(imagefile) FROM images'
+```
 
-# Find the total number of images with objects
+Find the total number of images with objects:
+
+```bash
 sqlite3 test/cars/micro1_v4.db 'SELECT COUNT(DISTINCT(imagefile)) FROM objects'
+```
 
-# Print out names of objects and their count.
+Print out names of objects and their count:
+
+```bash
 sqlite3 test/cars/micro1_v4.db 'SELECT name, COUNT(1) FROM objects GROUP BY name'
+```
 
-# Print out dimensions of all objects of the class "car".
+Print out dimensions of all objects of the class "car":
+
+```bash
 sqlite3 test/cars/micro1_v4.db 'SELECT width, height FROM objects WHERE name="car"'
 ```
 
@@ -184,7 +198,7 @@ sqlite3 test/cars/micro1_v4.db 'SELECT width, height FROM objects WHERE name="ca
 
 Most of the backend and utilities are covered in unit tests. 
 
-First, install `nose` package to run tests and `scikit-image` for testing some image related functions.
+First, install `nose` package to run tests and `scikit-image` for testing some image related functions:
 
 ```bash
 conda install -y nose scikit-image
