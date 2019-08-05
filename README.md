@@ -1,6 +1,6 @@
 # shuffler
 
-Toolbox for manipulating image annotations in computer vision.
+Toolbox for playing with data when preparing to train a model in computer vision.
 
 - [Motivation](#motivation)
 - [Functionality](#functionality)
@@ -12,11 +12,22 @@ Toolbox for manipulating image annotations in computer vision.
 
 ## Motivation
 
-Experts in computer vision train machine learning models to tackle practical problems, such as detecting vehicles in the autonomous car scenario or find faces in Facebook pictures. In order to train a model, researchers either use public datasets of annotated images or collect their own. In the process of fighting for better model performance, a researcher may want to change or filter image annotations, or to add another public dataset. Currently, each small group of researchers writes their own sripts to load, change, and save annotations. As the number of experiments grows, these custom scripts become more and more difficult to maintain. **Shuffler** eliminates the need for custom scripts by providing a multipurpose tool to import, modify, visualize, export, and evaluate annotations for common computer vision tasks.
+Practitioners train computer vision models to tackle practical problems, such as detecting vehicles in the autonomous car scenario or find faces in Facebook pictures. In order to train a model, researchers either use public datasets of annotated images or collect their own. 
+
+In the process of fighting for better performance, a researcher plays with data -- filters some objects out of the training data, changes bounding boxes, manually adds some labels, etc. 
+
+**Shuffler allows to easily play with data** by providing a multipurpose tool to import, modify, visualize, and export annotations for common computer vision tasks.
 
 ## Functionality
 
-Shuffler is a command line tool. It takes a dataset in one of the formats on inputs, performs a number of *operations*, and then records the output. Operations fall under these categories:
+Shuffler is a command line tool. It receives a dataset on input, performs a number of operations, and then records the output, like this:
+
+```bash
+./shuffler.py -i allObjects.db -o onlyWide.db \
+  filterObjectsSQL "SELECT objectid WHERE width > 20"
+```
+
+Operations fall under these categories:
 
 - [Import](https://github.com/kukuruza/shuffler/blob/master/doc/Subcommands.md#import) most common computer vision datasets. The list of supported datasets is growing.
 - [Aggregate information](#info) about a dataset. Print basic statistics, plot histograms, and scatter plots.
@@ -26,46 +37,33 @@ Shuffler is a command line tool. It takes a dataset in one of the formats on inp
 - [Evaluate](https://github.com/kukuruza/shuffler/blob/master/doc/Subcommands.md#evaluate). Given ground truth and predictions, evaluate performance of object detection or semantic segmentation.
 - Export. We provide a [PyTorch Dataset class](https://pytorch.org/tutorials/beginner/data_loading_tutorial.html#dataset-class) to directly load data from PyTorch. I plan to implement [Keras Dataset class](https://keras.io/utils/#sequence) and export to popular formats such as PASCAL.
 
-The toolbox supports datasets consisting of 1) images and masks, 2) objects annotated with masks, polygons, and bounding boxes, and 3) matches between objects. It stores annotations as a SQL database of its custom format. This database can be viewed and edited manually with any SQL viewer.
 
-Example:
+## Shuffler's format for annotations
+
+Shuffler provides its own format to store annotations. That is, you play with a dataset, and save the result as `dataset1.db`. Then you play a bit more and save the result as `dataset2.db`. Without Shuffler, you would probably have to copy and change the whole folder with annotations, and perhaps also with images.
+
+You can import most well-known formats and save them in Shuffler's format. For example, importing Pascal VOC looks like this (we assume you have downloaded Pascal VOC to `${VOC_DIR}`):
 
 ```bash
 ./shuffler.py -o myPascal.db \
-  importPascalVoc2012 ${VOC_DIR} --annotations \| filterObjectsSQL "SELECT objectid WHERE width < 20"
+  importPascalVoc2012 ${VOC_DIR} --annotations
 ```
 
-In this example, we import PASCAL VOC 2012 dataset from `${VOC_DIR}`, remove small objects, and save the annotations as an SQLite database `myPascal.db`. Later we may choose to export it back to the PASCAL format or to load data from `myPascal.db` to PyTorch directly. 
+In the meantime, you can open `myPascal.db` with any SQLite3 editor/viewer and manually inspect data entries, or run some SQL on it.
 
+Once you dataset is ready for machine learning, you can export data to one of the well-known formats, or even better, feed it directly to Keras or PyTorch using provided data loader classes.
 
-## Example use cases
+```bash
+./shuffler.py -i myPascal.db \
+  exportCoco --coco_dir ${COCO_DIR} --subset myTrainSubset
+```
 
-#### Combine [KITTI](http://www.cvlibs.net/datasets/kitti), [BDD](https://bair.berkeley.edu/blog/2018/05/30/bdd), and [PASCAL VOC 2012](http://host.robots.ox.ac.uk/pascal/VOC) datasets into one ([link to code](#combine-datasets).)
-
-A user works on object detection tasks for the autonomous car scenario, and would like to use as many annotated images as possible. In particular, they aim to combine certain classes from the datasets KITTI, BDD, and PASCAL VOC 2012. Then the combined dataset should be exported to a TF-friendly format.
-
-#### Import annotations from [LabelMe](http://labelme.csail.mit.edu/Release3.0). Each image is labelled by multiple annotators ([link to code](#import-from-labelme))
-
-A user has collected a dataset of images with objects. Images were handed out to annotators who use LabelMeAnootationTool. Each image was annotated with polygons by multiple annotators for the purposes of cross-validation. A user would like to to 1) import labels from all annotators, 2) merge polygons corresponding to the same object, 3) make black-gray-white image masks, where the gray area marks the inconsistency among annotators.
-
-#### Train object detection with only big objects. Then evaluate properly.
-
-We have a dataset with objects given as bounding boxes. We would like to remove objects on image boundary, expand bounding boxes by 10% for better training, remove objects of all types except "car", "bus", and "truck", and to remove objects smaller than 30 pixels wide. We would lile to use that subset for training.
-
-In the previous use case we removed some objects for our object detection training task. Now we want to evaluate the trained model. We expect our model to detect only big objects, but we don't want to count it as a false positive if it detects a tiny object either.
-
-#### Evaluate results of semantic segmentation
-
-A neural network was trained to perform a semantic segmentation of images. We have a directory with ground truth masks and a directory with predicted masks. We would like to 1) evaluate the results, 2) write a video with images and their predicted segmentation masks side-by-side.
-
-#### Write a dataset with image croppings of individual objects
-
-We have images with objects. Images have masks with those objects. We would like to crop out objects with name "car" bigger than 32 pixels wide, stretch the crops to 64x64 pixels and write a new dataset of images (and the correspodning masks)
+The toolbox supports datasets consisting of 1) images and masks, 2) objects annotated with masks, polygons, and bounding boxes, and 3) matches between objects. It stores annotations as a SQL database of its custom format. This database can be viewed and edited manually with any SQL viewer.
 
 
 ## Installation 
 
-#### Using conda
+### Using conda
 
 Shuffler requires Python3. The installation instructions assume Conda package management system.
 
@@ -80,34 +78,31 @@ conda install -y imageio matplotlib lxml simplejson progressbar2 pillow scipy op
 
 # If desired, add support for plotting commands
 conda install -y pandas seaborn
-
-# If desired, add support for unit tests
-conda install -y nose scikit-image
 ```
 
 Clone this project:
 
 ```bash
 git clone https://github.com/kukuruza/shuffler
-cd shuffler
 ```
 
-The basic installation is okay if the following command does not break with an import error:
+To test the installation, run the following commands. The installation succeeded if an image opens up. Press Esc to close the window.
 
 ```bash
-./shuffler.py printInfo
+cd shuffler
+./shuffler.py -i test/cars/micro1_v4.db --rootdir 'test' examineImages
 ```
 
-### Install only interface to Keras, Pytorch, and DatasetWriter
+#### Installing only interface to Keras, Pytorch, and DatasetWriter
 
-While `shuffler.py` tool requires Python 3, the Keras generators, Pytorch datasets, and Shuffler Dataset Writer can be run in Python 2 or Python 3.
+The `shuffler.py` tool requires Python 3, but the Keras generators, Pytorch datasets, and Shuffler Dataset Writer can be run in Python 2 or Python 3.
+
+The following commands will install the dependencies necessary for using them:
 
 ```bash
 conda install -y -c conda-forge ffmpeg=4.0
 conda install -y imageio progressbar2 pillow numpy opencv=3
 ```
-
-
 
 
 ## Gentle introduction
@@ -131,47 +126,71 @@ Sub-commands can be chained via the special symbol "\|" (here, the backslash esc
   examineImages --mask_alpha 0.5
 ```
 
-## Code for the use cases
 
-#### <a name="combine-datasets">Combine KITTI, BDD, and PASCAL VOC 2012 datasets into one</a>
+
+## Example use cases
+
+#### An image dataset has objects named "car". Need to manually assign label "type" to them ([link to the tutorial](https://github.com/kukuruza/shuffler/blob/master/doc/Usercase-labelling/Usercase-labelling.md).)
+
+An image dataset contains objects of class "car", among other classes. We would like to additionally classify cars by type for more fine-grained detection. An image annotator needs to go through all the "car" objects, and assign one of the following types to them: "passenger", "truck", "van", "bus", "taxi".
+
+#### Import annotations from [LabelMe](http://labelme.csail.mit.edu/Release3.0). Each image is labelled by multiple annotators ([link to the tutorial](https://github.com/kukuruza/shuffler/blob/master/doc/Usercase-merge-annotations/Usercase-merge-annotations.md))
+
+A user has collected a dataset of images with objects. Images were handed out to annotators who use LabelMeAnootationTool. Each image was annotated with polygons by multiple annotators for the purposes of cross-validation. A user would like to to 1) import labels from all annotators, 2) merge polygons corresponding to the same object, 3) make black-gray-white image masks, where the gray area marks the inconsistency among annotators.
+
+#### Combine [KITTI](http://www.cvlibs.net/datasets/kitti), [BDD](https://bair.berkeley.edu/blog/2018/05/30/bdd), and [PASCAL VOC 2012](http://host.robots.ox.ac.uk/pascal/VOC) datasets into one ([link to the tutorial](https://github.com/kukuruza/shuffler/blob/master/doc/Usercase-combining-datasets/Usercase-combining-datasets.md).)
+
+A user works on object detection tasks for the autonomous car scenario, and would like to use as many annotated images as possible. In particular, they aim to combine certain classes from the datasets KITTI, BDD, and PASCAL VOC 2012. Then the combined dataset is exported in COCO format.
+
+#### Train object detection with only big objects. Then evaluate.
+
+We have a dataset with objects given as bounding boxes. We would like to remove objects on image boundary, expand bounding boxes by 10% for better training, remove objects of all types except "car", "bus", and "truck", and to remove objects smaller than 30 pixels wide. We would lile to use that subset for training.
+
+In the previous use case we removed some objects for our object detection training task. Now we want to evaluate the trained model. We expect our model to detect only big objects, but we don't want to count it as a false positive if it detects a tiny object either.
+
+#### Evaluate results of semantic segmentation
+
+A neural network was trained to perform a semantic segmentation of images. We have a directory with ground truth masks and a directory with predicted masks. We would like to 1) evaluate the results, 2) write a video with images and their predicted segmentation masks side-by-side.
+
+#### Write a dataset with image croppings of individual objects
+
+We have images with objects. Images have masks with those objects. We would like to crop out objects with name "car" bigger than 32 pixels wide, stretch the crops to 64x64 pixels and write a new dataset of images (and the correspodning masks)
+
+
+## Using standard SQLite commands with Shuffler annotations format.
+
+The beauty of storing annotations in a relational SQLite3 database is that one can use standard SQL editors to explore them. For example, UNIX has a command line tool `sqlite3`. 
+
+The commands below illustrate using `sqlite3` to get some statistics about the database `test/cars/micro1_v4.db` bundled into this repository:
 
 ```bash
-KITTI=/path/to/directory/KITTI
-VOC2012=/path/to/directory/VOC2012
+# Get inside the Shuffler directory.
+cd shuffler
 
-./shuffler.py --rootdir ${KITTI} \
-  -o '/tmp/kitti.db' \
-  importKitti \
-  --images_dir=${KITTI}/data_semantics/training/image_2  \
-  --detection_dir=${KITTI}/data_object_image_2/training/label_2
-```
+# Find the total number of images.
+sqlite3 test/cars/micro1_v4.db 'SELECT COUNT(imagefile) FROM images'
 
-#### <a name="import-from-labelme">Import from LabelMe, each image is labelled by multiple annotators.</a>
+# Find the total number of images with objects
+sqlite3 test/cars/micro1_v4.db 'SELECT COUNT(DISTINCT(imagefile)) FROM objects'
 
-```bash
-./shuffler.py --rootdir '.' -i 'test/labelme/init.db' \
-  importLabelmeObjects --annotations_dir 'test/labelme/w55-e04-objects1' \
-  --keep_original_object_name --polygon_name annotator1 \| \
-  importLabelmeObjects --annotations_dir 'test/labelme/w55-e04-objects2' \
-  --keep_original_object_name --polygon_name annotator2 \| \
-  importLabelmeObjects --annotations_dir 'test/labelme/w55-e04-objects3' \
-  --keep_original_object_name --polygon_name annotator3 \| \
-  mergeObjectDuplicates \| \
-  polygonsToMask --mask_pictures_dir 'test/labelme/mask_polygons' --skip_empty_masks \| \
-  dumpDb --tables objects polygons \| \
-  examineImages --mask_aside
-```
-
-
-## Examples of getting information about a dataset with standard SQLite.
-```bash
 # Print out names of objects and their count.
-sqlite3 my_dataset.db "SELECT name, COUNT(1) FROM objects GROUP BY name"
+sqlite3 test/cars/micro1_v4.db 'SELECT name, COUNT(1) FROM objects GROUP BY name'
+
+# Print out dimensions of all objects of the class "car".
+sqlite3 test/cars/micro1_v4.db 'SELECT width, height FROM objects WHERE name="car"'
 ```
 
-## Testing code
+## Running unittests
 
-Most of the backend and utilities are covered in unit tests. To run all tests, run:
+Most of the backend and utilities are covered in unit tests. 
+
+First, install `nose` package to run tests and `scikit-image` for testing some image related functions.
+
+```bash
+conda install -y nose scikit-image
+```
+
+Run the tests.
 
 ```bash
 cd test
