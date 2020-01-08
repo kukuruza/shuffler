@@ -198,7 +198,9 @@ class VideoWriter:
     if self.image_writer is None:
       self._openVideo (image, ismask=False)
     assert len(image.shape) == 3 and image.shape[2] == 3, image.shape
-    assert (image.shape[1], image.shape[0]) == self.frame_size
+    assert (image.shape[1], image.shape[0]) == self.frame_size, (
+      'Unexpected image size: expected %s based on the first video frame, got %s.' %
+      (str(self.frame_size), str(image.shape[0:2])))
     # Write.
     self.image_writer.append_data(image)
     # Return recorded imagefile.

@@ -97,6 +97,8 @@ def drawScoredPolygon (img, polygon, label=None, score=None):
     Nothing, img is changed in-place
   '''
   if label is None: label = ''
+  if isinstance(label, bytes):
+    label = label.decode('UTF-8')
   if score is None:
     score = 1
   color = tuple([int(x * 255) for x in plt.cm.jet(float(score))][0:3][::-1])
@@ -116,6 +118,8 @@ def drawScoredPolygon (img, polygon, label=None, score=None):
 def drawScoredRoi (img, roi, label=None, score=None):
   assert score is None or score >= 0 and score <= 1
   if label is None: label = ''
+  if isinstance(label, bytes):
+    label = label.decode('UTF-8')
   if score is None:
     score = 1
   color = tuple([int(x * 255) for x in plt.cm.jet(float(score))][0:3][::-1])
