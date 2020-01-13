@@ -79,7 +79,7 @@ def exportCoco (c, args):
     "description" : args.description,
     "contributor" : args.contributor,
     "url" : args.url,
-    "date_created" : date_created
+    "date_created" : datetime.strftime(date_created, '%Y/%m/%d') if date_created is not None else None
   }
 
   # Licenses.
