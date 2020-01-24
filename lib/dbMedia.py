@@ -10,7 +10,7 @@ from math import sqrt
 
 from .backendDb import imageField, objectField, polygonField, deleteImage, parseTimeString, makeTimeString
 from .backendMedia import MediaReader, MediaWriter
-from .util import drawTextOnImage, drawMaskOnImage, drawMaskAside, drawScoredPolygon, cropPatch, bbox2roi, applyLabelMappingToMask
+from .util import drawTextOnImage, drawMaskOnImage, drawMaskAside, drawScoredPolygon, drawScoredRoi, cropPatch, bbox2roi, applyLabelMappingToMask
 
 
 def add_parsers(subparsers):
