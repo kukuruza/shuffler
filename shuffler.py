@@ -6,7 +6,6 @@ import argparse
 import sqlite3
 import progressbar
 from itertools import groupby
-import argdown
 
 from lib.util import copyWithBackup
 from lib.backendDb import createDb
