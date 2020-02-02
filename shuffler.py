@@ -6,6 +6,7 @@ import argparse
 import sqlite3
 import progressbar
 from itertools import groupby
+import argdown
 
 from lib.util import copyWithBackup
 from lib.backendDb import createDb
@@ -13,6 +14,26 @@ from lib import dbGui, dbInfo, dbFilter, dbModify, dbMedia, dbEvaluate, dbLabel
 from lib.datasets import dbLabelme, dbKitti, dbPascal, dbBdd, dbDetrac
 from lib.datasets import dbCityscapes, dbCoco
 
+def usage(name=None):
+  return '''
+  shuffler.py [-i INPUT.db] [-o OUTPUT.db] [--rootdir ROOTDIR]
+    subcommand1  <subcommand's arguments>  '|'
+    subcommand2  <subcommand's arguments>
+  '''
+
+def description():
+  return'''
+  Execute operations on a dataset.
+  
+  Create new or open an existing database, modify it with sub-commands,
+  and optionally save the result as a different database.
+  
+  Available sub-commands are listed below as 'positional arguments'.
+  Each sub-command has its own cmd arguments. Run a sub-command with -h flag
+  to show its arguments. You can chain sub-commands with quoted vertical line '|'.
+  
+  More info and examples at https://github.com/kukuruza/shuffler.
+  '''
 
 def connect (in_db_path=None, out_db_path=None):
   ''' Connect to a new or existing database.
@@ -68,18 +89,14 @@ def connect (in_db_path=None, out_db_path=None):
 
 def runSubcommand(cursor, args):
   print('=== %s ===' % args.func.__name__)
-  #cursor.execute('BEGIN TRANSACTION')
   args.func(cursor, args)
-  #cursor.execute('END TRANSACTION')
 
 
-parser = argparse.ArgumentParser(description=
-  '''Create new or open existing database, modify it with sub-commands,
-  and optionally save the result in another database.
-  Positional arguments correspond to sub-commands.
-  Each tool has its own arguments, run a tool with -h flag
-  to show its arguments. You can use chain sub-commands.
-  ''')
+parser = argparse.ArgumentParser(
+    prog='shuffler.py',
+    usage=usage(),  
+    description=description(),
+    formatter_class=argparse.RawDescriptionHelpFormatter)
 parser.add_argument('-i', '--in_db_file', required=False,
     help='If specified, open this file. Otherwise, create an empty db.')
 parser.add_argument('-o', '--out_db_file', required=False,
@@ -103,6 +120,10 @@ dbBdd.add_parsers(subparsers)
 dbDetrac.add_parsers(subparsers)
 dbCityscapes.add_parsers(subparsers)
 dbCoco.add_parsers(subparsers)
+
+# If no argumernts were provided, add '-h' to print usage.
+if len(sys.argv) == 1:
+  sys.argv.append('-h')
 
 # Split command-line arguments into subcommands by special symbol "|".
 argv_splits = [list(group) for k, group in groupby(sys.argv[1:], lambda x: x == '|') if not k]
