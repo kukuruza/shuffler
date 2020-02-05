@@ -34,6 +34,38 @@ def description():
   More info and examples at https://github.com/kukuruza/shuffler.
   '''
 
+def getParser():
+  parser = argparse.ArgumentParser(
+      prog='shuffler.py',
+      usage=usage(),  
+      description=description(),
+      formatter_class=argparse.RawDescriptionHelpFormatter)
+  parser.add_argument('-i', '--in_db_file', required=False,
+      help='If specified, open this file. Otherwise, create an empty db.')
+  parser.add_argument('-o', '--out_db_file', required=False,
+      help='If specified, commit to this file. Otherwise, do not commit.')
+  parser.add_argument('--rootdir', default='.',
+      help='If specified, images paths are relative to this dir.')
+  parser.add_argument('--logging', default=20, type=int, choices={10, 20, 30, 40},
+      help='Log debug (10), info (20), warning (30), error (40).')
+  subparsers = parser.add_subparsers()
+  dbModify.add_parsers(subparsers)
+  dbFilter.add_parsers(subparsers)
+  dbGui.add_parsers(subparsers)
+  dbInfo.add_parsers(subparsers)
+  dbMedia.add_parsers(subparsers)
+  dbEvaluate.add_parsers(subparsers)
+  dbLabel.add_parsers(subparsers)
+  dbLabelme.add_parsers(subparsers)
+  dbKitti.add_parsers(subparsers)
+  dbPascal.add_parsers(subparsers)
+  dbBdd.add_parsers(subparsers)
+  dbDetrac.add_parsers(subparsers)
+  dbCityscapes.add_parsers(subparsers)
+  dbCoco.add_parsers(subparsers)
+  return parser
+
+
 def connect (in_db_path=None, out_db_path=None):
   ''' Connect to a new or existing database.
   Args:
@@ -91,68 +123,42 @@ def runSubcommand(cursor, args):
   args.func(cursor, args)
 
 
-parser = argparse.ArgumentParser(
-    prog='shuffler.py',
-    usage=usage(),  
-    description=description(),
-    formatter_class=argparse.RawDescriptionHelpFormatter)
-parser.add_argument('-i', '--in_db_file', required=False,
-    help='If specified, open this file. Otherwise, create an empty db.')
-parser.add_argument('-o', '--out_db_file', required=False,
-    help='If specified, commit to this file. Otherwise, do not commit.')
-parser.add_argument('--rootdir', default='.',
-    help='If specified, images paths are relative to this dir.')
-parser.add_argument('--logging', default=20, type=int, choices={10, 20, 30, 40},
-    help='Log debug (10), info (20), warning (30), error (40).')
-subparsers = parser.add_subparsers()
-dbModify.add_parsers(subparsers)
-dbFilter.add_parsers(subparsers)
-dbGui.add_parsers(subparsers)
-dbInfo.add_parsers(subparsers)
-dbMedia.add_parsers(subparsers)
-dbEvaluate.add_parsers(subparsers)
-dbLabel.add_parsers(subparsers)
-dbLabelme.add_parsers(subparsers)
-dbKitti.add_parsers(subparsers)
-dbPascal.add_parsers(subparsers)
-dbBdd.add_parsers(subparsers)
-dbDetrac.add_parsers(subparsers)
-dbCityscapes.add_parsers(subparsers)
-dbCoco.add_parsers(subparsers)
+if __name__ == '__main__':
+  parser = getParser()
 
-# If no argumernts were provided, add '-h' to print usage.
-if len(sys.argv) == 1:
-  sys.argv.append('-h')
+  # If no argumernts were provided, add '-h' to print usage.
+  if len(sys.argv) == 1:
+    sys.argv.append('-h')
 
-# Split command-line arguments into subcommands by special symbol "|".
-argv_splits = [list(group) for k, group in groupby(sys.argv[1:], lambda x: x == '|') if not k]
+  # Split command-line arguments into subcommands by special symbol "|".
+  argv_splits = [list(group) for k, group in groupby(sys.argv[1:], lambda x: x == '|') if not k]
 
-# Parse the main parser and the first subsparser.
-args = parser.parse_args(argv_splits[0])
-do_commit = args.out_db_file is not None
-rootdir = args.rootdir  # Copy, or it will get lost.
+  # Parse the main parser and the first subsparser.
+  args = parser.parse_args(argv_splits[0])
+  do_commit = args.out_db_file is not None
+  rootdir = args.rootdir  # Copy, or it will get lost.
 
-# Logging was just parsed.
-progressbar.streams.wrap_stderr()
-FORMAT = '[%(filename)s:%(lineno)s - %(funcName)s() %(levelname)s]: %(message)s'
-logging.basicConfig(level=args.logging, format=FORMAT)
+  # Logging was just parsed.
+  progressbar.streams.wrap_stderr()
+  FORMAT = '[%(filename)s:%(lineno)s - %(funcName)s() %(levelname)s]: %(message)s'
+  logging.basicConfig(level=args.logging, format=FORMAT)
 
-conn = connect(args.in_db_file, args.out_db_file)
-cursor = conn.cursor()
+  conn = connect(args.in_db_file, args.out_db_file)
+  cursor = conn.cursor()
 
-if not hasattr(args, 'func'):
-  raise ValueError('Provide a sub-command. Use "./shuffler.py -h" for options.')
+  if not hasattr(args, 'func'):
+    raise ValueError('Provide a sub-command. Use "./shuffler.py -h" for options.')
 
-# Main arguments and sub-command #1.
-runSubcommand(cursor, args)
-
-# Sub-commands #2 to last.
-for argv_split in argv_splits[1:]:
-  args = parser.parse_args(argv_split)
-  args.rootdir = rootdir  # This is the only argument that is used in all subcommands.
+  # Main arguments and sub-command #1.
   runSubcommand(cursor, args)
 
-if do_commit:
-  conn.commit()
-  logging.info('Committed.')
-conn.close()
+  # Sub-commands #2 to last.
+  for argv_split in argv_splits[1:]:
+    args = parser.parse_args(argv_split)
+    args.rootdir = rootdir  # This is the only argument that is used in all subcommands.
+    runSubcommand(cursor, args)
+
+  if do_commit:
+    conn.commit()
+    logging.info('Committed.')
+  conn.close()
