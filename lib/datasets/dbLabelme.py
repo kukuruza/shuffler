@@ -244,6 +244,8 @@ def exportLabelmeParser(subparsers):
       help='Directory to write xml files to.')
   parser.add_argument('--username',
       help='Optional LabelMe username. If left blank and if polygons have names,')
+  parser.add_argument('--folder', required=True,
+      help='The folder name as it will be called in LabelMeAnnotationTool')
   parser.add_argument('--source_image', default='',
       help='Optional field to fill in the annotation files.')
   parser.add_argument('--source_annotation', default='LabelMe Webtool',
@@ -266,8 +268,8 @@ def exportLabelme(c, args):
   for imagefile,imheight,imwidth,timestamp in progressbar(c.fetchall()):
 
     el_root = ET.Element("annotation")
-    ET.SubElement(el_root, "filename").text = imagefile
-    ET.SubElement(el_root, "folder").text = op.dirname(args.images_dir) if args.images_dir else ''
+    ET.SubElement(el_root, "filename").text = os.path.basename(imagefile)
+    ET.SubElement(el_root, "folder").text = args.folder
 
     el_source = ET.SubElement(el_root, "source")
     ET.SubElement(el_source, 'sourceImage').text = args.source_image
