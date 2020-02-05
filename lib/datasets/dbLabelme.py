@@ -121,7 +121,7 @@ def importLabelme (c, args):
         c.execute('INSERT INTO polygons(objectid,x,y) VALUES (?,?,?);',
           (objectid, xs[i], ys[i]))
 
-      if object_.find('occluded').text == 'yes':
+      if object_.find('occluded') and object_.find('occluded').text == 'yes':
         c.execute('INSERT INTO properties(objectid,key,value) VALUES (?,?,?);',
           (objectid, 'occluded', 'true'))
 
@@ -186,7 +186,7 @@ def importLabelmeObjects(c, args):
     # remove all deleted
     objects_ = [object_ for object_ in objects_ if object_.find('deleted').text != '1']
     if len(objects_) > 1:
-      logging.error('More than one object in %s' % annotation_name)
+      logging.error('More than one object in %s' % annotation_file)
       continue
     object_ = objects_[0]
 
@@ -284,6 +284,10 @@ def exportLabelme(c, args):
     for object_entry in c.fetchall():
       objectid = objectField(object_entry, 'objectid')
       name     = objectField(object_entry, 'name')
+      c.execute('SELECT value FROM properties WHERE objectid = ? AND key = "occluded"', (objectid,))
+      occluded = c.fetchone()
+      # The object is occluded if "occluded" is a recorded property and its value is "true".
+      occluded = 'yes' if occluded is not None and occluded == 'true' else 'no'
 
       # In case bboxes were not recorded as polygons.
       bboxes2polygons(c, objectid)
@@ -295,6 +299,7 @@ def exportLabelme(c, args):
       ET.SubElement(el_object, 'type').text = 'bounding_box'
       ET.SubElement(el_object, 'id').text = str(objectid)
       ET.SubElement(el_object, 'date').text = timestamp
+      ET.SubElement(el_object, 'occluded').text = occluded
 
       # Parts.
       el_parts = ET.SubElement(el_object, 'parts')
