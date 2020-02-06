@@ -5,7 +5,7 @@ import logging
 import sqlite3
 import imageio
 from math import ceil
-from random import shuffle
+import random
 from glob import glob
 from pprint import pformat
 from datetime import datetime
@@ -438,12 +438,16 @@ def splitDbParser(subparsers):
     help='Fractions to put to each output db. '
     'If sums to >1, last databases will be underfilled.')
   parser.add_argument('--randomly', action='store_true')
+  parser.add_argument('--seed', type=int,
+    help='If specified, used to seed random generator. Can be used with "randomly"')
     
 def splitDb (c, args):
   c.execute('SELECT imagefile FROM images ORDER BY imagefile')
   imagefiles = c.fetchall()
   if args.randomly:
-    shuffle(imagefiles)
+    if args.seed is not None:
+      random.seed(args.seed)
+    random.shuffle(imagefiles)
 
   assert len(args.out_names) == len(args.out_fractions), \
     'Sizes of not equal: %d != %d' % (len(args.out_names), len(args.out_fractions))
