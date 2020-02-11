@@ -20,6 +20,7 @@ def add_parsers(subparsers):
   filterObjectsByScoreParser(subparsers)
   filterObjectsSQLParser(subparsers)
   filterImagesSQLParser(subparsers)
+  filterImagesByIdsParser(subparsers)
 
 
 def filterImagesOfAnotherDbParser(subparsers):
@@ -311,5 +312,21 @@ def filterImagesSQL (c, args):
   c.execute(args.sql)
 
   imagefiles = c.fetchall()
+  for imagefile, in progressbar(imagefiles):
+    deleteImage(c, imagefile)
+
+
+def filterImagesByIdsParser(subparsers):
+  parser = subparsers.add_parser('filterImagesByIds',
+    description='Delete images (and their objects) based on their sequential number in the sorted table.')
+  parser.set_defaults(func=filterImagesByIds)
+  parser.add_argument('ids', type=int, nargs='+',
+    help='sequential number of image in the database')
+
+def filterImagesByIds (c, args):
+  c.execute('SELECT imagefile FROM images ORDER BY imagefile')
+  imagefiles = c.fetchall()
+  imagefiles = np.array(imagefiles)[np.array(args.ids)]
+
   for imagefile, in progressbar(imagefiles):
     deleteImage(c, imagefile)
