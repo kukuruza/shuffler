@@ -116,13 +116,20 @@ def cropObjects(c, args):
   imwriter = MediaWriter(media_type=args.media, rootdir=args.rootdir,
     image_media=args.image_path, mask_media=args.mask_path, overwrite=args.overwrite)
 
-  c.execute('SELECT objectid,imagefile,x1,y1,width,height,name,score,i.maskfile,i.timestamp '
-    'FROM objects INNER JOIN images AS i ON i.imagefile = imagefile WHERE (%s) ORDER BY objectid' %
+  c.execute('SELECT o.objectid,o.imagefile,o.x1,o.y1,o.width,o.height,o.name,o.score,i.maskfile,i.timestamp '
+    'FROM objects AS o INNER JOIN images AS i ON i.imagefile = o.imagefile WHERE (%s) ORDER BY objectid' %
     args.where_object)
   entries = c.fetchall()
   logging.debug(pformat(entries))
 
   c.execute('DELETE FROM images')
+
+  # If only one object category was sampled, other objects should be preserved.
+  if args.where_object:
+    # Will later erase all up to this id.
+    c.execute('SELECT MAX(objectid) FROM objects')
+    old_row_id = c.fetchone()[0]
+    last_row_id = old_row_id
 
   for objectid,imagefile,x1,y1,width,height,name,score,maskfile,timestamp in progressbar(entries):
     logging.debug ('Processing object %d from imagefile %s.' % (objectid, imagefile))
@@ -152,10 +159,6 @@ def cropObjects(c, args):
         (imagefile, x1 + width, y1 + height, x1, y1))
       objects = c.fetchall()
 
-      # Will later erase all up to this id.
-      c.execute('SELECT MAX(objectid) FROM objects')
-      last_row_id = c.fetchone()[0]
-
       for iobj,object_ in enumerate(objects):
         objectid_obj = objectField(object_, 'objectid')
         x1_obj = objectField(object_, 'x1')
@@ -164,11 +167,17 @@ def cropObjects(c, args):
         height_obj = objectField(object_, 'height')
         name_obj = objectField(object_, 'name')
         score_obj = objectField(object_, 'score')
+        new_id = last_row_id + iobj + 1
+        logging.debug('Copying objectid=%d (%s) to new objectid=%d ', objectid_obj, name_obj, new_id)
         c.execute('INSERT INTO objects(objectid,imagefile,x1,y1,width,height,name,score) VALUES (?,?,?,?,?,?,?,?)',
-          (last_row_id + iobj + 1, imagefile_cropped, x1_obj-x1, y1_obj-y1, width_obj, height_obj, name_obj, score_obj))
+          (new_id, imagefile_cropped, x1_obj-x1, y1_obj-y1, width_obj, height_obj, name_obj, score_obj))     
+ 
+      # Will be used for the next crop.
+      last_row_id += len(objects)
       
   if args.where_object:
-    c.execute('DELETE FROM objects WHERE objectid <= ?', last_row_id)
+    logging.debug('Removing all objects up to %d', old_row_id)
+    c.execute('DELETE FROM objects WHERE objectid <= ?', (old_row_id,))
   else:
     # Simple case of only one object in the crop -- the one which was cropped.
     c.execute('UPDATE objects SET x1=0,y1=0,width=?,height=?', (args.target_width, args.target_height))
