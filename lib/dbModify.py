@@ -12,7 +12,7 @@ from datetime import datetime
 from progressbar import progressbar
 from ast import literal_eval
 
-from .backendDb import makeTimeString, deleteImage, objectField, createDb
+from .backendDb import makeTimeString, deleteImage, deleteObject, objectField, createDb
 from .backendMedia import getPictureSize, MediaReader
 from .util import drawScoredRoi, roi2bbox, bboxes2polygons, polygons2bboxes
 from .utilExpandBoxes import expandRoiToRatio, expandRoi

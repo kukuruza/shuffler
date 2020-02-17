@@ -99,6 +99,8 @@ def cropObjectsParser(subparsers):
     help='the directory for pictures OR video file, where to write mask crop pictures.')
   parser.add_argument('--mask_path',
     help='the directory for pictures OR video file, where to write mask crop pictures.')
+  parser.add_argument('--where_object', default='TRUE',
+    help='SQL "where" clause for the "objects" table.')
   parser.add_argument('--target_width', required=False, type=int)
   parser.add_argument('--target_height', required=False, type=int)
   parser.add_argument('--edges', default='distort',
@@ -115,7 +117,8 @@ def cropObjects(c, args):
     image_media=args.image_path, mask_media=args.mask_path, overwrite=args.overwrite)
 
   c.execute('SELECT o.objectid,o.imagefile,o.x1,o.y1,o.width,o.height,o.name,o.score,i.maskfile,i.timestamp '
-    'FROM objects AS o INNER JOIN images AS i ON i.imagefile = o.imagefile ORDER BY objectid')
+    'FROM objects AS o INNER JOIN images AS i ON i.imagefile = o.imagefile WHERE (%s) ORDER BY objectid' %
+    args.where_object)
   entries = c.fetchall()
   logging.debug(pformat(entries))
 
@@ -144,7 +147,13 @@ def cropObjects(c, args):
       (imagefile, args.target_width, args.target_height, maskfile, timestamp, name, score))
     c.execute('UPDATE objects SET imagefile=? WHERE objectid=?', (imagefile, objectid))
 
-  c.execute('UPDATE objects SET x1=0,y1=0,width=?,height=?', (args.target_width, args.target_height))
+  # TODO: change all objects properly
+  if args.edges != 'variable_size':
+    c.execute('UPDATE objects SET x1=0,y1=0,width=?,height=?', (args.target_width, args.target_height))
+    logging.warning("All objects are distorted to the crop option for distort now. It's in TODO.")
+  else:
+    c.execute('UPDATE objects SET x1=x1-?,y1=y1-?', (x1, y1))
+
   # TODO: update polygons.
   imwriter.close()
 
