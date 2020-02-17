@@ -116,8 +116,8 @@ def cropObjects(c, args):
   imwriter = MediaWriter(media_type=args.media, rootdir=args.rootdir,
     image_media=args.image_path, mask_media=args.mask_path, overwrite=args.overwrite)
 
-  c.execute('SELECT o.objectid,o.imagefile,o.x1,o.y1,o.width,o.height,o.name,o.score,i.maskfile,i.timestamp '
-    'FROM objects AS o INNER JOIN images AS i ON i.imagefile = o.imagefile WHERE (%s) ORDER BY objectid' %
+  c.execute('SELECT objectid,imagefile,x1,y1,width,height,name,score,i.maskfile,i.timestamp '
+    'FROM objects INNER JOIN images AS i ON i.imagefile = imagefile WHERE (%s) ORDER BY objectid' %
     args.where_object)
   entries = c.fetchall()
   logging.debug(pformat(entries))
@@ -132,29 +132,52 @@ def cropObjects(c, args):
     image = imreader.imread(imagefile)
     logging.debug('Cropping roi=%s from image of shape %s' % (roi, image.shape))
     image = cropPatch(image, roi, args.target_height, args.target_width, args.edges)
-    imagefile = imwriter.imwrite(image, namehint='%06d' % objectid)
+    imagefile_cropped = imwriter.imwrite(image, namehint='%06d' % objectid)
 
     # Write mask.
     if args.mask_path is not None and maskfile is not None:
       mask = imreader.maskread(maskfile)
       mask = cropPatch(mask, roi, args.target_height, args.target_width, args.edges)
-      maskfile = imwriter.maskwrite(mask, namehint='%06d' % objectid)
+      maskfile_cropped = imwriter.maskwrite(mask, namehint='%06d' % objectid)
     elif args.mask_path is None:
-      maskfile = None
+      maskfile_cropped = None
 
-    logging.debug('Recording imagefile %s and maskfile %s.' % (imagefile, maskfile))
+    logging.debug('Recording imagefile %s and maskfile %s.' % (imagefile_cropped, maskfile_cropped))
     c.execute('INSERT INTO images VALUES (?,?,?,?,?,?,?)',
-      (imagefile, args.target_width, args.target_height, maskfile, timestamp, name, score))
-    c.execute('UPDATE objects SET imagefile=? WHERE objectid=?', (imagefile, objectid))
+      (imagefile_cropped, args.target_width, args.target_height, maskfile_cropped, timestamp, name, score))
 
-  # TODO: change all objects properly
-  if args.edges != 'variable_size':
-    c.execute('UPDATE objects SET x1=0,y1=0,width=?,height=?', (args.target_width, args.target_height))
-    logging.warning("All objects are distorted to the crop option for distort now. It's in TODO.")
+    # If only one object category was sampled, other objects should be preserved.
+    if args.where_object:
+      c.execute('SELECT * FROM objects WHERE imagefile=? AND x1<? AND y1<? AND x1+width>? AND y1+height>?',
+        (imagefile, x1 + width, y1 + height, x1, y1))
+      objects = c.fetchall()
+
+      # Will later erase all up to this id.
+      c.execute('SELECT MAX(objectid) FROM objects')
+      last_row_id = c.fetchone()[0]
+
+      for iobj,object_ in enumerate(objects):
+        objectid_obj = objectField(object_, 'objectid')
+        x1_obj = objectField(object_, 'x1')
+        y1_obj = objectField(object_, 'y1')
+        width_obj = objectField(object_, 'width')
+        height_obj = objectField(object_, 'height')
+        name_obj = objectField(object_, 'name')
+        score_obj = objectField(object_, 'score')
+        c.execute('INSERT INTO objects(objectid,imagefile,x1,y1,width,height,name,score) VALUES (?,?,?,?,?,?,?,?)',
+          (last_row_id + iobj + 1, imagefile_cropped, x1_obj-x1, y1_obj-y1, width_obj, height_obj, name_obj, score_obj))
+      
+  if args.where_object:
+    c.execute('DELETE FROM objects WHERE objectid <= ?', last_row_id)
   else:
-    c.execute('UPDATE objects SET x1=x1-?,y1=y1-?', (x1, y1))
+    # Simple case of only one object in the crop -- the one which was cropped.
+    c.execute('UPDATE objects SET x1=0,y1=0,width=?,height=?', (args.target_width, args.target_height))
 
-  # TODO: update polygons.
+  # TODO: copy properties, polygons, and matches.
+  c.execute('DELETE FROM properties')
+  c.execute('DELETE FROM polygons')
+  c.execute('DELETE FROM matches')
+
   imwriter.close()
 
 
