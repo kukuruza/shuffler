@@ -10,7 +10,8 @@ from math import sqrt
 
 from .backendDb import imageField, objectField, polygonField, deleteImage, parseTimeString, makeTimeString
 from .backendMedia import MediaReader, MediaWriter
-from .util import drawTextOnImage, drawMaskOnImage, drawMaskAside, drawScoredPolygon, drawScoredRoi, cropPatch, bbox2roi, applyLabelMappingToMask
+from .util import drawTextOnImage, drawMaskOnImage, drawMaskAside, drawScoredPolygon, drawScoredRoi, bbox2roi, applyLabelMappingToMask
+from .utilExpandBoxes import cropPatch
 
 
 def add_parsers(subparsers):
@@ -98,13 +99,14 @@ def cropObjectsParser(subparsers):
     help='the directory for pictures OR video file, where to write mask crop pictures.')
   parser.add_argument('--mask_path',
     help='the directory for pictures OR video file, where to write mask crop pictures.')
-  parser.add_argument('--target_width', required=True, type=int)
-  parser.add_argument('--target_height', required=True, type=int)
+  parser.add_argument('--target_width', required=False, type=int)
+  parser.add_argument('--target_height', required=False, type=int)
   parser.add_argument('--edges', default='distort',
-    choices={'distort', 'constant', 'background'},
+    choices={'distort', 'constant', 'background', 'variable_size'},
     help='''"distort" distorts the patch to get to the desired ratio,
             "constant" keeps the ratio but pads the patch with zeros,
-            "background" keeps the ratio but includes image background.''')
+            "background" keeps the ratio but includes image background.
+            "variable_size" does not change the crop dimensions. Target width and height are ignored.''')
   parser.add_argument('--overwrite', action='store_true', help='overwrite video if it exists.')
 
 def cropObjects(c, args):
