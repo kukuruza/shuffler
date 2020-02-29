@@ -28,7 +28,7 @@ def createTableImages (cursor):
                  'name TEXT, '
                  'score REAL '
                  ');')
-  cursor.execute('CREATE INDEX images_on_imagefile ON images(imagefile);')
+  cursor.execute('CREATE INDEX IF NOT EXISTS images_on_imagefile ON images(imagefile);')
 
 
 def createTableObjects (cursor):
@@ -42,8 +42,8 @@ def createTableObjects (cursor):
                  'name TEXT, '
                  'score REAL '
                  ');')
-  cursor.execute('CREATE INDEX objects_on_imagefile ON objects(imagefile);')
-  cursor.execute('CREATE INDEX objects_on_objectid ON objects(objectid);')
+  cursor.execute('CREATE INDEX IF NOT EXISTS objects_on_imagefile ON objects(imagefile);')
+  cursor.execute('CREATE INDEX IF NOT EXISTS objects_on_objectid ON objects(objectid);')
 
 
 def createTableProperties (cursor):
@@ -53,9 +53,9 @@ def createTableProperties (cursor):
                  'key TEXT, '
                  'value TEXT '
                  ');')
-  cursor.execute('CREATE INDEX properties_on_key ON properties(key);')
-  cursor.execute('CREATE INDEX properties_on_key_and_value ON properties(key,value);')
-  cursor.execute('CREATE INDEX properties_on_objectid ON properties(objectid);')
+  cursor.execute('CREATE INDEX IF NOT EXISTS properties_on_key ON properties(key);')
+  cursor.execute('CREATE INDEX IF NOT EXISTS properties_on_key_and_value ON properties(key,value);')
+  cursor.execute('CREATE INDEX IF NOT EXISTS properties_on_objectid ON properties(objectid);')
 
 
 def createTablePolygons (cursor):
@@ -66,8 +66,8 @@ def createTablePolygons (cursor):
                  'y INTEGER, '
                  'name TEXT '
                  ');')
-  cursor.execute('CREATE INDEX polygons_on_id ON polygons(id);')
-  cursor.execute('CREATE INDEX polygons_on_objectid ON polygons(objectid);')
+  cursor.execute('CREATE INDEX IF NOT EXISTS polygons_on_id ON polygons(id);')
+  cursor.execute('CREATE INDEX IF NOT EXISTS polygons_on_objectid ON polygons(objectid);')
 
 
 def createTableMatches (cursor):
@@ -76,7 +76,7 @@ def createTableMatches (cursor):
                  'match INTEGER, '
                  'objectid INTEGER '
                  ');')
-  cursor.execute('CREATE INDEX matches_on_match ON matches(match);')
+  cursor.execute('CREATE INDEX IF NOT EXISTS matches_on_match ON matches(match);')
 
 
 def createDb (conn):
@@ -89,6 +89,30 @@ def createDb (conn):
   createTableProperties(cursor)
   createTablePolygons(cursor)
   createTableMatches(cursor)
+
+def retireTables(cursor):
+  ''' Changes names of tables to ***_old, and recreates brand-new tables. '''
+
+  cursor.execute('ALTER TABLE images RENAME TO images_old')
+  cursor.execute('ALTER TABLE objects RENAME TO objects_old')
+  cursor.execute('ALTER TABLE properties RENAME TO properties_old')
+  cursor.execute('ALTER TABLE matches RENAME TO matches_old')
+  cursor.execute('ALTER TABLE polygons RENAME TO polygons_old')
+  createTableImages(cursor)
+  createTableObjects(cursor)
+  createTableProperties(cursor)
+  createTablePolygons(cursor)
+  createTableMatches(cursor)
+
+
+def dropRetiredTables(cursor):
+  ''' Drops tables with names ***_old. To be used after retireTables. '''
+
+  cursor.execute('DROP TABLE images_old;')
+  cursor.execute('DROP TABLE objects_old;')
+  cursor.execute('DROP TABLE properties_old;')
+  cursor.execute('DROP TABLE matches_old;')
+  cursor.execute('DROP TABLE polygons_old;')
 
 
 def makeTimeString (time):

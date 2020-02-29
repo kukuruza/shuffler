@@ -15,7 +15,7 @@ from ast import literal_eval
 from .backendDb import makeTimeString, deleteImage, deleteObject, objectField, createDb
 from .backendMedia import getPictureSize, MediaReader
 from .util import drawScoredRoi, roi2bbox, bboxes2polygons, polygons2bboxes
-from .utilExpandBoxes import expandRoiToRatio, expandRoi
+from .utilBoxes import expandRoiToRatio, expandRoi
 
 
 def add_parsers(subparsers):

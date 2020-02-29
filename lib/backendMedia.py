@@ -295,7 +295,7 @@ class PictureWriter:
 
   def imwrite (self, image, namehint=None):
     if self.imagedir is None:
-      raise ValueException('Tried to write an image, but imagedir was not specified at init.')
+      raise ValueError('Tried to write an image, but imagedir was not specified at init.')
     if namehint is not None and not isinstance(namehint, str):
       raise ValueError('namehint must be a string, got %s' % str(namehint))
 
@@ -416,6 +416,40 @@ class MediaReader:
       (mask_id, self.rootdir))
 
 
+class MockWriter:
+  def __init__(self):
+    self.image_current_frame = -1
+    self.mask_current_frame = -1
+
+  def imwrite (self, image, namehint=None):
+    if namehint is not None and not isinstance(namehint, str):
+      raise ValueError('namehint must be a string, got %s' % str(namehint))
+
+    # If "namehint" is not specified, compute name as the next frame.
+    if namehint is None:
+      self.image_current_frame += 1
+      name = self.image_current_frame
+    else:
+      name = op.basename(namehint)
+    return name
+
+  def maskwrite (self, mask, namehint=None):
+    if namehint is not None and not isinstance(namehint, str):
+      raise ValueError('namehint must be a string, got %s' % str(namehint))
+
+    # If "namehint" is not specified, compute name as the next frame.
+    if namehint is None:
+      self.mask_current_frame += 1
+      name = self.mask_current_frame
+    else:
+      name = op.basename(namehint)
+    return name
+
+  def close (self):
+    pass
+
+
+
 class MediaWriter:
   ''' A wrapper class around PictureWriter and VideoWriter. The purpose is
   1) to avoid if-else in the subcommand code, depending on how a user would like to record data.
@@ -445,6 +479,8 @@ class MediaWriter:
       self.writer = VideoWriter(vimagefile=image_media, vmaskfile=mask_media, overwrite=overwrite)
     elif media_type == 'pictures':
       self.writer = PictureWriter(imagedir=image_media, maskdir=mask_media, overwrite=overwrite)
+    elif media_type == 'mock':
+      self.writer = MockWriter()
     else:
       raise ValueError('"media" must be either "video" or "pictures", not %s' % media_type)
 
@@ -457,6 +493,10 @@ class MediaWriter:
       image_id = self.writer.imwrite(image)
     elif self.media_type == 'pictures':
       image_id = self.writer.imwrite(image, namehint=namehint)
+    elif self.media_type == 'mock':
+      image_id = self.writer.imwrite(image, namehint=namehint)
+    else:
+      assert False, "We should not be here."
 
     return op.relpath(image_id, self.rootdir)
 
@@ -469,6 +509,10 @@ class MediaWriter:
       mask_id = self.writer.maskwrite(mask)
     elif self.media_type == 'pictures':
       mask_id = self.writer.maskwrite(mask, namehint=namehint)
+    elif self.media_type == 'mock':
+      mask_id = self.writer.maskwrite(mask, namehint=namehint)
+    else:
+      assert False, "We should not be here."
 
     return op.relpath(mask_id, self.rootdir)
 

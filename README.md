@@ -194,10 +194,16 @@ Most of the backend and utilities are covered in unit tests.
 First, install `nose` package to run tests and `scikit-image` for testing some image related functions:
 
 ```bash
-conda install -y nose scikit-image
+conda install -y mock nose scikit-image
 ```
 
-Run the tests.
+Run one test:
+
+```bash
+python3 -m lib.utilBoxes_test.py
+```
+
+Run the tests:
 
 ```bash
 cd test
