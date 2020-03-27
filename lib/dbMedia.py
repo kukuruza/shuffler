@@ -55,14 +55,14 @@ def cropMediaParser(subparsers):
 
 
 def cropMedia(c, args):
-    imreader = MediaReader(rootdir=args.rootdir)
+    imreader = backendMedia.MediaReader(rootdir=args.rootdir)
     # Create a writer. Rootdir may be changed.
     out_rootdir = args.out_rootdir if args.out_rootdir is not None else args.rootdir
-    imwriter = MediaWriter(rootdir=out_rootdir,
-                           media_type=args.media,
-                           image_media=args.image_path,
-                           mask_media=args.mask_path,
-                           overwrite=args.overwrite)
+    imwriter = backendMedia.MediaWriter(rootdir=out_rootdir,
+                                        media_type=args.media,
+                                        image_media=args.image_path,
+                                        mask_media=args.mask_path,
+                                        overwrite=args.overwrite)
 
     target_width = args.x2 - args.x1
     target_height = args.y2 - args.y1
@@ -141,8 +141,8 @@ def cropObjectsParser(subparsers):
         'a frame to write for each crop. '
         'By default, only the cropped object is recorded.'
         'Queries table "objects". Example: \'objects.name == "bus"\'')
-    parser.add_argument('--target_width', required=False, type=int)
-    parser.add_argument('--target_height', required=False, type=int)
+    parser.add_argument('--target_width', type=int)
+    parser.add_argument('--target_height', type=int)
     parser.add_argument(
         '--edges',
         default='distort',
@@ -155,6 +155,14 @@ def cropObjectsParser(subparsers):
     parser.add_argument('--overwrite',
                         action='store_true',
                         help='overwrite video if it exists.')
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        '--split_into_folders_by_object_name',
+        help=
+        'Images are split into folders by object name, if media=""pictures".')
+    group.add_argument(
+        '--add_object_name_to_filename',
+        help='Object name is added to image name, if media=""pictures".')
 
 
 def cropObjects(c, args):
@@ -199,8 +207,13 @@ def cropObjects(c, args):
                                                    args.edges,
                                                    args.target_height,
                                                    args.target_width)
-        new_imagefile = imwriter.imwrite(new_image,
-                                         namehint='%06d' % old_objectid)
+        if args.split_into_folders_by_object_name:
+            namehint = '%s/%09d' % (name, old_objectid)
+        elif args.add_object_name_to_filename:
+            namehint = '%s %09d' % (name, old_objectid)
+        else:
+            namehint = '%09d' % old_objectid
+        new_imagefile = imwriter.imwrite(new_image, namehint=namehint)
         new_width, new_height = new_image.shape[1], new_image.shape[0]
 
         # Write transform as x_new = x_old * kx + bx, y_new = y_old * ky + by.
@@ -215,8 +228,7 @@ def cropObjects(c, args):
             new_mask, _ = utilBoxes.cropPatch(old_mask, old_roi, args.edges,
                                               args.target_height,
                                               args.target_width)
-            new_maskfile = imwriter.maskwrite(new_mask,
-                                              namehint='%06d' % old_objectid)
+            new_maskfile = imwriter.maskwrite(new_mask, namehint=namehint)
         else:
             new_maskfile = None
 

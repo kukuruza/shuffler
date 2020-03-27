@@ -329,6 +329,9 @@ class PictureWriter:
                 os.makedirs(maskdir)
 
     def imwrite(self, image, namehint=None):
+        '''
+        Note: namehint may be a name e.g. "car.jpg" or path e.g. "cars/01.jpg".
+        '''
         if self.imagedir is None:
             raise ValueError(
                 'Tried to write an image, but imagedir was not specified at init.'
@@ -353,6 +356,12 @@ class PictureWriter:
         logging.debug('Writing image to path: "%s"' % imagepath)
         if op.exists(imagepath) and not self.overwrite:
             raise Exception('Imagepath has been already recorded before: "%s"')
+
+        # Process the case when namehint was a path.
+        if namehint is not None and '/' in namehint:
+            imagedir = op.dirname(imagepath)
+            if not op.exists(imagedir):
+                os.makedirs(imagedir)
 
         # Write.
         imageio.imwrite(imagepath, image, quality=self.jpg_quality)
@@ -400,7 +409,7 @@ class MediaReader:
         self.rootdir = rootdir
         if not isinstance(rootdir, str):
             raise ValueError('rootdir must be a string, got %s' % str(rootdir))
-        self.reader = None  # Lazy ionitialization.
+        self.reader = None  # Lazy initialization.
 
     def close(self):
         if self.reader is not None:
@@ -519,8 +528,8 @@ class MediaWriter:
         Args:
           media_type:   "video" for multiple images in ffmpeg formats,
                         "pictures" for directory with single images in ffmpeg formats.
-          image_media:  path for "imagefile" to video or directory, depeding on media_type.
-          mask_meda:    path for "maskfile" to video or directory, depeding on media_type.
+          image_media:  path for "imagefile" to video or directory, depending on media_type.
+          mask_media:   path for "maskfile" to video or directory, depending on media_type.
           rootdir:      Output "imagefile" and "maskfile" will be computed relative to it.
                         Input image_media and mask_media are not affected.
           overwrite:    if media exists, overwrite it or raise an exception.
@@ -551,7 +560,7 @@ class MediaWriter:
         '''
         Args:
           namehint:  A file in directory will have basename(namehint), not a sequential number.
-                 (Only for meda_type="pictures".)
+                 (Only for media_type="pictures".)
         '''
         if self.media_type == 'video':
             image_id = self.writer.imwrite(image)
@@ -568,7 +577,7 @@ class MediaWriter:
         '''
         Args:
           namehint:  A file in directory will have basename(namehint), not a sequential number.
-                 (Only for meda_type="pictures".)
+                 (Only for media_type="pictures".)
         '''
         if self.media_type == 'video':
             mask_id = self.writer.maskwrite(mask)

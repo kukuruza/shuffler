@@ -188,7 +188,9 @@ class Test_cropObjects_emptyDb(Test_emptyDb):
                                   target_width=None,
                                   target_height=None,
                                   edges='original',
-                                  overwrite=False)
+                                  overwrite=False,
+                                  split_into_folders_by_object_name=False,
+                                  add_object_name_to_filename=False)
         dbMedia.cropObjects(c, args)
         self.assertEmpty(c)
 
@@ -203,7 +205,9 @@ class Test_cropObjects_emptyDb(Test_emptyDb):
                                   target_width=None,
                                   target_height=None,
                                   edges='original',
-                                  overwrite=False)
+                                  overwrite=False,
+                                  split_into_folders_by_object_name=False,
+                                  add_object_name_to_filename=False)
         dbMedia.cropObjects(c, args)
         self.assertEmpty(c)
 
@@ -220,7 +224,9 @@ class Test_cropObjects_carsDb(Test_carsDb):
                                   target_width=None,
                                   target_height=None,
                                   edges='original',
-                                  overwrite=False)
+                                  overwrite=False,
+                                  split_into_folders_by_object_name=False,
+                                  add_object_name_to_filename=False)
         dbMedia.cropObjects(c, args)
         self.assert_images_count(c, expected=3)
         self.assert_objects_count_by_imagefile(c, expected=[1, 1, 1])
@@ -245,7 +251,9 @@ class Test_cropObjects_carsDb(Test_carsDb):
                                   target_width=None,
                                   target_height=None,
                                   edges='original',
-                                  overwrite=False)
+                                  overwrite=False,
+                                  split_into_folders_by_object_name=False,
+                                  add_object_name_to_filename=False)
         dbMedia.cropObjects(c, args)
         # Check that maskfiles were NOT written
         c.execute(
@@ -263,7 +271,9 @@ class Test_cropObjects_carsDb(Test_carsDb):
                                   target_width=None,
                                   target_height=None,
                                   edges='original',
-                                  overwrite=False)
+                                  overwrite=False,
+                                  split_into_folders_by_object_name=False,
+                                  add_object_name_to_filename=False)
         c.execute('UPDATE images SET maskfile=NULL')
         dbMedia.cropObjects(c, args)
         # Check that maskfiles were NOT written
@@ -271,7 +281,8 @@ class Test_cropObjects_carsDb(Test_carsDb):
             'SELECT COUNT(maskfile) FROM images WHERE maskfile IS NOT NULL')
         self.assertEqual(c.fetchone()[0], 0)
 
-    def test_video_not_allowed_if_edges_original(self):
+    @mock.patch('__main__.dbMedia.backendMedia.MediaWriter')
+    def test_video_not_allowed_if_edges_original(self, mock_imwriter):
         c = self.conn.cursor()
         args = argparse.Namespace(rootdir=CARS_DB_ROOTDIR,
                                   media='video',
@@ -282,7 +293,9 @@ class Test_cropObjects_carsDb(Test_carsDb):
                                   target_width=None,
                                   target_height=None,
                                   edges='original',
-                                  overwrite=False)
+                                  overwrite=False,
+                                  split_into_folders_by_object_name=False,
+                                  add_object_name_to_filename=False)
         with self.assertRaises(Exception):
             dbMedia.cropObjects(c, args)
 
@@ -297,7 +310,9 @@ class Test_cropObjects_carsDb(Test_carsDb):
                                   target_width=None,
                                   target_height=None,
                                   edges='original',
-                                  overwrite=False)
+                                  overwrite=False,
+                                  split_into_folders_by_object_name=False,
+                                  add_object_name_to_filename=False)
         dbMedia.cropObjects(c, args)
         self.assert_images_count(c, expected=1)
         self.assert_objects_count_by_imagefile(c, expected=[1])
@@ -317,7 +332,9 @@ class Test_cropObjects_carsDb(Test_carsDb):
                                   target_width=None,
                                   target_height=None,
                                   edges='original',
-                                  overwrite=False)
+                                  overwrite=False,
+                                  split_into_folders_by_object_name=False,
+                                  add_object_name_to_filename=False)
         dbMedia.cropObjects(c, args)
         self.assert_images_count(c, expected=3)
         self.assert_objects_count_by_imagefile(c, expected=[1, 2, 2])
@@ -338,7 +355,9 @@ class Test_cropObjects_carsDb(Test_carsDb):
                                   target_width=None,
                                   target_height=None,
                                   edges='original',
-                                  overwrite=False)
+                                  overwrite=False,
+                                  split_into_folders_by_object_name=False,
+                                  add_object_name_to_filename=False)
         dbMedia.cropObjects(c, args)
         self.assert_images_count(c, expected=3)
         self.assert_objects_count_by_imagefile(c, expected=[1, 2, 1])
@@ -347,6 +366,89 @@ class Test_cropObjects_carsDb(Test_carsDb):
         # +1 is for the new property "crop": "true" of the cropped object.
         self.assert_properties_count_by_object(
             c, expected=[3 + 1, 3 + 1, 1, 1 + 1])
+
+    @mock.patch('__main__.dbMedia.backendMedia.MediaWriter')
+    def test_namehint(self, mock_imwriter):
+        ''' Test 'namehint'. '''
+        mock_imwriter.return_value.imwrite.side_effect = ['foo', 'bar', 'baz']
+        c = self.conn.cursor()
+        args = argparse.Namespace(rootdir=CARS_DB_ROOTDIR,
+                                  media='pictures',
+                                  image_path='mock_media',
+                                  mask_path=None,
+                                  where_object='objectid IN (2, 3)',
+                                  where_other_objects='FALSE',
+                                  target_width=None,
+                                  target_height=None,
+                                  edges='original',
+                                  overwrite=False,
+                                  split_into_folders_by_object_name=False,
+                                  add_object_name_to_filename=False)
+        dbMedia.cropObjects(c, args)
+        # Check that the crops are correct.
+        self.assert_images_count(c, expected=2)
+        self.assert_objects_count_by_imagefile(c, expected=[1, 1])
+        # imwrite must be called 2 times.
+        call_args_list = mock_imwriter.return_value.imwrite.call_args_list
+        self.assertEqual(len(call_args_list), 2)
+        self.assertEqual(call_args_list[0][1], {'namehint': '000000002'})
+        self.assertEqual(call_args_list[1][1], {'namehint': '000000003'})
+
+    @mock.patch('__main__.dbMedia.backendMedia.MediaWriter')
+    def test_namehint_splitIntoFoldersByObjectName(self, mock_imwriter):
+        ''' Test 'namehint' when split_into_folders_by_object_name is on. '''
+        mock_imwriter.return_value.imwrite.side_effect = ['foo', 'bar', 'baz']
+        c = self.conn.cursor()
+        args = argparse.Namespace(rootdir=CARS_DB_ROOTDIR,
+                                  media='pictures',
+                                  image_path='mock_media',
+                                  mask_path=None,
+                                  where_object='TRUE',
+                                  where_other_objects='FALSE',
+                                  target_width=None,
+                                  target_height=None,
+                                  edges='original',
+                                  overwrite=False,
+                                  split_into_folders_by_object_name=True,
+                                  add_object_name_to_filename=False)
+        dbMedia.cropObjects(c, args)
+        # Check that the crops are correct.
+        self.assert_images_count(c, expected=3)
+        self.assert_objects_count_by_imagefile(c, expected=[1, 1, 1])
+        # imwrite must be called 3 times.
+        call_args_list = mock_imwriter.return_value.imwrite.call_args_list
+        self.assertEqual(len(call_args_list), 3)
+        self.assertEqual(call_args_list[0][1], {'namehint': 'car/000000001'})
+        self.assertEqual(call_args_list[1][1], {'namehint': 'car/000000002'})
+        self.assertEqual(call_args_list[2][1], {'namehint': 'bus/000000003'})
+
+    @mock.patch('__main__.dbMedia.backendMedia.MediaWriter')
+    def test_namehint_addObjectNameToFilename(self, mock_imwriter):
+        ''' Test 'namehint' when add_object_name_to_filename is on. '''
+        mock_imwriter.return_value.imwrite.side_effect = ['foo', 'bar', 'baz']
+        c = self.conn.cursor()
+        args = argparse.Namespace(rootdir=CARS_DB_ROOTDIR,
+                                  media='pictures',
+                                  image_path='mock_media',
+                                  mask_path=None,
+                                  where_object='TRUE',
+                                  where_other_objects='FALSE',
+                                  target_width=None,
+                                  target_height=None,
+                                  edges='original',
+                                  overwrite=False,
+                                  split_into_folders_by_object_name=False,
+                                  add_object_name_to_filename=True)
+        dbMedia.cropObjects(c, args)
+        # Check that the crops are correct.
+        self.assert_images_count(c, expected=3)
+        self.assert_objects_count_by_imagefile(c, expected=[1, 1, 1])
+        # imwrite must be called 3 times.
+        call_args_list = mock_imwriter.return_value.imwrite.call_args_list
+        self.assertEqual(len(call_args_list), 3)
+        self.assertEqual(call_args_list[0][1], {'namehint': 'car 000000001'})
+        self.assertEqual(call_args_list[1][1], {'namehint': 'car 000000002'})
+        self.assertEqual(call_args_list[2][1], {'namehint': 'bus 000000003'})
 
 
 class Test_cropObjects_SyntheticDb(unittest.TestCase):
@@ -375,7 +477,9 @@ class Test_cropObjects_SyntheticDb(unittest.TestCase):
                                   target_width=None,
                                   target_height=None,
                                   edges='original',
-                                  overwrite=False)
+                                  overwrite=False,
+                                  split_into_folders_by_object_name=False,
+                                  add_object_name_to_filename=False)
         dbMedia.cropObjects(c, args)
         c.execute('SELECT x1,y1,width,height FROM objects')
         x1, y1, width, height = c.fetchone()

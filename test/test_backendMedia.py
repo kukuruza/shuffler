@@ -88,7 +88,7 @@ class TestVideoReader (unittest.TestCase):
     self.assertLess(_diff(img2, img2_gt), 0.05)
 
   def test_imread_out_of_range_frameid (self):
-    with self.assertRaises(ValueError):
+    with self.assertRaises(IndexError):
       self.reader.imread('cars/images.avi/000010')
 
   def test_imread_negative_frameid (self):
