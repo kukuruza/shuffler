@@ -16,6 +16,13 @@ FONT_SIZE = 0.7
 THICKNESS = 3
 
 
+def maybeDecode(string):
+    if isinstance(string, bytes):
+        return string.decode('UTF-8')
+    else:
+        return string
+
+
 def copyWithBackup(in_path, out_path):
     ''' Copy in_path into out_path, which is backed up if already exists. '''
 

@@ -15,6 +15,7 @@ from lib.util import drawTextOnImage, drawMaskOnImage, drawMaskAside, drawScored
 from lib import backendMedia
 from lib import backendDb
 from lib import utilBoxes
+from lib import util
 
 
 def add_parsers(subparsers):
@@ -158,10 +159,12 @@ def cropObjectsParser(subparsers):
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
         '--split_into_folders_by_object_name',
+        action='store_true',
         help=
         'Images are split into folders by object name, if media=""pictures".')
     group.add_argument(
         '--add_object_name_to_filename',
+        action='store_true',
         help='Object name is added to image name, if media=""pictures".')
 
 
@@ -208,9 +211,9 @@ def cropObjects(c, args):
                                                    args.target_height,
                                                    args.target_width)
         if args.split_into_folders_by_object_name:
-            namehint = '%s/%09d' % (name.decode('UTF-8'), old_objectid)
+            namehint = '%s/%09d' % (util.maybeDecode(name), old_objectid)
         elif args.add_object_name_to_filename:
-            namehint = '%s %09d' % (name.decode('UTF-8'), old_objectid)
+            namehint = '%s %09d' % (util.maybeDecode(name), old_objectid)
         else:
             namehint = '%09d' % old_objectid
         new_imagefile = imwriter.imwrite(new_image, namehint=namehint)
