@@ -345,7 +345,7 @@ class PictureWriter:
             self.image_current_frame += 1
             name = '%06d.jpg' % self.image_current_frame
         else:
-            name = op.basename(namehint)
+            name = namehint
             # Add extension if not specified in "name"
             if not op.splitext(name)[1]:
                 name = '%s.jpg' % name
@@ -378,7 +378,7 @@ class PictureWriter:
             self.mask_current_frame += 1
             name = '%06d.png' % self.mask_current_frame
         else:
-            name = op.basename(namehint)
+            name = namehint
             # Add extension if not specified in "name"
             if not op.splitext(name)[1]:
                 name = '%s.png' % name
