@@ -9,7 +9,7 @@ examples?
 
 ## Basics
 
-##### A dataset is a database plus images.
+### A dataset is a database plus images.
 
 A Shuffler dataset consists of a SQLite database and videos or image folders.
 
@@ -27,7 +27,7 @@ their ROI, and objects in the other images that they can be matched against.
 The information about images is stored in the table `images` of the database.
 Let's look what does this table have in `test/cars/micro1_v4.db`.
 
-##### Looking at `images` table.
+### Looking at `images` table.
 
 All the work with Shuffle is currently done via a terminal (Mac, Linux, Windows
 all work.) Open your terminal, navigate to the root directory of the shuffler
@@ -45,9 +45,9 @@ a certain schema of the SQLite database.
 This command should yield a response:
 
 ```
-images/000000.jpg | 800| 700 | masks/000000.png | 2018-09-24 12:22:48.534685 | |
-images/000001.jpg | 800| 700 | masks/000001.png | 2018-09-24 12:22:48.562608 | |
-images/000002.jpg | 800| 700 | masks/000002.png | 2018-09-24 12:22:48.581214 | |
+images/000000.jpg | 800 | 700 | masks/000000.png | 2018-09-24 12:22:48.534685 | |
+images/000001.jpg | 800 | 700 | masks/000001.png | 2018-09-24 12:22:48.562608 | |
+images/000002.jpg | 800 | 700 | masks/000002.png | 2018-09-24 12:22:48.581214 | |
 ```
 
 The first column corresponds to the field `imagefile` from the table `images`.
@@ -58,7 +58,7 @@ In this case, the root directory is `test/cars` inside the Shuffler repo.
 
 The other columns of the database will be discussed later.
 
-##### Loading images.
+### Loading images.
 
 It's time to look at an image via the `shuffler.py` command line tool.
 Navigate to the root directory of the Shuffler repo, and type:
@@ -92,7 +92,7 @@ the labelled objects:
 You may notice that the first image has a labelled car, the second has a car
 and a bus, and the last one does not have any objects.
 
-###### Exercise.
+##### Exercise.
 
 Copy the folder with images `test/cars/images` and a folder with their masks
 `test/cars/masks` to different location, say, your Desktop.
