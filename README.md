@@ -15,9 +15,9 @@ Toolbox for playing with data when preparing to train a model in computer vision
 
 ## Motivation
 
-Practitioners train computer vision models to tackle practical problems, such as detecting vehicles in the autonomous car scenario or find faces in Facebook pictures. In order to train a model, researchers either use public datasets of annotated images or collect their own. 
+Practitioners train computer vision models to tackle practical problems, such as detecting vehicles in the autonomous car scenario or find faces in Facebook pictures. In order to train a model, researchers either use public datasets of annotated images or collect their own.
 
-In the process of fighting for better performance, a researcher plays with data -- filters some objects out of the training data, changes bounding boxes, manually adds some labels, etc. 
+In the process of fighting for better performance, a researcher plays with data -- filters some objects out of the training data, changes bounding boxes, manually adds some labels, etc.
 
 **Shuffler allows to easily play with data** by providing a multipurpose tool to import, modify, visualize, and export annotations for common computer vision tasks.
 
@@ -57,7 +57,7 @@ conda create -n shuffler python=3
 conda activate shuffler
 
 conda install -y -c conda-forge ffmpeg=4.0
-conda install -y imageio matplotlib lxml simplejson progressbar2 pillow scipy opencv=3
+conda install -y imageio matplotlib lxml simplejson progressbar2 pillow scipy opencv=3 pysqlite3
 
 # If desired, add support for plotting commands
 conda install -y pandas seaborn
@@ -137,7 +137,7 @@ Sub-commands can be chained via the special symbol `'|'`. Here, the vertical bar
 
 ### Using standard SQLite commands with Shuffler annotations format.
 
-The beauty of storing annotations in a relational SQLite3 database is that one can use standard SQL editors to explore them. For example, UNIX has a command line tool `sqlite3`. 
+The beauty of storing annotations in a relational SQLite3 database is that one can use standard SQL editors to explore them. For example, UNIX has a command line tool `sqlite3`.
 
 The commands below illustrate using `sqlite3` to get some statistics about the database `test/cars/micro1_v4.db` bundled into this repository.
 
@@ -189,7 +189,7 @@ We have images with objects. Images have masks with those objects. We would like
 
 ## Running unittests
 
-Most of the backend and utilities are covered in unit tests. 
+Most of the backend and utilities are covered in unit tests.
 
 First, install `nose` package to run tests and `scikit-image` for testing some image related functions:
 
