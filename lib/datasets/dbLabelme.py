@@ -352,6 +352,8 @@ def exportLabelme(c, args):
             c.execute('SELECT key FROM properties WHERE objectid=?',
                       (objectid, ))
             for key, in c.fetchall():
+                if not isinstance(key, str):
+                    key = key.decode("utf-8")
                 ET.SubElement(el_object, 'property').text = key
 
             # Polygons.
