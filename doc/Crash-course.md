@@ -2,10 +2,8 @@
 
 ## About
 
-The goal of this crash course is to give a user the understanding of what
-Shuffler is all about and what it can be used for. The "what is all about" part
-is arguably difficult to explain in bare words, so why not to learn from
-examples?
+The goal of this crash course is to teach a user by example how to use Shuffler
+for solving practical problems.
 
 ## Basics
 
@@ -16,25 +14,25 @@ A Shuffler dataset consists of a SQLite database and videos or image folders.
 For example, one of the test datasets that is used in Shuffler Unit tests
 consists of a database, of a folder with images, and a folder of masks:
 
-- `test/cars/micro1_v4.db`
+- `test/cars/micro1_v5.db`
 - `test/cars/images`
 - `test/cars/masks`
 
-The SQLite database (`test/cars/micro1_v4.db`) stores the information about
+The SQLite database (`test/cars/micro1_v5.db`) stores the information about
 where each images is located, about objects in each image, object attributes,
 their ROI, and objects in the other images that they can be matched against.
 
 The information about images is stored in the table `images` of the database.
-Let's look what does this table have in `test/cars/micro1_v4.db`.
+Let's look what does this table have in `test/cars/micro1_v5.db`.
 
 ### Looking at `images` table.
 
-All the work with Shuffle is currently done via a terminal (Mac, Linux, Windows
+All the work with Shuffler is currently done via a terminal (Mac, Linux, Windows
 all work.) Open your terminal, navigate to the root directory of the shuffler
 repo, and type:
 
 ```bash
-sqlite3 test/cars/micro1_v4.db "SELECT * FROM images"
+sqlite3 test/cars/micro1_v5.db "SELECT * FROM images"
 ```
 
 Note that we called `sqlite3` (in the Shuffler requirements list), which has
@@ -58,21 +56,26 @@ In this case, the root directory is `test/cars` inside the Shuffler repo.
 
 The other columns of the database will be discussed later.
 
-### Loading images.
+### Displaying images.
 
 It's time to look at an image via the `shuffler.py` command line tool.
+NOTE: this will only work if you have a display, as opposed to e.g. working in
+a terminal via ssh.
 Navigate to the root directory of the Shuffler repo, and type:
 
 ```bash
 ./shuffler.py -i "test/cars/micro1_v5.db" --rootdir "test/cars" examineImages
 ```
 
-You should see an image below. If you see an error, check your dependencies
-and look into the issues page on Github.
-You can press "-" and "=" to scroll to other images inside the dataset.
+You should see the following image pop up in a new window on your screen.
+If you see an error in the terminal output, first check your dependencies.
+Using your mouse, click somewhere in the window with the image.
+Now press "-" and "=" on your keyboard to loop through images in the dataset.
+If you happened to switch to a different application, you need to click on
+the window with the image to continue navigation.
 When done, press "Esc".
 
-![test cars micro1 db](Crash-course/cars-micro-image1-1500x500.png)
+![test cars micro db](Crash-course/cars-micro-image1-1500x500.png)
 
 You have just run the command line tool `./shuffler.py`. It loaded the database
 `test/cars/micro1_v5.db`, and ran its sub-command `examineImages`.
@@ -88,6 +91,8 @@ the labelled objects:
 ./shuffler.py -i "test/cars/micro1_v5.db" --rootdir "test/cars" \
   examineImages --with_objects
 ```
+
+![test cars micro db with objects](Crash-course/cars-micro-image2-1500x500.png)
 
 You may notice that the first image has a labelled car, the second has a car
 and a bus, and the last one does not have any objects.
