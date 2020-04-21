@@ -6,7 +6,7 @@ import shutil
 import traceback
 from pprint import pformat
 from operator import itemgetter
-from PIL import Image
+import PIL
 '''
 The support for reading and writing media in the form of single files and
 multiple files, which are supported by our backend imageio:
@@ -45,8 +45,9 @@ def normalizeSeparators(path):
 def getPictureSize(imagepath):
     if not op.exists(imagepath):
         raise ValueError('Image does not exist at path: "%s"' % imagepath)
-    im = Image.open(imagepath)
+    im = PIL.Image.open(imagepath)
     width, height = im.size
+    im.close()
     return height, width
 
 

@@ -197,15 +197,14 @@ First, install `nose` package to run tests and `scikit-image` for testing some i
 conda install -y mock nose scikit-image
 ```
 
-Run one test:
+To run one test, got to the Shuffler repo dir and run:
 
 ```bash
 python3 -m lib.utilBoxes_test.py
 ```
 
-Run the tests:
+To run all tests, got to the Shuffler repo dir and run:
 
 ```bash
-cd test
-python3 -m "nose"
+nosetests
 ```

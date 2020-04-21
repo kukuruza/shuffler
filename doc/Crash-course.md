@@ -14,16 +14,16 @@ A Shuffler dataset consists of a SQLite database and videos or image folders.
 For example, one of the test datasets that is used in Shuffler Unit tests
 consists of a database, of a folder with images, and a folder of masks:
 
-- `test/cars/micro1_v5.db`
+- `test/cars/micro1_v4.db`
 - `test/cars/images`
 - `test/cars/masks`
 
-The SQLite database (`test/cars/micro1_v5.db`) stores the information about
+The SQLite database (`test/cars/micro1_v4.db`) stores the information about
 where each images is located, about objects in each image, object attributes,
 their ROI, and objects in the other images that they can be matched against.
 
 The information about images is stored in the table `images` of the database.
-Let's look what does this table have in `test/cars/micro1_v5.db`.
+Let's look what does this table have in `test/cars/micro1_v4.db`.
 
 ### Looking at `images` table.
 
@@ -32,7 +32,7 @@ all work.) Open your terminal, navigate to the root directory of the shuffler
 repo, and type:
 
 ```bash
-sqlite3 test/cars/micro1_v5.db "SELECT * FROM images"
+sqlite3 test/cars/micro1_v4.db "SELECT * FROM images"
 ```
 
 Note that we called `sqlite3` (in the Shuffler requirements list), which has
@@ -64,7 +64,7 @@ a terminal via ssh.
 Navigate to the root directory of the Shuffler repo, and type:
 
 ```bash
-./shuffler.py -i "test/cars/micro1_v5.db" --rootdir "test/cars" examineImages
+./shuffler.py -i "test/cars/micro1_v4.db" --rootdir "test/cars" examineImages
 ```
 
 You should see the following image pop up in a new window on your screen.
@@ -78,7 +78,7 @@ When done, press "Esc".
 ![test cars micro db](Crash-course/cars-micro-image1-1500x500.png)
 
 You have just run the command line tool `./shuffler.py`. It loaded the database
-`test/cars/micro1_v5.db`, and ran its sub-command `examineImages`.
+`test/cars/micro1_v4.db`, and ran its sub-command `examineImages`.
 Note that the `rootdir` argument was specified to let Shuffler know the relative
 directory of images, in this case, folder `test/cars`. Either the absolute or
 relative path can be specified as `rootdir`.
@@ -88,7 +88,7 @@ arguments. Run the following command to see not only the images, but also
 the labelled objects:
 
 ```bash
-./shuffler.py -i "test/cars/micro1_v5.db" --rootdir "test/cars" \
+./shuffler.py -i "test/cars/micro1_v4.db" --rootdir "test/cars" \
   examineImages --with_objects
 ```
 
@@ -110,7 +110,7 @@ Now examine images using the previous command but specify the new
 In my case the new image folder is at `$HOME/Desktop`.
 
 ```bash
-./shuffler.py -i "test/cars/micro1_v5.db" --rootdir $HOME"/Desktop" examineImages
+./shuffler.py -i "test/cars/micro1_v4.db" --rootdir $HOME"/Desktop" examineImages
 ```
 
 </details>

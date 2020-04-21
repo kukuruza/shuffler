@@ -17,6 +17,10 @@ THICKNESS = 3
 
 
 def maybeDecode(string):
+    '''
+    Db entries may not be in Unicode. Call this function to use db entries
+    to name files in a filesystem.
+    '''
     if isinstance(string, bytes):
         return string.decode('UTF-8')
     else:

@@ -13,12 +13,12 @@ import numpy as np
 from lib import backendDb
 from lib import dbMedia
 
-CARS_DB_PATH = 'lib/testdata/cars/micro1_v4.db'
-CARS_DB_ROOTDIR = 'lib/testdata'
+CARS_DB_PATH = 'testdata/cars/micro1_v4.db'
+CARS_DB_ROOTDIR = 'testdata/cars'
 
 
 class Test_DB(unittest.TestCase):
-    ''' Implements useful functions to compare the result db with the expected one. '''
+    ''' Implements utils to compare the result db with the expected one. '''
     def summarize_db(self, c):
         summary = []
         summary.append('--- DB summary start ---')
@@ -56,22 +56,22 @@ class Test_DB(unittest.TestCase):
 
     def assert_images_count(self, c, expected):
         '''
-    Check the number of images.
-    Args:
-      c:          Cursor.
-      expected:   Int, count of all images.
-    '''
+        Check the number of images.
+        Args:
+        c:          Cursor.
+        expected:   Int, count of all images.
+        '''
         self.verify_that_expected_is_int(expected)
         c.execute('SELECT COUNT(1) FROM images')
         self.assertEqual(c.fetchone()[0], expected, self.summarize_db(c))
 
     def assert_objects_count_by_imagefile(self, c, expected):
         '''
-    Check the number of objects grouped by imagefile.
-    Args:
-      c:          Cursor.
-      expected:   A list of ints, each element is a number of objects in one imagefile.
-    '''
+        Check the number of objects grouped by imagefile.
+        Args:
+        c:          Cursor.
+        expected:   A list of ints, each element is a number of objects in one imagefile.
+        '''
         self.verify_that_expected_is_a_list_of_ints(expected)
         c.execute(
             'SELECT COUNT(i.imagefile) FROM images i LEFT OUTER JOIN objects o '
@@ -83,12 +83,12 @@ class Test_DB(unittest.TestCase):
 
     def assert_polygons_count_by_object(self, c, expected):
         '''
-    Check the number of polygon points grouped by objectid.
-    Args:
-      c:          Cursor.
-      expected:   A list of ints, each element is a number of polygon point for one objectid.
-                  The order of elements is not important.
-    '''
+        Check the number of polygon points grouped by objectid.
+        Args:
+        c:          Cursor.
+        expected:   A list of ints, each element is a number of polygon point for one objectid.
+                    The order of elements is not important.
+        '''
         self.verify_that_expected_is_a_list_of_ints(expected)
         c.execute(
             'SELECT COUNT(p.objectid) FROM objects o LEFT OUTER JOIN polygons p '
@@ -100,12 +100,12 @@ class Test_DB(unittest.TestCase):
 
     def assert_objects_count_by_match(self, c, expected):
         '''
-    Check the number of objects grouped by match.
-    Args:
-      c:          Cursor.
-      expected:   A list of ints, each element is a number of objects for one match.
-                  The order of elements is not important.
-    '''
+        Check the number of objects grouped by match.
+        Args:
+        c:          Cursor.
+        expected:   A list of ints, each element is a number of objects for one match.
+                    The order of elements is not important.
+        '''
         self.verify_that_expected_is_a_list_of_ints(expected)
         c.execute('SELECT COUNT(1) FROM matches GROUP BY match')
         actual = c.fetchall()
@@ -115,12 +115,12 @@ class Test_DB(unittest.TestCase):
 
     def assert_properties_count_by_object(self, c, expected):
         '''
-    Check the number of properties grouped by objectid.
-    Args:
-      c:          Cursor.
-      expected:   A list of ints, each element is a number of properties for one objectid.
-                  The order of elements is not important.
-    '''
+        Check the number of properties grouped by objectid.
+        Args:
+        c:          Cursor.
+        expected:   A list of ints, each element is a number of properties for one objectid.
+                    The order of elements is not important.
+        '''
         self.verify_that_expected_is_a_list_of_ints(expected)
         c.execute(
             'SELECT COUNT(p.objectid) FROM objects o LEFT OUTER JOIN properties p '
@@ -142,18 +142,18 @@ class Test_emptyDb(Test_DB):
 
 class Test_carsDb(Test_DB):
     '''
-  carsDb: image/000000:
-            objectids:
-              1. name: car, properties: yaw, pitch, color
-          image/000001:
-            objectids:
-              2. name: car, 5 polygons, properties: yaw, pitch, color
-              3. name: bus, properties: yaw
-          image/000003:
-            objectsids: NA
-          matches:
-            match 1: objectids 1 and 2
-  '''
+    carsDb: image/000000:
+                objectids:
+                1. name: car, properties: yaw, pitch, color
+            image/000001:
+                objectids:
+                2. name: car, 5 polygons, properties: yaw, pitch, color
+                3. name: bus, properties: yaw
+            image/000003:
+                objectsids: NA
+            matches:
+                match 1: objectids 1 and 2
+    '''
     def setUp(self):
         self.temp_db_path = tempfile.NamedTemporaryFile().name
         shutil.copyfile(CARS_DB_PATH, self.temp_db_path)
@@ -281,7 +281,7 @@ class Test_cropObjects_carsDb(Test_carsDb):
             'SELECT COUNT(maskfile) FROM images WHERE maskfile IS NOT NULL')
         self.assertEqual(c.fetchone()[0], 0)
 
-    @mock.patch('__main__.dbMedia.backendMedia.MediaWriter')
+    @mock.patch('dbMedia.backendMedia.MediaWriter')
     def test_video_not_allowed_if_edges_original(self, mock_imwriter):
         c = self.conn.cursor()
         args = argparse.Namespace(rootdir=CARS_DB_ROOTDIR,
@@ -367,7 +367,7 @@ class Test_cropObjects_carsDb(Test_carsDb):
         self.assert_properties_count_by_object(
             c, expected=[3 + 1, 3 + 1, 1, 1 + 1])
 
-    @mock.patch('__main__.dbMedia.backendMedia.MediaWriter')
+    @mock.patch('dbMedia.backendMedia.MediaWriter')
     def test_namehint(self, mock_imwriter):
         ''' Test 'namehint'. '''
         mock_imwriter.return_value.imwrite.side_effect = ['foo', 'bar', 'baz']
@@ -394,7 +394,7 @@ class Test_cropObjects_carsDb(Test_carsDb):
         self.assertEqual(call_args_list[0][1], {'namehint': '000000002'})
         self.assertEqual(call_args_list[1][1], {'namehint': '000000003'})
 
-    @mock.patch('__main__.dbMedia.backendMedia.MediaWriter')
+    @mock.patch('dbMedia.backendMedia.MediaWriter')
     def test_namehint_splitIntoFoldersByObjectName(self, mock_imwriter):
         ''' Test 'namehint' when split_into_folders_by_object_name is on. '''
         mock_imwriter.return_value.imwrite.side_effect = ['foo', 'bar', 'baz']
@@ -422,7 +422,7 @@ class Test_cropObjects_carsDb(Test_carsDb):
         self.assertEqual(call_args_list[1][1], {'namehint': 'car/000000002'})
         self.assertEqual(call_args_list[2][1], {'namehint': 'bus/000000003'})
 
-    @mock.patch('__main__.dbMedia.backendMedia.MediaWriter')
+    @mock.patch('dbMedia.backendMedia.MediaWriter')
     def test_namehint_addObjectNameToFilename(self, mock_imwriter):
         ''' Test 'namehint' when add_object_name_to_filename is on. '''
         mock_imwriter.return_value.imwrite.side_effect = ['foo', 'bar', 'baz']
@@ -490,7 +490,5 @@ class Test_cropObjects_SyntheticDb(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    progressbar.streams.wrap_stdout()
-    logging.basicConfig(level=logging.INFO)
-
-    unittest.main()
+    import nose
+    nose.runmodule()
