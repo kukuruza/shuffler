@@ -7,9 +7,9 @@ import sqlite3
 from pprint import pformat
 from keras.utils import Sequence
 
-from utils import openConnection
-from lib.backendDb import imageField, objectField
-from lib.backendMedia import MediaReader
+from interface.utils import openConnection
+from lib.backend.backendDb import imageField, objectField
+from lib.backend.backendMedia import MediaReader
 
 
 class BareImageGenerator(Sequence):

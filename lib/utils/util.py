@@ -8,7 +8,7 @@ from progressbar import progressbar
 import simplejson as json
 import matplotlib.pyplot as plt  # for colormaps
 
-from .backendDb import objectField
+from lib.backend.backendDb import objectField
 
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 SCALE = 28

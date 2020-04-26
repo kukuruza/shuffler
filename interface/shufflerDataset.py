@@ -1,5 +1,4 @@
 import os, sys, os.path as op
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 import logging
 from pprint import pformat
@@ -8,8 +7,8 @@ import argparse
 from datetime import datetime
 from collections import Mapping  # For checking argument type.
 
-from lib.backendDb import createDb, makeTimeString
-from lib.backendMedia import MediaWriter, getPictureSize
+from lib.backend.backendDb import createDb, makeTimeString
+from lib.backend.backendMedia import MediaWriter, getPictureSize
 
 
 class DatasetWriter:

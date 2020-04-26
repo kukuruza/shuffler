@@ -9,13 +9,13 @@ from datetime import timedelta
 from math import sqrt
 import sqlite3
 
-from lib.backendDb import imageField, objectField, polygonField, deleteImage, parseTimeString, makeTimeString
-from lib.backendMedia import MediaReader, MediaWriter
-from lib.util import drawTextOnImage, drawMaskOnImage, drawMaskAside, drawScoredPolygon, drawScoredRoi, bbox2roi, applyLabelMappingToMask
-from lib import backendMedia
-from lib import backendDb
-from lib import utilBoxes
-from lib import util
+from lib.backend.backendDb import imageField, objectField, polygonField, deleteImage, parseTimeString, makeTimeString
+from lib.backend.backendMedia import MediaReader, MediaWriter
+from lib.utils.util import drawTextOnImage, drawMaskOnImage, drawMaskAside, drawScoredPolygon, drawScoredRoi, bbox2roi, applyLabelMappingToMask
+from lib.backend import backendMedia
+from lib.backend import backendDb
+from lib.utils import utilBoxes
+from lib.utils import util
 
 
 def add_parsers(subparsers):

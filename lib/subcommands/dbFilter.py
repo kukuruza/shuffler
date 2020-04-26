@@ -7,9 +7,9 @@ from glob import glob
 from pprint import pformat
 from progressbar import progressbar
 
-from .backendDb import objectField, polygonField, deleteImage, deleteObject
-from .backendMedia import MediaReader
-from .util import drawScoredRoi, drawScoredPolygon, bbox2roi
+from lib.backend.backendDb import objectField, polygonField, deleteImage, deleteObject
+from lib.backend.backendMedia import MediaReader
+from lib.utils.util import drawScoredRoi, drawScoredPolygon, bbox2roi
 
 
 def add_parsers(subparsers):

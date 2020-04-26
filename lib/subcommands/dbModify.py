@@ -12,10 +12,10 @@ from datetime import datetime
 from progressbar import progressbar
 from ast import literal_eval
 
-from .backendDb import makeTimeString, deleteImage, deleteObject, objectField, createDb
-from .backendMedia import getPictureSize, MediaReader
-from .util import drawScoredRoi, roi2bbox, bboxes2polygons, polygons2bboxes
-from .utilBoxes import expandRoiToRatio, expandRoi
+from lib.backend.backendDb import makeTimeString, deleteImage, deleteObject, objectField, createDb
+from lib.backend.backendMedia import getPictureSize, MediaReader
+from lib.utils.util import drawScoredRoi, roi2bbox, bboxes2polygons, polygons2bboxes
+from lib.utils.utilBoxes import expandRoiToRatio, expandRoi
 
 
 def add_parsers(subparsers):

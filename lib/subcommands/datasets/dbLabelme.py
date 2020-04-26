@@ -12,9 +12,9 @@ from pprint import pformat
 import re
 from datetime import datetime
 
-from ..backendDb import makeTimeString, parseTimeString, objectField
-from ..backendMedia import MediaReader, MediaWriter, getPictureSize
-from ..util import drawScoredPolygon, polygons2bboxes, bboxes2polygons
+from lib.backend.backendDb import makeTimeString, parseTimeString, objectField
+from lib.backend.backendMedia import MediaReader, MediaWriter, getPictureSize
+from lib.utils.util import drawScoredPolygon, polygons2bboxes, bboxes2polygons
 
 
 def add_parsers(subparsers):

@@ -10,9 +10,9 @@ from ast import literal_eval
 from matplotlib import pyplot as plt
 from pprint import pformat
 
-from .backendDb import objectField
-from .backendMedia import MediaReader
-from .util import applyLabelMappingToMask
+from lib.backend.backendDb import objectField
+from lib.backend.backendMedia import MediaReader
+from lib.utils.util import applyLabelMappingToMask
 
 
 def add_parsers(subparsers):

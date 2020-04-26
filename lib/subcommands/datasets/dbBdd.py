@@ -10,9 +10,9 @@ import simplejson as json
 from progressbar import progressbar
 from pprint import pformat
 
-from ..backendDb import objectField
-from ..backendMedia import MediaReader, getPictureSize
-from ..util import bbox2roi, drawScoredRoi, drawScoredPolygon, drawMaskAside
+from lib.backend.backendDb import objectField
+from lib.backend.backendMedia import MediaReader, getPictureSize
+from lib.utils.util import bbox2roi, drawScoredRoi, drawScoredPolygon, drawMaskAside
 
 
 def add_parsers(subparsers):

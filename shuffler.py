@@ -7,11 +7,11 @@ import sqlite3
 import progressbar
 from itertools import groupby
 
-from lib.util import copyWithBackup
-from lib.backendDb import createDb
-from lib import dbGui, dbInfo, dbFilter, dbModify, dbMedia, dbEvaluate, dbLabel
-from lib.datasets import dbLabelme, dbKitti, dbPascal, dbBdd, dbDetrac
-from lib.datasets import dbCityscapes, dbCoco
+from lib.utils.util import copyWithBackup
+from lib.backend.backendDb import createDb
+from lib.subcommands import dbGui, dbInfo, dbFilter, dbModify, dbMedia, dbEvaluate, dbLabel
+from lib.subcommands.datasets import dbLabelme, dbKitti, dbPascal, dbBdd
+from lib.subcommands.datasets import dbDetrac, dbCityscapes, dbCoco
 
 
 def usage(name=None):

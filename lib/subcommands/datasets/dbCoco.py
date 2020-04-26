@@ -10,9 +10,9 @@ from progressbar import progressbar
 from pprint import pformat
 from datetime import datetime
 
-from ..backendDb import imageField, objectField, parseTimeString
-from ..backendMedia import MediaReader, getPictureSize
-from ..util import drawScoredPolygon, polygons2mask, polygons2bboxes
+from lib.backend.backendDb import imageField, objectField, parseTimeString
+from lib.backend.backendMedia import MediaReader, getPictureSize
+from lib.utils.util import drawScoredPolygon, polygons2mask, polygons2bboxes
 
 
 def add_parsers(subparsers):

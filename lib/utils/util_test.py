@@ -6,7 +6,7 @@ import numpy as np
 import unittest
 import tempfile
 
-from lib import util
+from lib.utils import util
 
 
 class TestCopyWithBackup(unittest.TestCase):

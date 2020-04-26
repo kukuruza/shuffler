@@ -9,9 +9,9 @@ import sqlite3
 from progressbar import progressbar
 from pprint import pformat
 
-from ..backendDb import objectField
-from ..backendMedia import MediaReader, getPictureSize
-from ..util import drawScoredRoi, drawMaskAside
+from lib.backend.backendDb import objectField
+from lib.backend.backendMedia import MediaReader, getPictureSize
+from lib.utils.util import drawScoredRoi, drawMaskAside
 
 
 def add_parsers(subparsers):

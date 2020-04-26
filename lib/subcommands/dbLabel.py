@@ -1,14 +1,13 @@
 import os, sys, os.path as op
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 import logging
 import cv2
 from scipy.cluster import hierarchy
 
-from lib.backendDb import objectField
-from lib.util import roi2bbox, bbox2roi
-from lib.dbGui import KeyReader
-from lib.backendMedia import MediaReader
+from lib.backend.backendDb import objectField
+from lib.backend.backendMedia import MediaReader
+from lib.subcommands.dbGui import KeyReader
+from lib.utils.util import roi2bbox, bbox2roi
 
 
 def add_parsers(subparsers):

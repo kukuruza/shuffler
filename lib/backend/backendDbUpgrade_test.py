@@ -6,8 +6,8 @@ import unittest
 import shutil
 import tempfile
 
-from lib import backendDbUpgrade
-from lib.backendDb_test import TestEmptyDb
+from lib.backend import backendDbUpgrade
+from lib.backend.backendDb_test import TestEmptyDb
 
 CARS_DB_V3_PATH = 'testdata/cars/micro1_v3.db'
 CARS_DB_V4_PATH = 'testdata/cars/micro1_v4.db'

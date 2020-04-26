@@ -5,7 +5,7 @@ import datetime
 import progressbar
 from pprint import pformat
 
-from . import backendDb
+from lib.backend import backendDb
 
 
 def upgradeV3toV4(cursor):

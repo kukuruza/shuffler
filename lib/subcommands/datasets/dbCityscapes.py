@@ -9,9 +9,9 @@ import sqlite3
 from progressbar import progressbar
 from pprint import pformat
 
-from ..backendDb import objectField
-from ..backendMedia import MediaReader, getPictureSize
-from ..util import drawScoredPolygon
+from lib.backend.backendDb import objectField
+from lib.backend.backendMedia import MediaReader, getPictureSize
+from lib.utils.util import drawScoredPolygon
 
 
 def add_parsers(subparsers):

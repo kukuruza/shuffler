@@ -5,7 +5,7 @@ import logging
 from pprint import pprint
 from itertools import groupby
 
-from .backendDb import imageField
+from lib.backend.backendDb import imageField
 
 
 def add_parsers(subparsers):

@@ -10,7 +10,7 @@ import unittest
 import tempfile
 from datetime import datetime, timedelta
 
-from lib.backendDb import objectField
+from lib.backend.backendDb import objectField
 from interface.shufflerDataset import DatasetWriter
 
 

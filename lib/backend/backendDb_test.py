@@ -5,7 +5,7 @@ import shutil
 import unittest
 import tempfile
 
-from lib import backendDb
+from lib.backend import backendDb
 
 
 # TODO: move it to lib/utils/testing.py. TestEmptyDb is imported by other files.

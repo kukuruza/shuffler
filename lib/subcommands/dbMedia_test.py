@@ -10,8 +10,8 @@ import tempfile
 import mock
 import numpy as np
 
-from lib import backendDb
-from lib import dbMedia
+from lib.backend import backendDb
+from lib.subcommands import dbMedia
 
 CARS_DB_PATH = 'testdata/cars/micro1_v4.db'
 CARS_DB_ROOTDIR = 'testdata/cars'
@@ -281,7 +281,7 @@ class Test_cropObjects_carsDb(Test_carsDb):
             'SELECT COUNT(maskfile) FROM images WHERE maskfile IS NOT NULL')
         self.assertEqual(c.fetchone()[0], 0)
 
-    @mock.patch('dbMedia.backendMedia.MediaWriter')
+    @mock.patch('lib.subcommands.dbMedia.backendMedia.MediaWriter')
     def test_video_not_allowed_if_edges_original(self, mock_imwriter):
         c = self.conn.cursor()
         args = argparse.Namespace(rootdir=CARS_DB_ROOTDIR,
@@ -367,7 +367,7 @@ class Test_cropObjects_carsDb(Test_carsDb):
         self.assert_properties_count_by_object(
             c, expected=[3 + 1, 3 + 1, 1, 1 + 1])
 
-    @mock.patch('dbMedia.backendMedia.MediaWriter')
+    @mock.patch('lib.subcommands.dbMedia.backendMedia.MediaWriter')
     def test_namehint(self, mock_imwriter):
         ''' Test 'namehint'. '''
         mock_imwriter.return_value.imwrite.side_effect = ['foo', 'bar', 'baz']
@@ -394,7 +394,7 @@ class Test_cropObjects_carsDb(Test_carsDb):
         self.assertEqual(call_args_list[0][1], {'namehint': '000000002'})
         self.assertEqual(call_args_list[1][1], {'namehint': '000000003'})
 
-    @mock.patch('dbMedia.backendMedia.MediaWriter')
+    @mock.patch('lib.subcommands.dbMedia.backendMedia.MediaWriter')
     def test_namehint_splitIntoFoldersByObjectName(self, mock_imwriter):
         ''' Test 'namehint' when split_into_folders_by_object_name is on. '''
         mock_imwriter.return_value.imwrite.side_effect = ['foo', 'bar', 'baz']
@@ -422,7 +422,7 @@ class Test_cropObjects_carsDb(Test_carsDb):
         self.assertEqual(call_args_list[1][1], {'namehint': 'car/000000002'})
         self.assertEqual(call_args_list[2][1], {'namehint': 'bus/000000003'})
 
-    @mock.patch('dbMedia.backendMedia.MediaWriter')
+    @mock.patch('lib.subcommands.dbMedia.backendMedia.MediaWriter')
     def test_namehint_addObjectNameToFilename(self, mock_imwriter):
         ''' Test 'namehint' when add_object_name_to_filename is on. '''
         mock_imwriter.return_value.imwrite.side_effect = ['foo', 'bar', 'baz']
@@ -461,7 +461,7 @@ class Test_cropObjects_SyntheticDb(unittest.TestCase):
                   'VALUES ("image0",0,40,20,40,20)')
         c.execute('INSERT INTO polygons(objectid,x,y) VALUES (0,40,20)')
 
-    @mock.patch('lib.dbMedia.utilBoxes.cropPatch')
+    @mock.patch('lib.subcommands.dbMedia.utilBoxes.cropPatch')
     @mock.patch.object(dbMedia.backendMedia.MediaReader, 'imread')
     def test_xy(self, mocked_imread, mocked_crop_patch):
         mocked_imread.return_value = np.zeros((100, 100, 3), dtype=np.uint8)

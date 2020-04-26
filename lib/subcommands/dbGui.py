@@ -6,11 +6,11 @@ from ast import literal_eval
 from pprint import pformat
 import imageio
 
-from .util import drawTextOnImage, drawMaskOnImage, drawMaskAside
-from .util import bbox2roi, drawScoredRoi, drawScoredPolygon
-from .util import FONT, SCALE, FONT_SIZE, THICKNESS
-from .backendDb import deleteImage, deleteObject, imageField, objectField, polygonField
-from .backendMedia import MediaReader, normalizeSeparators
+from lib.utils.util import drawTextOnImage, drawMaskOnImage, drawMaskAside
+from lib.utils.util import bbox2roi, drawScoredRoi, drawScoredPolygon
+from lib.utils.util import FONT, SCALE, FONT_SIZE, THICKNESS
+from lib.backend.backendDb import deleteImage, deleteObject, imageField, objectField, polygonField
+from lib.backend.backendMedia import MediaReader, normalizeSeparators
 
 
 def add_parsers(subparsers):

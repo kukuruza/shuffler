@@ -2,7 +2,7 @@ import logging
 import numpy as np
 import cv2
 
-from .util import roi2bbox
+from lib.utils.util import roi2bbox
 
 
 def expandRoiBorder(roi, imsize, perc, integer_result=True):

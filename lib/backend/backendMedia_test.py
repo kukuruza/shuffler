@@ -7,7 +7,7 @@ import shutil
 import unittest
 import tempfile
 
-from lib import backendMedia
+from lib.backend import backendMedia
 
 
 def _diff(a, b):

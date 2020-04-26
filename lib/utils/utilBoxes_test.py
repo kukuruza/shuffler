@@ -8,7 +8,7 @@ import tempfile
 import numpy as np
 import cv2
 
-from lib import utilBoxes
+from lib.utils import utilBoxes
 
 
 class TestCropPatch(unittest.TestCase):
