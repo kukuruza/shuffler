@@ -17,10 +17,11 @@ Toolbox for playing with data when preparing to train a model in computer vision
 
 Practitioners train computer vision models to tackle practical problems, such as detecting vehicles in the autonomous car scenario or find faces in Facebook pictures. In order to train a model, researchers either use public datasets of annotated images or collect their own.
 
+Data come in different formats with with different annotations ([self-driving cars data is a great example](https://medium.com/safety-pool/the-very-first-standard-we-need-for-autonomous-vehicles-449821f08a20).) It is hard to bring them to the common denominator.
+
 In the process of fighting for better performance, a researcher plays with data -- filters some objects out of the training data, changes bounding boxes, manually adds some labels, etc.
 
 **Shuffler allows to easily play with data** by providing a multipurpose tool to import, modify, visualize, and export annotations for common computer vision tasks.
-
 
 
 ## Functionality
