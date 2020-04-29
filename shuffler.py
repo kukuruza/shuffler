@@ -9,9 +9,7 @@ from itertools import groupby
 
 from lib.utils.util import copyWithBackup
 from lib.backend.backendDb import createDb
-from lib.subcommands import dbGui, dbInfo, dbFilter, dbModify, dbMedia, dbEvaluate, dbLabel
-from lib.subcommands.datasets import dbLabelme, dbKitti, dbPascal, dbBdd
-from lib.subcommands.datasets import dbDetrac, dbCityscapes, dbCoco
+from lib import subcommands
 
 
 def usage(name=None):
@@ -63,21 +61,7 @@ def getParser():
         type=int,
         choices={10, 20, 30, 40},
         help='Log debug (10), info (20), warning (30), error (40).')
-    subparsers = parser.add_subparsers()
-    dbModify.add_parsers(subparsers)
-    dbFilter.add_parsers(subparsers)
-    dbGui.add_parsers(subparsers)
-    dbInfo.add_parsers(subparsers)
-    dbMedia.add_parsers(subparsers)
-    dbEvaluate.add_parsers(subparsers)
-    dbLabel.add_parsers(subparsers)
-    dbLabelme.add_parsers(subparsers)
-    dbKitti.add_parsers(subparsers)
-    dbPascal.add_parsers(subparsers)
-    dbBdd.add_parsers(subparsers)
-    dbDetrac.add_parsers(subparsers)
-    dbCityscapes.add_parsers(subparsers)
-    dbCoco.add_parsers(subparsers)
+    subcommands.add_subparsers(parser)
     return parser
 
 
