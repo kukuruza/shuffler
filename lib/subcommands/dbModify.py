@@ -73,7 +73,7 @@ def sqlParser(subparsers):
         'sql',
         description='Run SQL commands.'
         'Recorded paths will be made relative to "rootdir" argument.')
-    parser.add_argument('sql', nargs='+', help='A list of SQL statements.')
+    parser.add_argument('--sql', nargs='+', help='A list of SQL statements.')
     parser.set_defaults(func=sql)
 
 
