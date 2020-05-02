@@ -1,4 +1,5 @@
-from lib.subcommands import dbGui, dbInfo, dbFilter, dbModify, dbMedia, dbEvaluate, dbLabel
+from lib.subcommands import dbGui, dbInfo, dbFilter, dbModify, dbMedia
+from lib.subcommands import dbEvaluate, dbLabel, dbMatplotlib
 from lib.subcommands.datasets import dbLabelme, dbKitti, dbPascal, dbBdd
 from lib.subcommands.datasets import dbDetrac, dbCityscapes, dbCoco
 
@@ -21,3 +22,4 @@ def add_subparsers(parser):
     dbDetrac.add_parsers(subparsers)
     dbCityscapes.add_parsers(subparsers)
     dbCoco.add_parsers(subparsers)
+    dbMatplotlib.add_parsers(subparsers)

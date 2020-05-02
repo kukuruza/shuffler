@@ -42,7 +42,8 @@ def get_subcommands_and_parser_names():
     return functions_and_parsers
 
 
-def get_subcommand_method(cursor, subcommand, subparser_name, parser):
+def get_subcommand_method(cursor, subcommand, subparser_name, parser,
+                          **global_kwargs):
     '''
     Given a subcommand method and its parser method, add a class method that
     would parse the input **kwargs and call the subcommand.
@@ -60,25 +61,30 @@ def get_subcommand_method(cursor, subcommand, subparser_name, parser):
             if isinstance(value, list):
                 argv.append('--%s' % key)
                 argv += value.split()
-            if isinstance(value, bool):
+            elif isinstance(value, bool):
                 # All boolean arguments in subcommands use action=store_true.
-                argv.append('--%s' % value)
+                argv.append('--%s' % key)
             else:
                 argv.append('--%s' % key)
-                argv.append(value)
+                argv.append(str(value))
         return argv
 
     def func(self, **kwargs):
         argv = kwargs_to_argv(subparser_name, kwargs)
+        print(argv)
         args = parser.parse_args(argv)
+        # Additionally, assign values for global kwargs (such as rootdir).
+        for key in global_kwargs:
+            setattr(args, key, global_kwargs[key])
         subcommand(cursor, args)
 
     return func
 
 
 class Dataframe:
-    def __init__(self):
+    def __init__(self, rootdir='.'):
         ''' Make a new dataframe, from scratch of by loading from Shuffler format. '''
+        self.rootdir = rootdir
         self._make_partial_subcommands()
         self._create_new()
 
@@ -95,7 +101,8 @@ class Dataframe:
             func = partial(get_subcommand_method,
                            subcommand=subcommand,
                            subparser_name=subparser_name,
-                           parser=parser)
+                           parser=parser,
+                           rootdir=self.rootdir)
             self._partial_subcommands.append((subcommand.__name__, func))
 
     def _update_subcommands(self):
@@ -147,14 +154,3 @@ class Dataframe:
 
     def close(self):
         self._clean_up()
-
-
-df = Dataframe()
-df.load('/Users/evgenytoropov/Desktop/test.db')
-df.sql(sql='DELETE FROM properties')
-df.save('/Users/evgenytoropov/Desktop/test2.db')
-df.printInfo()
-df.load('/Users/evgenytoropov/Desktop/test.db')
-df.printInfo()
-df.load('/Users/evgenytoropov/Desktop/test2.db')
-df.printInfo()
