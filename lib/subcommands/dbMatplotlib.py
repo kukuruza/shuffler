@@ -4,12 +4,14 @@ import cv2
 import logging
 from ast import literal_eval
 from pprint import pformat
-import matplotlib
-# matplotlib.use('Agg')
+import matplotlib.cm as cm
+import matplotlib.colorbar as cbar
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+import matplotlib.patheffects as path_effects
 
 from lib.utils.util import drawTextOnImage, drawMaskOnImage, drawMaskAside
-from lib.utils.util import bbox2roi, drawScoredRoi, drawScoredPolygon
+from lib.utils.util import bbox2roi, maybeDecode
 from lib.utils.util import FONT, SCALE, FONT_SIZE, THICKNESS
 from lib.backend.backendDb import deleteImage, deleteObject, imageField, objectField, polygonField
 from lib.backend.backendMedia import MediaReader, normalizeSeparators
@@ -17,6 +19,65 @@ from lib.backend.backendMedia import MediaReader, normalizeSeparators
 
 def add_parsers(subparsers):
     displayImagesPltParser(subparsers)
+
+
+def getNumRows(total, ncols):
+    return int((total - 1) / ncols) + 1
+
+
+def drawScoredRoi(ax, roi, label=None, score=None):
+    if score is None:
+        score = 1.
+    cmap = cm.get_cmap('jet').reversed()
+    rgba = cmap(float(score))
+    rect = patches.Rectangle(xy=(roi[1], roi[0]),
+                             width=roi[3] - roi[1],
+                             height=roi[2] - roi[0],
+                             linewidth=1,
+                             edgecolor=rgba,
+                             facecolor='none')
+    ax.add_patch(rect)
+
+    if label:
+        text = ax.text(x=roi[1], y=roi[0] - 5, s=label, c='white')
+        text.set_path_effects([
+            path_effects.Stroke(linewidth=2, foreground='black'),
+            path_effects.Normal()
+        ])
+
+
+def drawScoredPolygon(ax, polygon, label=None, score=None):
+    '''
+    Args:
+      ax:             Axes on matplotlib figure.
+      polygon:        A list of tuples (x,y)
+      label:          string, name of object
+      score:          float, score of object in range [0, 1]
+    Returns:
+      Nothing, img is changed in-place
+    '''
+    if score is None:
+        score = 1.
+    cmap = cm.get_cmap('jet').reversed()
+    rgba = cmap(float(score))
+    polygon = np.array(polygon)
+    rect = patches.Polygon(xy=polygon,
+                           linewidth=1,
+                           edgecolor=rgba,
+                           facecolor='none')
+    ax.add_patch(rect)
+
+    xmin = polygon[:, 0].min()
+    ymin = polygon[:, 1].min()
+    if label is not None:
+        # if isinstance(label, bytes):
+        label = maybeDecode(label)
+        if label:
+            text = ax.text(x=xmin, y=ymin - 5, s=label, c='white')
+            text.set_path_effects([
+                path_effects.Stroke(linewidth=2, foreground='black'),
+                path_effects.Normal()
+            ])
 
 
 def displayImagesPltParser(subparsers):
@@ -54,6 +115,10 @@ def displayImagesPltParser(subparsers):
     parser.add_argument('--with_imagefile',
                         action='store_true',
                         help='draw imagefile on top of the image.')
+    group.add_argument('--ncols',
+                       type=int,
+                       default=2,
+                       help='Number of columns for matplotlib figure.')
 
 
 def displayImagesPlt(c, args):
@@ -70,9 +135,7 @@ def displayImagesPlt(c, args):
     if len(image_entries) < args.limit:
         image_entries = image_entries[:args.limit]
 
-    _, axes = plt.subplots(nrows=min(args.limit, len(image_entries)), ncols=1)
-    if args.limit == 1:
-        axes = [axes]
+    nrows = getNumRows(min(args.limit, len(image_entries)), args.ncols)
 
     imreader = MediaReader(rootdir=args.rootdir)
 
@@ -81,7 +144,8 @@ def displayImagesPlt(c, args):
         args.mask_mapping_dict) if args.mask_mapping_dict else None
     logging.info('Parsed mask_mapping_dict to %s' % pformat(labelmap))
 
-    for image_entry, ax in zip(image_entries, axes):
+    for i_image, image_entry in enumerate(image_entries):
+        ax = plt.subplot(nrows, args.ncols, i_image + 1)
 
         imagefile = imageField(image_entry, 'imagefile')
         maskfile = imageField(image_entry, 'maskfile')
@@ -125,10 +189,10 @@ def displayImagesPlt(c, args):
                     polygon = [(int(polygonField(p, 'x')),
                                 int(polygonField(p, 'y')))
                                for p in polygon_entries]
-                    drawScoredPolygon(image, polygon, label=name, score=score)
+                    drawScoredPolygon(ax, polygon, label=name, score=score)
                 elif roi is not None:
                     logging.info('showing object with a bounding box.')
-                    drawScoredRoi(image, roi, label=name, score=score)
+                    drawScoredRoi(ax, roi, label=name, score=score)
                 else:
                     logging.warning(
                         'Neither polygon, nor bbox is available for objectid %d'
@@ -144,8 +208,7 @@ def displayImagesPlt(c, args):
         ax.set_title(title)
 
         # Display
-        #ax.imshow(image)
+        ax.imshow(image)
         ax.axis('off')
 
     plt.tight_layout()
-    plt.show()

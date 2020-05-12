@@ -176,35 +176,36 @@ def makeTimeString(time):
 
 def parseTimeString(timestring):
     ''' Parses the Shuffler format.
-  Args:      timestring -- a string object
-  Returns:   datetime.datetime object
-  '''
+    Args:      timestring -- a string object
+    Returns:   datetime.datetime object
+    '''
     return datetime.strptime(timestring, '%Y-%m-%d %H:%M:%S.%f')
+
+
+def objectAsDict(entry):
+    def bbox2roi(bbox):
+        return [bbox[1], bbox[0], bbox[3] + bbox[1], bbox[2] + bbox[0]]
+
+    return {
+        'objectid': entry[0],
+        'imagefile': entry[1],
+        'x1': entry[2],
+        'y1': entry[3],
+        'width': entry[4],
+        'height': entry[5],
+        'name': entry[6],
+        'score': entry[7],
+        'bbox': None if None in list(entry[2:6]) else list(entry[2:6]),
+        'roi': None if None in list(entry[2:6]) else bbox2roi(list(entry[2:6]))
+    }
 
 
 def objectField(entry, field):
     ''' Convenience function to access by field name. '''
-
-    if field == 'objectid': return entry[0]
-    if field == 'imagefile': return entry[1]
-    if field == 'x1': return entry[2]
-    if field == 'y1': return entry[3]
-    if field == 'width': return entry[4]
-    if field == 'height': return entry[5]
-    if field == 'name': return entry[6]
-    if field == 'score': return entry[7]
-    if field == 'bbox':
-        if None in list(entry[2:6]):
-            return None
-        else:
-            return list(entry[2:6])
-    if field == 'roi':
-        if None in list(entry[2:6]):
-            return None
-        else:
-            bbox = list(entry[2:6])
-            return [bbox[1], bbox[0], bbox[3] + bbox[1], bbox[2] + bbox[0]]
-    raise KeyError('No field "%s" in object entry %s' % (field, entry))
+    objectDict = objectAsDict(entry)
+    if field not in objectDict:
+        raise KeyError('No field "%s" in object entry %s' % (field, entry))
+    return objectDict[field]
 
 
 def setObjectField(entry, field, value):
