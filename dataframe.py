@@ -7,7 +7,8 @@ import tempfile
 from functools import partial
 
 from lib import subcommands
-from lib.backend.backendDb import createDb
+from lib.backend import backendDb
+from lib.backend import backendMedia
 
 
 def get_subcommands_and_parser_names():
@@ -82,11 +83,15 @@ def get_subcommand_method(cursor, subcommand, subparser_name, parser,
 
 
 class Dataframe:
-    def __init__(self, rootdir='.'):
-        ''' Make a new dataframe, from scratch of by loading from Shuffler format. '''
-        self.rootdir = rootdir
+    def __init__(self, in_db_path=None, rootdir='.'):
+        '''
+        Make a new dataframe, from scratch or by loading from Shuffler format.
+        '''
         self._make_partial_subcommands()
-        self._create_new()
+        if in_db_path is None:
+            self._create_new(rootdir=rootdir)
+        else:
+            self._load(in_db_path, rootdir=rootdir)
 
     # def _update_subcommands(self):
     def _make_partial_subcommands(self):
@@ -101,51 +106,92 @@ class Dataframe:
             func = partial(get_subcommand_method,
                            subcommand=subcommand,
                            subparser_name=subparser_name,
-                           parser=parser,
-                           rootdir=self.rootdir)
+                           parser=parser)
             self._partial_subcommands.append((subcommand.__name__, func))
 
     def _update_subcommands(self):
         for subcommand_name, func in self._partial_subcommands:
-            setattr(Dataframe, subcommand_name, func(cursor=self.cursor))
+            setattr(Dataframe, subcommand_name,
+                    func(cursor=self.cursor, rootdir=self.rootdir))
 
-    def _create_new(self):
+    def _create_new(self, rootdir):
+        ''' Make a new empty database in a new file, and connect to it. '''
         self.temp_db_path = tempfile.NamedTemporaryFile().name
+        self.rootdir = rootdir
 
         # Create an in-memory database.
         self.conn = sqlite3.connect(self.temp_db_path)
-        createDb(self.conn)
+        backendDb.createDb(self.conn)
         self.cursor = self.conn.cursor()
         self._update_subcommands()
 
-    def _load(self, in_db_path):
+    def _load(self, in_db_path, rootdir):
+        ''' Open an existing database with Shuffler schema. '''
         if in_db_path == ':memory:':
             self.temp_db_path = None
             self.conn = sqlite3.connect(':memory:')
-            createDb(self.conn)
+            backendDb.createDb(self.conn)
         else:
             self.temp_db_path = tempfile.NamedTemporaryFile().name
             shutil.copyfile(in_db_path, self.temp_db_path)
             self.conn = sqlite3.connect(self.temp_db_path)
 
+        self.rootdir = rootdir
         self.cursor = self.conn.cursor()
+        # TODO: verify the validity of the schema.
         self._update_subcommands()
 
     def _clean_up(self):
+        ''' Close the connection to a database, and maybe delete tmp file.  '''
         if self.conn is not None:
             self.conn.close()
             self.conn = None
             self.cursor = None
         if self.temp_db_path is not None:
             os.remove(self.temp_db_path)
+        self.rootdir = None
 
-    def load(self, in_db_path):
-        ''' Load a database in Shuffler format. '''
+    def __len__(self):
+        '''
+        Return the number of images in the database.
+        '''
+        if self.conn is None:
+            raise RuntimeError("Dataframe is empty.")
+        self.cursor.execute("SELECT COUNT(1) FROM images")
+        return self.cursor.fetchone()[0]
+
+    def __getitem__(self, index):
+        if index >= len(self):
+            raise IndexError("Index %d is greater than the dataframe size %d" %
+                             (index, len(self)))
+        self.cursor.execute("SELECT imagefile,maskfile,name FROM images")
+        # TODO: figure out how to not load the whole database.
+        image_entries = self.cursor.fetchall()
+        imagefile, maskfile, name = image_entries[index]
+        self.cursor.execute("SELECT * FROM objects WHERE imagefile = ?",
+                            (imagefile, ))
+        objects = self.cursor.fetchall()
+        imreader = backendMedia.MediaReader(rootdir=self.rootdir)
+        if imagefile is not None:
+            image = imreader.imread(imagefile)
+        if maskfile is not None:
+            mask = imreader.maskread(imagefile)
+        return {
+            'image': image,
+            'mask': mask,
+            'objects': [backendDb.objectAsDict(o) for o in objects],
+            'imagefile': imagefile,
+            'maskfile': maskfile,
+            'name': name
+        }
+
+    def load(self, in_db_path, rootdir='.'):
+        ''' Load a database in Shuffler format (after closing any open one.) '''
         self._clean_up()
-        self._load(in_db_path)
+        self._load(in_db_path, rootdir=rootdir)
 
     def save(self, out_db_path):
-        ''' Save open database in Shuffler format. '''
+        ''' Save open database in Shuffler format, without closing. '''
         if self.temp_db_path is None:
             raise IOError("File was created in-memory. Can not save file.")
         self.conn.commit()
