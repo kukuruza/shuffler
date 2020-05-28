@@ -34,7 +34,7 @@ def MakeGridFromVideos_parser():
 def MakeGridFromVideos(args):
     num_videos = len(args.in_video_paths)
     gridY = int(sqrt(num_videos)) if args.gridY is None else args.gridY
-    gridX = num_videos // gridY
+    gridX = (num_videos - 1) // gridY + 1
     logging.info('Will use grid %d x %d' % (gridY, gridX))
 
     if not args.dryrun:
@@ -50,18 +50,20 @@ def MakeGridFromVideos(args):
         return image
 
     handles = [imageio.get_reader(path) for path in args.in_video_paths]
-    for handle, path in zip(handles, args.in_video_paths):
-        logging.info('%d frames in video %s.' % (handle.get_length(), path))
-    num_frames = min([handle.get_length() for handle in handles])
+    #for handle, path in zip(handles, args.in_video_paths):
+    #    logging.info('%d frames in video %s.' % (handle.get_length(), path))
+    num_frames = 26 #min([handle.get_length() for handle in handles])
+
+    print ('gridX, gridY', gridX, gridY)
 
     for i in progressbar.progressbar(range(num_frames)):
         images = [handle.get_data(i) for handle in handles]
 
         images = [processImage(image) for image in images]
+        height, width = images[0].shape[0:2]
 
         # Lazy initialization.
         if 'grid' not in locals():
-            height, width = images[0].shape[0:2]
             grid = np.zeros((height * gridY, width * gridX, 3), dtype=np.uint8)
 
         for gridid, image in enumerate(images):

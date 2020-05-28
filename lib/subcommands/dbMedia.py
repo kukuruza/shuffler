@@ -346,7 +346,7 @@ def writeMedia(c, args):
                            mask_media=args.mask_path,
                            overwrite=args.overwrite)
 
-    c.execute('SELECT imagefile,maskfile FROM images WHERE %s' %
+    c.execute('SELECT imagefile,maskfile FROM images WHERE %s ORDER BY imagefile' %
               args.where_image)
     entries = c.fetchall()
 
