@@ -70,7 +70,7 @@ class Test_DB(unittest.TestCase):
         '''
         self.verify_that_expected_is_a_list_of_ints(expected)
         c.execute(
-            'SELECT COUNT(i.imagefile) FROM images i LEFT OUTER JOIN objects o '
+            'SELECT COUNT(o.imagefile) FROM images i LEFT OUTER JOIN objects o '
             'ON i.imagefile = o.imagefile GROUP BY i.imagefile')
         actual = c.fetchall()
         expected = [(x, ) for x in expected]
