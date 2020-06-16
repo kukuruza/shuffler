@@ -325,7 +325,7 @@ def filterObjectsSQLParser(subparsers):
         description='Delete objects based on the SQL "where" clause.')
     parser.set_defaults(func=filterObjectsSQL)
     parser.add_argument(
-        'sql',
+        '--sql',
         help='an arbitrary SQL clause that should query "objectid". E.g.'
         '"SELECT objects.objectid FROM objects '
         'INNER JOIN properties ON objects.objectid=properties.objectid '
@@ -352,7 +352,7 @@ def filterImagesSQLParser(subparsers):
     )
     parser.set_defaults(func=filterImagesSQL)
     parser.add_argument(
-        'sql', help='an arbitrary SQL clause that should query "imagefile"')
+        '--sql', help='an arbitrary SQL clause that should query "imagefile"')
 
 
 def filterImagesSQL(c, args):

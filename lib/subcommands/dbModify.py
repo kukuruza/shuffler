@@ -26,6 +26,7 @@ def add_parsers(subparsers):
     addPicturesParser(subparsers)
     headImagesParser(subparsers)
     tailImagesParser(subparsers)
+    randomNImagesParser(subparsers)
     expandBoxesParser(subparsers)
     moveMediaParser(subparsers)
     moveRootdirParser(subparsers)
@@ -163,6 +164,16 @@ def addPicturesParser(subparsers):
         default='/dummy',
         help='Wildcard pattern for image files. E.g. "my/path/masks-\\*.png"'
         'Escape "*" with quotes or backslash.')
+    parser.add_argument(
+        '--width_hint',
+        type=int,
+        help='If specified, the width is assumed to be the same across all '
+        'images, and is not queried from individual images on disk.')
+    parser.add_argument(
+        '--height_hint',
+        type=int,
+        help='If specified, the height is assumed to be the same across all '
+        'images, and is not queried from individual images on disk.')
     parser.set_defaults(func=addPictures)
 
 
@@ -172,8 +183,9 @@ def addPictures(c, args):
     image_paths = sorted(glob(args.image_pattern))
     logging.debug('image_paths:\n%s' % pformat(image_paths, indent=2))
     if not image_paths:
-        raise IOError('Image files do not exist for the frame pattern: %s' %
+        logging.error('Image files do not exist for the frame pattern: %s',
                       args.image_pattern)
+        return
     mask_paths = sorted(glob(args.mask_pattern))
     logging.debug('mask_paths:\n%s' % pformat(mask_paths, indent=2))
 
@@ -199,7 +211,12 @@ def addPictures(c, args):
 
     # Write to database.
     for image_path, mask_path in progressbar(pairs):
-        height, width = getPictureSize(image_path)
+        if args.width_hint and args.height_hint:
+            logging.debug('Using width %d and height %d from hint.',
+                          args.width_hint, args.height_hint)
+            height, width = args.height_hint, args.width_hint
+        else:
+            height, width = getPictureSize(image_path)
         imagefile = op.relpath(op.abspath(image_path), args.rootdir)
         maskfile = op.relpath(op.abspath(mask_path),
                               args.rootdir) if mask_path else None
@@ -246,9 +263,30 @@ def tailImages(c, args):
                      len(imagefiles))
         return
 
-    for imagefile, in imagefiles[:args.n]:
+    for imagefile, in imagefiles[:-args.n]:
         deleteImage(c, imagefile)
 
+def randomNImagesParser(subparsers):
+    parser = subparsers.add_parser(
+        'randomNImages', description='Keep random N image entries.')
+    parser.add_argument('-n', required=True, type=int)
+    parser.add_argument('--seed', default=0, type=int, help='Random seed.')
+    parser.set_defaults(func=randomNImages)
+
+
+def randomNImages(c, args):
+    c.execute('SELECT imagefile FROM images')
+    imagefiles = c.fetchall()
+    random.seed(args.seed)
+    random.shuffle(imagefiles)
+
+    if len(imagefiles) < args.n:
+        logging.info('Nothing to delete. Number of images is %d' %
+                     len(imagefiles))
+        return
+
+    for imagefile, in imagefiles[args.n:]:
+        deleteImage(c, imagefile)
 
 def expandBoxesParser(subparsers):
     parser = subparsers.add_parser(
@@ -326,9 +364,41 @@ def moveMediaParser(subparsers):
     parser.add_argument(
         '--mask_path',
         help='the directory for pictures OR video file of masks')
+    parser.add_argument(
+        '--level',
+        type=int,
+        default=1,
+        help='How many levels to keep in the directory structure. '
+        'E.g. to move "my/old/fancy/image.jpg" to "his/new/fancy/image.jpg", '
+        'specify image_path="his/new" and level=2. '
+        'That will move subpath "fancy/image.jpg", i.e. of 2 levels.')
 
 
 def moveMedia(c, args):
+
+    def splitall(path):
+        allparts = []
+        while 1:
+            parts = os.path.split(path)
+            if parts[0] == path:  # sentinel for absolute paths
+                allparts.insert(0, parts[0])
+                break
+            elif parts[1] == path: # sentinel for relative paths
+                allparts.insert(0, parts[1])
+                break
+            else:
+                path = parts[0]
+                allparts.insert(0, parts[1])
+        return allparts
+
+    def getPathBase(oldfile, level):
+        old_path_parts = splitall(oldfile)
+        if len(old_path_parts) < level:
+            raise ValueError('Cant use "lavel"=%d on path "%s"' %
+                             (level, oldfile))
+        result = os.path.join(*old_path_parts[-args.level:])
+        logging.debug('getPathBase produced "%s"', result)
+        return result
 
     if args.image_path:
         logging.debug('Moving image dir to: %s' % args.image_path)
@@ -337,7 +407,8 @@ def moveMedia(c, args):
 
         for oldfile, in progressbar(imagefiles):
             if oldfile is not None:
-                newfile = op.join(args.image_path, op.basename(oldfile))
+                newfile = op.join(args.image_path,
+                                  getPathBase(oldfile, args.level))
                 c.execute('UPDATE images SET imagefile=? WHERE imagefile=?',
                           (newfile, oldfile))
                 c.execute('UPDATE objects SET imagefile=? WHERE imagefile=?',
@@ -350,7 +421,8 @@ def moveMedia(c, args):
 
         for oldfile, in progressbar(maskfiles):
             if oldfile is not None:
-                newfile = op.join(args.mask_path, op.basename(oldfile))
+                newfile = op.join(args.image_path,
+                                  getPathBase(oldfile, args.level))
                 c.execute('UPDATE images SET maskfile=? WHERE maskfile=?',
                           (newfile, oldfile))
 
@@ -408,6 +480,11 @@ def addDbParser(subparsers):
 def addDb(c, args):
     c.execute('ATTACH ? AS "added"', (args.db_file, ))
     c.execute('BEGIN TRANSACTION')
+
+    c.execute('SELECT COUNT(1) FROM added.images')
+    if (c.fetchone()[0] == 0):
+        logging.error('Added detabase "%s" has no images.', args.db_file)
+        return
 
     # Copy images.
     c.execute('INSERT OR REPLACE INTO images SELECT * FROM added.images')
@@ -954,8 +1031,8 @@ def resizeAnnotations(c, args):
             percent_y = percent_x
             target_width = args.target_width
             target_height = int(old_height * percent_y)
-        logging.info('Scaling "%s" with percent_x=%.2f, percent_y=%.2f' %
-                     (imagefile, percent_x, percent_y))
+        logging.debug('Scaling "%s" with percent_x=%.2f, percent_y=%.2f' %
+                      (imagefile, percent_x, percent_y))
 
         # Update images.
         c.execute('UPDATE images SET width=?,height=? WHERE imagefile=?',
