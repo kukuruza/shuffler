@@ -201,7 +201,7 @@ conda install -y mock nose scikit-image
 To run one test, got to the Shuffler repo dir and run:
 
 ```bash
-python3 -m lib.utilBoxes_test.py
+python3 -m lib.utils.utilBoxes_test.py
 ```
 
 To run all tests, got to the Shuffler repo dir and run:
