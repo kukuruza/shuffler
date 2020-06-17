@@ -13,6 +13,8 @@ from lib.utils import util
 def add_parsers(subparsers):
     upgradeStampImagepathsParser(subparsers)
     extractNumberIntoPropertyParser(subparsers)
+    moveToRajaFolderStructureParser(subparsers)
+    importNameFromCsvParser(subparsers)
 
 
 def upgradeStampImagepathsParser(subparsers):
@@ -128,3 +130,153 @@ def extractNumberIntoProperty(c, args):
             c.execute(
                 'UPDATE objects SET name = SUBSTR(name,1,?) || SUBSTR(name,?+1) '
                 'WHERE objectid = ?', (span[0], span[1], objectid))
+
+
+def moveToRajaFolderStructureParser(subparsers):
+    parser = subparsers.add_parser(
+        'moveToRajaFolderStructure',
+        description='Separate imagefiles by subfolders where they belong to '
+        'according to Raja subfolder organization.')
+    parser.set_defaults(func=moveToRajaFolderStructure)
+    parser.add_argument('--subfolder_list_path',
+                        default='testdata/stamps/subfolder_list.txt',
+                        help="A path to the file with a list of subfolders.")
+    target_dir_group = parser.add_mutually_exclusive_group()
+    target_dir_group.add_argument(
+        '--target_dir', help="Path to the folder with Raja's subfolders.")
+    target_dir_group.add_argument(
+        '--target_dims',
+        choices=['1800x1200', '6Kx4K'],
+        help='If specified, use default target directory for this dims.')
+    parser.add_argument(
+        '--rootdir_for_validation',
+        help='If specified, will check that the image exists using the rootdir.'
+    )
+
+
+def moveToRajaFolderStructure(c, args):
+
+    # "target_dir" may be set via "target_dims"
+    if args.target_dir is not None:
+        target_dir = args.target_dir
+    elif args.target_dims is not None:
+        target_dir = ('original_dataset/' if args.target_dims == '6Kx4K' else
+                      '../etoropov/data/1800x1200/')
+    else:
+        assert False
+
+    if target_dir[-1] != '/':
+        logging.warning('Adding a "/" on the end of "%s".', target_dir)
+        target_dir[-1] += '/'
+
+    if not op.exists(args.subfolder_list_path):
+        raise FileNotFoundError('File at subfolder_list_path not found: "%s"',
+                                args.subfolder_list_path)
+
+    with open(args.subfolder_list_path) as f:
+        subfolder_list = f.read().splitlines()
+
+    c.execute('SELECT imagefile FROM images')
+    for imagefile, in c.fetchall():
+        imagename = op.basename(imagefile)
+        # The extensions in Raja's folder are "JPG", not "jpg".
+        imagename = op.splitext(imagename)[0] + '.JPG'
+        # The number is the first two digits.
+        subfolder_num = imagename[:2]
+        try:
+            subfolder = next(
+                filter(lambda x: x[:2] == subfolder_num, subfolder_list))
+        except StopIteration:
+            logging.error('No subfolder starts with "%s"', subfolder_num)
+            raise ValueError()
+        new_imagefile = op.join(target_dir, subfolder, imagename)
+        logging.debug('Changing "%s" to "%s".', imagefile, new_imagefile)
+
+        # Make sure that the file exists.
+        if args.rootdir_for_validation:
+            if not op.join(args.rootdir_for_validation, new_imagefile):
+                raise FileNotFoundError(
+                    'Transformed "%s" to "%s", but cant find this image '
+                    'during validation with rootdir "%s".' %
+                    (imagefile, new_imagefile, args.rootdir_for_validation))
+
+        # Check if we used the database already with Raja's folder format.
+        if imagefile == new_imagefile:
+            raise ValueError('Old and new imagefiles are the same. '
+                             'The database is already in Raja format.')
+
+        c.execute('UPDATE images SET imagefile=? WHERE imagefile=?',
+                  (new_imagefile, imagefile))
+        c.execute('UPDATE objects SET imagefile=? WHERE imagefile=?',
+                  (new_imagefile, imagefile))
+
+
+def importNameFromCsvParser(subparsers):
+    parser = subparsers.add_parser(
+        'importNameFromCsv',
+        description='Imports name and score to objects. '
+        'There can be several names with corresponding scores. In that case, '
+        'both names and scores should be separated by comma: dog,cat 0.65,0.43'
+    )
+    parser.set_defaults(func=importNameFromCsv)
+    parser.add_argument('--csv_path', required=True)
+    parser.add_argument('--delimiter', default='\t')
+    parser.add_argument('--col_objectid', type=int, required=True)
+    parser.add_argument('--col_name', type=int, required=True)
+    parser.add_argument('--col_score', type=int, required=True)
+    parser.add_argument(
+        '--score_threshold',
+        type=float,
+        help='Only import rows with scores higher than threshold.')
+    parser.add_argument('--bad_names',
+                        nargs='*',
+                        help='Do not import bad names if any.')
+
+
+def importNameFromCsv(c, args):
+    if not op.exists(args.csv_path):
+        raise FileNotFoundError('File does not exist at: %s' % args.csv_path)
+    rows = np.genfromtxt(args.csv_path,
+                         delimiter=args.delimiter,
+                         dtype=None,
+                         encoding='UTF-8')
+
+    num_names_per_object = {}
+    logging.info('Found %d rows', len(rows))
+    errors = 0
+    for irow, row in progressbar(enumerate(rows)):
+        objectid = int(row[args.col_objectid])
+        names = util.maybeDecode(row[args.col_name]).split(',')
+        scores = [float(score) for score in row[args.col_score].split(',')]
+        logging.debug('Names: %s, scores: %s', str(names), str(scores))
+        if len(names) != len(scores):
+            errors += 1
+            continue
+            raise ValueError(
+                'Number of names "%s" and scores "%s" mismatches in row %d' %
+                (names, scores, irow))
+        names_and_scores = [(name, score)
+                            for name, score in zip(names, scores)
+                            if score >= args.score_threshold
+                            and not (args.bad_names and name in args.bad_names)
+                            ]
+        names, scores = zip(
+            *names_and_scores) if len(names_and_scores) > 0 else ([], [])
+        logging.debug('Found %d names for object %d', len(names), objectid)
+
+        c.execute('SELECT COUNT(1) FROM objects WHERE objectid=?',
+                  (objectid, ))
+        if c.fetchone()[0] == 0:
+            raise ValueError("Didn't find objectid %d in the db." % objectid)
+
+        name = ' / '.join(names)
+        score = sum(scores)
+        c.execute('UPDATE objects SET name=?,score=? WHERE objectid=?',
+                  (name, score, objectid))
+
+        if len(names) not in num_names_per_object:
+            num_names_per_object[len(names)] = 0
+        num_names_per_object[len(names)] += 1
+    logging.info('Number of names per object:\n%s',
+                 pformat(num_names_per_object))
+    logging.info('Errors: %d', errors)
