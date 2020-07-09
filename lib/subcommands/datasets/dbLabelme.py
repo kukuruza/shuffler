@@ -28,8 +28,8 @@ def _pointsOfPolygon(annotation):
     xs = []
     ys = []
     for pt in pts:
-        xs.append(int(pt.find('x').text) - 1)
-        ys.append(int(pt.find('y').text) - 1)
+        xs.append(int(float(pt.find('x').text)) - 1)
+        ys.append(int(float(pt.find('y').text)) - 1)
     logging.debug('Parsed polygon xs=%s, ys=%s.' % (xs, ys))
     return xs, ys
 
@@ -74,7 +74,7 @@ def importLabelme(c, args):
 
     c.execute('SELECT imagefile FROM images')
     imagefiles = c.fetchall()
-    logging.info('Found %d images' % len(imagefiles))
+    logging.info('Found %d images, including new ones.' % len(imagefiles))
 
     annotations_paths = os.listdir(args.annotations_dir)
 
@@ -125,14 +125,28 @@ def importLabelme(c, args):
                                 (str(xs), str(ys), annotation_file))
                 continue
 
-            c.execute('INSERT INTO objects(imagefile,name) VALUES (?,?)',
-                      (imagefile, name))
-            objectid = c.lastrowid
+            # If the database does not have the object id from xml, use it.
+            # That can be useful when using LabelMeAnnotationTool for updates.
+            # If it does not, assign a new one.
+            xml_objectid = int(object_.find('id').text)
+            c.execute('SELECT COUNT(1) FROM objects WHERE objectid=?',
+                      (xml_objectid,))
+            if c.fetchone()[0] == 0:
+                c.execute('INSERT INTO objects(objectid,imagefile,name) '
+                          'VALUES (?,?,?)', (xml_objectid, imagefile, name))
+                objectid = xml_objectid
+                logging.debug('Will use objectid %d from xml.', objectid)
+            else:
+                c.execute('INSERT INTO objects(imagefile,name) VALUES (?,?)',
+                          (imagefile, name))
+                objectid = c.lastrowid
+                logging.debug('Will assign a new objectid %d.', objectid)
+            
             for i in range(len(xs)):
                 c.execute('INSERT INTO polygons(objectid,x,y) VALUES (?,?,?);',
                           (objectid, xs[i], ys[i]))
 
-            if (object_.find('occluded')
+            if (object_.find('occluded') is not None
                     and object_.find('occluded').text == 'yes'):
                 c.execute(
                     'INSERT INTO properties(objectid,key,value) VALUES (?,?,?);',
