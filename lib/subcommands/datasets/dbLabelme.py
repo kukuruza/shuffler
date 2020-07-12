@@ -50,6 +50,9 @@ def importLabelmeParser(subparsers):
     parser.add_argument('--annotations_dir',
                         required=True,
                         help='Directory with xml files.')
+    parser.add_argument('--skip_if_imagename_exists', action='store_true',
+                        help='Will not import an image, if another image '
+                        'with the same name (not just path) exists in db.')
     parser.add_argument('--with_display', action='store_true')
 
 
@@ -62,6 +65,17 @@ def importLabelme(c, args):
                    glob(op.join(args.images_dir, '*.JPG')))
     logging.info('Adding %d images.' % len(image_paths))
     for image_path in progressbar(image_paths):
+        if args.skip_if_imagename_exists:
+            image_name = os.path.basename(image_path)
+            sql = 'SELECT COUNT(1) FROM images WHERE imagefile LIKE "%%/%s"' % image_name
+            print (sql)
+            c.execute('SELECT COUNT(1) FROM images WHERE imagefile LIKE "%%/%s"'
+                      % image_name)
+            if c.fetchone()[0] > 0:
+                logging.info('Will not import name %s, it is already in db',
+                             image_name)
+                continue
+
         height, width = getPictureSize(image_path)
         imagefile = op.relpath(op.abspath(image_path), args.rootdir)
         timestamp = makeTimeString(datetime.now())
