@@ -4,6 +4,7 @@ import numpy as np
 import logging
 from pprint import pprint
 from itertools import groupby
+from matplotlib import cm
 
 from lib.backend.backendDb import imageField
 
@@ -32,14 +33,23 @@ def plotHistogramParser(subparsers):
         'plotHistogram',
         description='Get a 1d histogram plot of a field in the db.')
     parser.set_defaults(func=plotHistogram)
-    parser.add_argument(
+    sql_group = parser.add_mutually_exclusive_group()
+    sql_group.add_argument(
         '--sql',
         help='SQL query for ONE field, the "x" in the plot. '
         'Example: \'SELECT value FROM properties WHERE key="pitch"\'')
+    sql_group.add_argument(
+        '--sql_stacked',
+        help='SQL query for TWO fields, the "x" in the plot, and the "series". '
+        'Will plot stacked histograms, one for each "series". Example: '
+        '\'SELECT value,key FROM properties WHERE key IN ("yaw", "pitch")\'. '
+        'Here, there will be two stacked histograms, "yaw" and "pitch". '
+        'Ordering of histograms is not supported.')
     parser.add_argument('--xlabel')
     parser.add_argument('--ylog', action='store_true')
     parser.add_argument('--bins', type=int)
     parser.add_argument('--xlim', type=float, nargs='+')
+    parser.add_argument('--colormap', default='Spectral')
     parser.add_argument('--rotate_xlabels',
                         type=float,
                         default=0.,
@@ -51,42 +61,50 @@ def plotHistogramParser(subparsers):
 
 def plotHistogram(c, args):
     import matplotlib.pyplot as plt
+    import pandas as pd
 
-    c.execute(args.sql)
+    c.execute(args.sql if args.sql else args.sql_stacked)
     entries = c.fetchall()
 
     # Clean data.
     if not entries:
         logging.info('No entries, nothing to draw.')
         return
-    if len(entries[0]) != 1:
+    if args.sql and len(entries[0]) != 1:
         raise ValueError('Must query for 1 fields, not %d.' % len(entries[0]))
-    xlist = [x for x, in entries if x is not None]
-    logging.info('%d entries have a non-None field.' % len(xlist))
+    elif args.sql_stacked and len(entries[0]) != 2:
+        raise ValueError('Must query for 2 fields, not %d.' % len(entries[0]))
 
-    # List to proper format.
-    xlist = _maybeNumerizeProperty(xlist)
-    logging.debug('%s' % (str(xlist)))
+    # Make a dataframe.
+    columns = ['x'] if args.sql else ['x', 'series']
+    df = pd.DataFrame(entries, columns=columns)
+    df['x'] = pd.to_numeric(df['x'], downcast='integer')
+    logging.debug(df)
 
-    fig, ax = plt.subplots()
-    if args.categorical:
-        import pandas as pd
+    if args.sql_stacked and not args.categorical:
+        df.pivot_table(index='x', columns='series', aggfunc='size').\
+           plot.bar(stacked=True, cmap=cm.get_cmap(args.colormap))
+        # Put a legend to the right of the current axis
+        box = plt.gca().get_position()
+        plt.gca().set_position([box.x0, box.y0, box.width * 0.7, box.height])
+        plt.gca().legend(loc='center left', bbox_to_anchor=(1, 0.5))
+    elif args.sql and not args.categorical:
+        df['x'].plot.hist()
+    elif args.sql and args.categorical:
         import seaborn as sns
-        data = pd.DataFrame({args.xlabel: xlist})
-        ax = sns.countplot(x=args.xlabel,
-                           data=data,
-                           order=data[args.xlabel].value_counts().index)
+        sns.countplot(x=args.xlabel, df=df, order=df['x'].value_counts().index)
+    elif args.sql_stacked and args.categorical:
+        raise NotImplementedError()
     else:
-        ax.hist(xlist, bins=args.bins)
-    plt.xticks(rotation=args.rotate_xlabels)
-    #fig.subplots_adjust(bottom=0.25)
+        assert 0, "Should not be here."
 
+    plt.xticks(rotation=args.rotate_xlabels)
     if args.xlim:
         if not len(args.xlim) == 2:
             raise Exception('Argument xlim requires to numbers')
         plt.xlim(args.xlim)
     if args.ylog:
-        ax.set_yscale('log', nonposy='clip')
+        plt.yscale('log', nonposy='clip')
     if args.xlabel:
         plt.xlabel(args.xlabel)
     plt.ylabel('')
