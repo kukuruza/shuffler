@@ -12,7 +12,7 @@ from pprint import pformat
 import re
 from datetime import datetime
 
-from lib.backend.backendDb import makeTimeString, parseTimeString, objectField
+from lib.backend.backendDb import makeTimeString, parseTimeString, objectField, deleteObject
 from lib.backend.backendMedia import MediaReader, MediaWriter, getPictureSize
 from lib.utils.util import drawScoredPolygon, polygons2bboxes, bboxes2polygons
 
@@ -50,9 +50,10 @@ def importLabelmeParser(subparsers):
     parser.add_argument('--annotations_dir',
                         required=True,
                         help='Directory with xml files.')
-    parser.add_argument('--skip_if_imagename_exists', action='store_true',
-                        help='Will not import an image, if another image '
-                        'with the same name (not just path) exists in db.')
+    parser.add_argument('--replace',
+                        action='store_true',
+                        help='Will replace objects with the same objectid'
+                        ' as the id in the xml, but keep the same imagefile.')
     parser.add_argument('--with_display', action='store_true')
 
 
@@ -64,36 +65,24 @@ def importLabelme(c, args):
     image_paths = (glob(op.join(args.images_dir, '*.jpg')) +
                    glob(op.join(args.images_dir, '*.JPG')))
     logging.info('Adding %d images.' % len(image_paths))
+    imagefiles = []
     for image_path in progressbar(image_paths):
-        if args.skip_if_imagename_exists:
-            image_name = os.path.basename(image_path)
-            sql = 'SELECT COUNT(1) FROM images WHERE imagefile LIKE "%%/%s"' % image_name
-            print (sql)
-            c.execute('SELECT COUNT(1) FROM images WHERE imagefile LIKE "%%/%s"'
-                      % image_name)
-            if c.fetchone()[0] > 0:
-                logging.info('Will not import name %s, it is already in db',
-                             image_name)
-                continue
-
         height, width = getPictureSize(image_path)
         imagefile = op.relpath(op.abspath(image_path), args.rootdir)
         timestamp = makeTimeString(datetime.now())
-        c.execute(
-            'INSERT INTO images('
-            'imagefile, width, height, timestamp) VALUES (?,?,?,?)',
-            (imagefile, width, height, timestamp))
+        if not args.replace:
+          c.execute(
+              'INSERT INTO images('
+              'imagefile, width, height, timestamp) VALUES (?,?,?,?)',
+              (imagefile, width, height, timestamp))
+        imagefiles.append(imagefile)
+    logging.info('Found %d new imagefiles.' % len(imagefiles))
 
     # Adding annotations.
-
-    c.execute('SELECT imagefile FROM images')
-    imagefiles = c.fetchall()
-    logging.info('Found %d images, including new ones.' % len(imagefiles))
-
     annotations_paths = os.listdir(args.annotations_dir)
 
-    for imagefile, in progressbar(imagefiles):
-        logging.debug('Processing imagefile: "%s"' % imagefile)
+    for imagefile in progressbar(imagefiles):
+        logging.info('Processing imagefile: "%s"' % imagefile)
 
         # Find annotation files that match the imagefile.
         # There may be 1 or 2 dots in the extension because of some
@@ -111,11 +100,6 @@ def importLabelme(c, args):
         # FIXME: pick the latest as opposed to just one of those.
         annotation_file = op.join(args.annotations_dir, matches[0])
         logging.debug('Got a match %s' % annotation_file)
-
-        # get dimensions
-        c.execute('SELECT height,width FROM images WHERE imagefile=?',
-                  (imagefile, ))
-        sz = (height, width) = c.fetchone()
 
         if args.with_display:
             img = imreader.imread(imagefile)
@@ -139,17 +123,20 @@ def importLabelme(c, args):
                                 (str(xs), str(ys), annotation_file))
                 continue
 
-            # If the database does not have the object id from xml, use it.
-            # That can be useful when using LabelMeAnnotationTool for updates.
-            # If it does not, assign a new one.
-            xml_objectid = int(object_.find('id').text)
-            c.execute('SELECT COUNT(1) FROM objects WHERE objectid=?',
-                      (xml_objectid,))
-            if c.fetchone()[0] == 0:
-                c.execute('INSERT INTO objects(objectid,imagefile,name) '
-                          'VALUES (?,?,?)', (xml_objectid, imagefile, name))
+            if args.replace:
+                # If replace, expect the objectid to be there.
+                xml_objectid = int(object_.find('id').text)
+                c.execute('SELECT COUNT(1) FROM objects WHERE objectid=?',
+                          (xml_objectid,))
+                if not c.fetchone()[0]:
+                    raise ValueError('"replace" is specified but objectid %d '
+                                     'does not exist.' % xml_objectid)
+                c.execute('UPDATE objects SET name=?,x1=NULL,'
+                          'y1=NULL,width=NULL,height=NULL WHERE objectid=?',
+                          (name, xml_objectid))
+                c.execute('DELETE FROM polygons WHERE objectid=?', (xml_objectid,))
                 objectid = xml_objectid
-                logging.debug('Will use objectid %d from xml.', objectid)
+                logging.info('Updated objectid %d.', objectid)
             else:
                 c.execute('INSERT INTO objects(imagefile,name) VALUES (?,?)',
                           (imagefile, name))
