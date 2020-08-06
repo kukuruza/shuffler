@@ -45,6 +45,7 @@ def normalizeSeparators(path):
 def getPictureSize(imagepath):
     if not op.exists(imagepath):
         raise ValueError('Image does not exist at path: "%s"' % imagepath)
+    logging.debug('Get size of image "%s".', imagepath)
     im = PIL.Image.open(imagepath)
     width, height = im.size
     im.close()
