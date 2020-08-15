@@ -28,30 +28,57 @@ def filterImagesOfAnotherDbParser(subparsers):
     parser = subparsers.add_parser(
         'filterImagesOfAnotherDb',
         description=
-        'Remove images from the db that are not in the reference db.')
-    parser.add_argument('--ref_db_file', required=True)
+        'Remove images from the db that are / are not in the reference db.')
+    db_group = parser.add_mutually_exclusive_group()
+    db_group.add_argument(
+        '--keep_db_file',
+        help='If specified, will KEEP all images that are in keep_db_file.')
+    db_group.add_argument(
+        '--delete_db_file',
+        help='If specified, will DELETE all images that are in keep_db_file.')
+    parser.add_argument(
+        '--use_basename',
+        action='store_true',
+        help='If specified, compare files based on their basename, not paths.')
     parser.set_defaults(func=filterImagesOfAnotherDb)
 
 
 def filterImagesOfAnotherDb(c, args):
+    if args.keep_db_file is None and args.delete_db_file is None:
+        raise ValueError(
+            'Either "keep_db_file" or "delete_db_file" must be specified.')
 
     # Get all the imagefiles from the reference db.
-    conn_ref = sqlite3.connect('file:%s?mode=ro' % args.ref_db_file, uri=True)
+    ref_file = args.keep_db_file if args.keep_db_file else args.delete_db_file
+    conn_ref = sqlite3.connect('file:%s?mode=ro' % ref_file, uri=True)
     c_ref = conn_ref.cursor()
     c_ref.execute('SELECT imagefile FROM images')
     imagefiles_ref = c_ref.fetchall()
-    imagenames_ref = [op.basename(x) for x, in imagefiles_ref]
     logging.info('Total %d images in ref.' % len(imagefiles_ref))
     conn_ref.close()
 
     # Get all the imagefiles from the main db.
     c.execute('SELECT imagefile FROM images')
     imagefiles = c.fetchall()
+    logging.info('Before filtering have %d files', len(imagefiles))
+
+    maybe_basename = lambda x: op.basename(x) if args.use_basename else x
+    if args.use_basename:
+        imagefiles_ref = [op.basename(x) for x, in imagefiles_ref]
+
+    # imagefiles_del are either must be or must not be in the other database.
+    if args.keep_db_file is not None:
+        imagefiles_del = [
+            x for x, in imagefiles if maybe_basename(x) not in imagefiles_ref
+        ]
+    elif args.delete_db_file is not None:
+        imagefiles_del = [
+            x for x, in imagefiles if maybe_basename(x) in imagefiles_ref
+        ]
+    else:
+        assert 0, "We cant be here."
 
     # Delete.
-    imagefiles_del = [
-        x for x, in imagefiles if op.basename(x) not in imagenames_ref
-    ]
     for imagefile_del in imagefiles_del:
         deleteImage(c, imagefile_del)
 
