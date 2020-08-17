@@ -9,6 +9,7 @@ import simplejson as json
 import matplotlib.pyplot as plt  # for colormaps
 
 from lib.backend.backendDb import objectField
+from lib.utils import utilBoxes
 
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 SCALE = 28
@@ -403,3 +404,42 @@ def polygons2mask(cursor, objectid):
 
     mask = mask.astype(np.uint8)
     return mask
+
+
+def _getIntersectingObjects(objects1, objects2, IoU_threshold):
+
+    # Compute pairwise distances between rectangles.
+    pairwise_IoU = np.zeros(shape=(len(objects1), len(objects2)), dtype=float)
+    for i1, object1 in enumerate(objects1):
+        for i2, object2 in enumerate(objects2):
+            # Do not merge an object with itself.
+            if objectField(object1,
+                           'objectid') == objectField(object2, 'objectid'):
+                pairwise_IoU[i1, i2] = np.inf
+            else:
+                roi1 = objectField(object1, 'roi')
+                roi2 = objectField(object2, 'roi')
+                pairwise_IoU[i1, i2] = utilBoxes.getIoU(roi1, roi2)
+    logging.debug('Pairwise_IoU is:\n%s' % pformat(pairwise_IoU))
+
+    # Greedy search for pairs.
+    pairs_to_merge = []
+    for step in range(min(len(objects1), len(objects2))):
+        i1, i2 = np.unravel_index(np.argmax(pairwise_IoU), pairwise_IoU.shape)
+        logging.debug('Maximum reached at indices [%d, %d]' % (i1, i2))
+        IoU = pairwise_IoU[i1, i2]
+        # Stop if no more good pairs.
+        if IoU < IoU_threshold:
+            break
+        # Disable these objects for the next step.
+        pairwise_IoU[i1, :] = 0.
+        pairwise_IoU[:, i2] = 0.
+        # Add a pair to the list.
+        pairs_to_merge.append([i1, i2])
+        logging.info('Will merge objects %d (%s) and %d (%s) with IoU %f.' %
+                     (objectField(objects1[i1], 'objectid'),
+                      objectField(objects1[i1], 'name'),
+                      objectField(objects2[i2], 'objectid'),
+                      objectField(objects2[i2], 'name'), IoU))
+
+    return pairs_to_merge

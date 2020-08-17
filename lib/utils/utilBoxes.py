@@ -5,6 +5,18 @@ import cv2
 from lib.utils.util import roi2bbox
 
 
+def getIoU(roi1, roi2):
+    ' Computes intersection over union for two rectangles. '
+    intersection_y = max(0, (min(roi1[2], roi2[2]) - max(roi1[0], roi2[0])))
+    intersection_x = max(0, (min(roi1[3], roi2[3]) - max(roi1[1], roi2[1])))
+    intersection = intersection_x * intersection_y
+    area1 = (roi1[3] - roi1[1]) * (roi1[2] - roi1[0])
+    area2 = (roi2[3] - roi2[1]) * (roi2[2] - roi2[0])
+    union = area1 + area2 - intersection
+    IoU = intersection / union if union > 0 else 0.
+    return IoU
+
+
 def expandRoiBorder(roi, imsize, perc, integer_result=True):
     '''
     Expands a ROI, and clips it within borders.

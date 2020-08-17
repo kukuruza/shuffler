@@ -15,7 +15,7 @@ from ast import literal_eval
 from lib.backend.backendDb import makeTimeString, deleteImage, deleteObject, objectField, createDb
 from lib.backend.backendMedia import getPictureSize, MediaReader
 from lib.utils.util import drawScoredRoi, roi2bbox, bboxes2polygons, polygons2bboxes
-from lib.utils.utilBoxes import expandRoiToRatio, expandRoi
+from lib.utils import utilBoxes
 
 
 def add_parsers(subparsers):
@@ -266,9 +266,10 @@ def tailImages(c, args):
     for imagefile, in imagefiles[:-args.n]:
         deleteImage(c, imagefile)
 
+
 def randomNImagesParser(subparsers):
-    parser = subparsers.add_parser(
-        'randomNImages', description='Keep random N image entries.')
+    parser = subparsers.add_parser('randomNImages',
+                                   description='Keep random N image entries.')
     parser.add_argument('-n', required=True, type=int)
     parser.add_argument('--seed', default=0, type=int, help='Random seed.')
     parser.set_defaults(func=randomNImages)
@@ -287,6 +288,7 @@ def randomNImages(c, args):
 
     for imagefile, in imagefiles[args.n:]:
         deleteImage(c, imagefile)
+
 
 def expandBoxesParser(subparsers):
     parser = subparsers.add_parser(
@@ -328,10 +330,11 @@ def expandBoxes(c, args):
             if oldroi is None:  # Roi is not specified.
                 continue
             if args.target_ratio:
-                roi = expandRoiToRatio(oldroi, args.expand_perc,
-                                       args.target_ratio)
+                roi = utilBoxes.expandRoiToRatio(oldroi, args.expand_perc,
+                                                 args.target_ratio)
             else:
-                roi = expandRoi(oldroi, (args.expand_perc, args.expand_perc))
+                roi = utilBoxes.expandRoi(oldroi,
+                                          (args.expand_perc, args.expand_perc))
             c.execute(
                 'UPDATE objects SET x1=?, y1=?,width=?,height=? WHERE objectid=?',
                 tuple(roi2bbox(roi) + [objectid]))
@@ -379,7 +382,6 @@ def moveMediaParser(subparsers):
 
 
 def moveMedia(c, args):
-
     def splitall(path):
         allparts = []
         while 1:
@@ -387,7 +389,7 @@ def moveMedia(c, args):
             if parts[0] == path:  # sentinel for absolute paths
                 allparts.insert(0, parts[0])
                 break
-            elif parts[1] == path: # sentinel for relative paths
+            elif parts[1] == path:  # sentinel for relative paths
                 allparts.insert(0, parts[1])
                 break
             else:
@@ -412,7 +414,7 @@ def moveMedia(c, args):
         for oldfile, in progressbar(imagefiles):
             if oldfile is None:
                 continue
-            
+
             newfile = op.join(args.image_path,
                               getPathBase(oldfile, args.level))
             c.execute('UPDATE images SET imagefile=? WHERE imagefile=?',
@@ -423,12 +425,12 @@ def moveMedia(c, args):
             # TODO: this only works on images. Make for video.
             newpath = op.join(args.rootdir, newfile)
             if not op.exists(newpath):
-                raise IOError('New file "%s" does not exist (rootdir "%s"), '
-                              '(created from "%s")',
-                              (newpath, args.rootdir, oldfile))
+                raise IOError(
+                    'New file "%s" does not exist (rootdir "%s"), '
+                    '(created from "%s")', (newpath, args.rootdir, oldfile))
             if args.adjust_size:
                 c.execute('SELECT height, width FROM images WHERE imagefile=?',
-                          (newfile,))
+                          (newfile, ))
                 oldheight, oldwidth = c.fetchone()
                 newheight, newwidth = getPictureSize(newpath)
                 if newheight != oldheight or newwidth != oldwidth:
@@ -806,7 +808,9 @@ def mergeIntersectingObjectsParser(subparsers):
         'mergeIntersectingObjects',
         description='Merge objects that intersect. '
         'Currently only pairwise, does not merge groups (that is future work.) '
-        'Currently implements only intersection by bounding boxes.')
+        'Currently implements only intersection by bounding boxes. '
+        'A merged object has polygons and properties from both source objects.'
+    )
     parser.set_defaults(func=mergeIntersectingObjects)
     parser.add_argument(
         '--IoU_threshold',
@@ -842,18 +846,6 @@ def mergeIntersectingObjectsParser(subparsers):
 
 
 def mergeIntersectingObjects(c, args):
-    def _getIoU(roi1, roi2):
-        ' Computes intersection over union for two rectangles. '
-        intersection_y = max(0,
-                             (min(roi1[2], roi2[2]) - max(roi1[0], roi2[0])))
-        intersection_x = max(0,
-                             (min(roi1[3], roi2[3]) - max(roi1[1], roi2[1])))
-        intersection = intersection_x * intersection_y
-        area1 = (roi1[3] - roi1[1]) * (roi1[2] - roi1[0])
-        area2 = (roi2[3] - roi2[1]) * (roi2[2] - roi2[0])
-        union = area1 + area2 - intersection
-        IoU = intersection / union if union > 0 else 0.
-        return IoU
 
     if args.with_display:
         imreader = MediaReader(rootdir=args.rootdir)
@@ -879,42 +871,8 @@ def mergeIntersectingObjects(c, args):
         logging.debug('Image %s has %d and %d objects to match' %
                       (imagefile, len(objects1), len(objects2)))
 
-        # Compute pairwise distances between rectangles.
-        pairwise_IoU = np.zeros(shape=(len(objects1), len(objects2)),
-                                dtype=float)
-        for i1, object1 in enumerate(objects1):
-            for i2, object2 in enumerate(objects2):
-                # Do not merge an object with itself.
-                if objectField(object1,
-                               'objectid') == objectField(object2, 'objectid'):
-                    pairwise_IoU[i1, i2] = np.inf
-                else:
-                    roi1 = objectField(object1, 'roi')
-                    roi2 = objectField(object2, 'roi')
-                    pairwise_IoU[i1, i2] = _getIoU(roi1, roi2)
-        logging.debug('Pairwise_IoU is:\n%s' % pformat(pairwise_IoU))
-
-        # Greedy search for pairs.
-        pairs_to_merge = []
-        for step in range(min(len(objects1), len(objects2))):
-            i1, i2 = np.unravel_index(np.argmax(pairwise_IoU),
-                                      pairwise_IoU.shape)
-            logging.debug('Maximum reached at indices [%d, %d]' % (i1, i2))
-            IoU = pairwise_IoU[i1, i2]
-            # Stop if no more good pairs.
-            if IoU < args.IoU_threshold:
-                break
-            # Disable these objects for the next step.
-            pairwise_IoU[i1, :] = 0.
-            pairwise_IoU[:, i2] = 0.
-            # Add a pair to the list.
-            pairs_to_merge.append([i1, i2])
-            logging.info(
-                'Will merge objects %d (%s) and %d (%s) with IoU %f.' %
-                (objectField(objects1[i1],
-                             'objectid'), objectField(objects1[i1], 'name'),
-                 objectField(objects2[i2], 'objectid'),
-                 objectField(objects2[i2], 'name'), IoU))
+        pairs_to_merge = _getIntersectingObjects(objects1, objects2,
+                                                 args.IoU_threshold)
 
         if args.with_display and len(pairs_to_merge) > 0:
             image = imreader.imread(imagefile)
