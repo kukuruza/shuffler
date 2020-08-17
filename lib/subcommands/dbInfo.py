@@ -5,8 +5,9 @@ import logging
 from pprint import pprint
 from itertools import groupby
 from matplotlib import cm
+import pprint
 
-from lib.backend.backendDb import imageField
+from lib.backend import backendDb
 
 
 def add_parsers(subparsers):
@@ -16,6 +17,7 @@ def add_parsers(subparsers):
     plotViolinParser(subparsers)
     printInfoParser(subparsers)
     dumpDbParser(subparsers)
+    diffDbParser(subparsers)
 
 
 def _maybeNumerizeProperty(values):
@@ -301,16 +303,18 @@ def _getImagesStats(image_entries):
     ''' Process image entries into stats. '''
     info = {}
     info['num images'] = len(image_entries)
-    info['num masks'] = len(
-        [x for x in image_entries if imageField(x, 'maskfile') is not None])
+    info['num masks'] = len([
+        x for x in image_entries
+        if backendDb.imageField(x, 'maskfile') is not None
+    ])
     # Width.
-    widths = set([imageField(x, 'width') for x in image_entries])
+    widths = set([backendDb.imageField(x, 'width') for x in image_entries])
     if len(widths) > 1:
         info['image width'] = '%s different values' % len(widths)
     elif len(widths) == 1:
         info['image width'] = '%s' % next(iter(widths))
     # Height.
-    heights = set([imageField(x, 'height') for x in image_entries])
+    heights = set([backendDb.imageField(x, 'height') for x in image_entries])
     if len(heights) > 1:
         info['image height'] = '%s different values' % len(heights)
     elif len(heights) == 1:
@@ -347,7 +351,7 @@ def printInfo(c, args):
         # Split by image directories.
         for key, group in groupby(
                 image_entries,
-                lambda x: op.dirname(imageField(x, 'imagefile'))):
+                lambda x: op.dirname(backendDb.imageField(x, 'imagefile'))):
             info['imagedir="%s"' % key] = _getImagesStats(list(group))
     else:
         info.update(_getImagesStats(image_entries))
@@ -357,8 +361,9 @@ def printInfo(c, args):
     object_entries = c.fetchall()
     if args.objects_by_image:
         # Split by image directories.
-        for key, group in groupby(object_entries,
-                                  lambda x: imageField(x, 'imagefile')):
+        for key, group in groupby(
+                object_entries,
+                lambda x: backendDb.imageField(x, 'imagefile')):
             info['image="%s"' % key] = _getObjectsStats(list(group))
     else:
         info.update(_getObjectsStats(object_entries))
@@ -401,3 +406,70 @@ def dumpDb(c, args):
 
     for table in args.tables:
         _dumpTable(table)
+
+
+def diffDbParser(subparsers):
+    parser = subparsers.add_parser(
+        'diffDb',
+        description='Compute the diff between the open and the reference db. '
+        'Print the results, and return them as a dict.')
+    parser.set_defaults(func=diffDb)
+    parser.add_argument('--db_file',
+                        required=True,
+                        help='The database to take diff against.')
+
+
+def diffDb(c, args):
+    results = {}
+
+    c.execute('ATTACH ? AS "ref"', (args.db_file, ))
+
+    # Get imagefiles.
+    c.execute('SELECT imagefile FROM images')
+    imagefiles = c.fetchall()
+    c.execute('SELECT imagefile FROM ref.images')
+    imagefiles_ref = c.fetchall()
+
+    # Imagefile statistics.
+    imagefiles_both = set(imagefiles) & set(imagefiles_ref)
+    imagefiles_new = set(imagefiles) - set(imagefiles_ref)
+    imagefiles_old = set(imagefiles_ref) - set(imagefiles)
+    results['images'] = {
+        'remaining': len(imagefiles_both),
+        'new': len(imagefiles_new),
+        'old': len(imagefiles_old),
+    }
+
+    # Object statistics.
+    c.execute(
+        'SELECT COUNT(1) FROM objects obj INNER JOIN ref.objects ref_obj '
+        'ON obj.objectid=ref_obj.objectid')
+    num_remaining = c.fetchone()[0]
+    c.execute('SELECT COUNT(1) FROM objects WHERE objectid NOT IN '
+              '(SELECT objectid FROM ref.objects)')
+    num_new = c.fetchone()[0]
+    c.execute('SELECT COUNT(1) FROM ref.objects WHERE objectid NOT IN '
+              '(SELECT objectid FROM objects)')
+    num_old = c.fetchone()[0]
+    c.execute(
+        'SELECT COUNT(1) FROM objects obj INNER JOIN ref.objects ref_obj '
+        'ON obj.objectid=ref_obj.objectid '
+        'WHERE obj.x1 != ref_obj.x1 OR obj.y1 != ref_obj.y1 OR '
+        'obj.width != ref_obj.width OR obj.height != ref_obj.height')
+    num_moved = c.fetchone()[0]
+    c.execute(
+        'SELECT COUNT(1) FROM objects obj INNER JOIN ref.objects ref_obj '
+        'ON obj.objectid=ref_obj.objectid WHERE obj.name != ref_obj.name')
+    num_renamed = c.fetchone()[0]
+    results['objects'] = {
+        'remaining': num_remaining,
+        'new': num_new,
+        'old': num_old,
+        'remaining_moved': num_moved,
+        'remaining_renamed': num_renamed,
+    }
+
+    pprint.pprint(results)
+
+    c.execute('DETACH DATABASE "ref"')
+    return results
