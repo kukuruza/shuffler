@@ -14,7 +14,8 @@ from ast import literal_eval
 
 from lib.backend.backendDb import makeTimeString, deleteImage, deleteObject, objectField, createDb
 from lib.backend.backendMedia import getPictureSize, MediaReader
-from lib.utils.util import drawScoredRoi, roi2bbox, bboxes2polygons, polygons2bboxes
+from lib.backend import backendDb
+from lib.utils import util
 from lib.utils import utilBoxes
 
 
@@ -37,6 +38,7 @@ def add_parsers(subparsers):
     renameObjectsParser(subparsers)
     resizeAnnotationsParser(subparsers)
     propertyToNameParser(subparsers)
+    syncObjectidsWithDbParser(subparsers)
 
 
 def bboxesToPolygonsParser(subparsers):
@@ -51,7 +53,7 @@ def bboxesToPolygons(c, args):
     c.execute('SELECT objectid FROM objects WHERE objectid NOT IN '
               '(SELECT objectid FROM polygons)')
     for objectid, in progressbar(c.fetchall()):
-        bboxes2polygons(c, objectid)
+        util.bboxes2polygons(c, objectid)
 
 
 def polygonsToBboxesParser(subparsers):
@@ -66,7 +68,7 @@ def polygonsToBboxes(c, args):
     c.execute('SELECT objectid FROM objects WHERE objectid NOT IN '
               '(SELECT DISTINCT(objectid) FROM polygons)')
     for objectid, in progressbar(c.fetchall()):
-        polygons2bboxes(c, objectid)
+        util.polygons2bboxes(c, objectid)
 
 
 def sqlParser(subparsers):
@@ -337,11 +339,11 @@ def expandBoxes(c, args):
                                           (args.expand_perc, args.expand_perc))
             c.execute(
                 'UPDATE objects SET x1=?, y1=?,width=?,height=? WHERE objectid=?',
-                tuple(roi2bbox(roi) + [objectid]))
+                tuple(utilBoxes.roi2bbox(roi) + [objectid]))
 
             if args.with_display:
-                drawScoredRoi(image, oldroi, score=0)
-                drawScoredRoi(image, roi, score=1)
+                util.drawScoredRoi(image, oldroi, score=0)
+                util.drawScoredRoi(image, roi, score=1)
 
         if args.with_display:
             cv2.imshow('expandBoxes', image[:, :, ::-1])
@@ -765,7 +767,7 @@ def _mergeNObjects(c, objectids):
     if len(scores) > 1:
         logging.debug(
             'Several distinct score values (%s) for objectids (%s). Will set NULL.'
-            % (str(names), objectids_str))
+            % (str(scores), objectids_str))
         c.execute('UPDATE objects SET score=NULL WHERE objectid=?',
                   (objectid_new, ))
     elif len(scores) == 1:
@@ -871,25 +873,23 @@ def mergeIntersectingObjects(c, args):
         logging.debug('Image %s has %d and %d objects to match' %
                       (imagefile, len(objects1), len(objects2)))
 
-        pairs_to_merge = _getIntersectingObjects(objects1, objects2,
-                                                 args.IoU_threshold)
+        pairs_to_merge = util.getIntersectingObjects(objects1, objects2,
+                                                     args.IoU_threshold)
 
         if args.with_display and len(pairs_to_merge) > 0:
             image = imreader.imread(imagefile)
 
         # Merge pairs.
-        for i1, i2 in pairs_to_merge:
-            objectid1 = objectField(objects1[i1], 'objectid')
-            objectid2 = objectField(objects2[i2], 'objectid')
-
-            old_roi1 = objectField(objects1[i1], 'roi')
-            old_roi2 = objectField(objects2[i2], 'roi')
+        for objectid1, objectid2 in pairs_to_merge:
+            # Get rois.
+            c.execute('SELECT * WHERE objectid=?', objectid1)
+            old_roi1 = objectField(c.fetchone(), 'roi')
+            c.execute('SELECT * WHERE objectid=?', objectid2)
+            old_roi2 = objectField(c.fetchone(), 'roi')
 
             if args.with_display:
-                drawScoredRoi(image, objectField(objects1[i1], 'roi'), score=0)
-                drawScoredRoi(image,
-                              objectField(objects2[i2], 'roi'),
-                              score=0.25)
+                util.drawScoredRoi(image, old_roi1, score=0)
+                util.drawScoredRoi(image, old_roi2, score=0.25)
 
             # Change the name to the target first.
             if args.target_name is not None:
@@ -898,7 +898,7 @@ def mergeIntersectingObjects(c, args):
 
             #logging.info('Merging objects %d and %d.' % (objectid1, objectid2))
             new_objectid = _mergeNObjects(c, [objectid1, objectid2])
-            polygons2bboxes(c, new_objectid)
+            util.polygons2bboxes(c, new_objectid)
 
             c.execute('SELECT * FROM objects WHERE objectid=?',
                       (new_objectid, ))
@@ -907,7 +907,7 @@ def mergeIntersectingObjects(c, args):
                          (old_roi1, old_roi2, new_roi))
 
             if args.with_display:
-                drawScoredRoi(image, new_roi, score=1)
+                util.drawScoredRoi(image, new_roi, score=1)
 
         if args.with_display and len(pairs_to_merge) > 0:
             logging.getLogger().handlers[0].flush()
@@ -916,6 +916,97 @@ def mergeIntersectingObjects(c, args):
             if key == 27:
                 cv2.destroyWindow('mergeIntersectingObjects')
                 args.with_display = False
+
+
+def syncObjectidsWithDbParser(subparsers):
+    parser = subparsers.add_parser(
+        'syncObjectidsWithDb',
+        description='Updates objectids with objectids from the reference db: '
+        'If an object is found in the reference db (found via IoU), update it. '
+        'Otherwise, assign a unique objectid, which is not in either dbs. '
+        'Only works on the intersection of imagefiles between dbs.')
+    parser.set_defaults(func=syncObjectidsWithDb)
+    parser.add_argument(
+        '--IoU_threshold',
+        type=float,
+        default=0.5,
+        help='Intersection over Union threshold to consider merging.')
+    parser.add_argument('--ref_db_file', required=True)
+
+
+def syncObjectidsWithDb(c, args):
+    def _getNextObjectidInDb(c):
+        # Find the maximum objectid in this db. Will create new objectids greater.
+        c.execute('SELECT MAX(objectid) FROM objects')
+        objectid = c.fetchone()
+        # If there are no objects in this db, assign 0.
+        return 0 if objectid[0] is None else objectid[0] + 1
+
+    if not op.exists(args.ref_db_file):
+        raise FileNotFoundError('Ref db does not exist: %s', args.ref_db_file)
+    conn_ref = sqlite3.connect('file:%s?mode=ro' % args.ref_db_file, uri=True)
+    c_ref = conn_ref.cursor()
+
+    # Get imagefiles.
+    c.execute('SELECT imagefile FROM images')
+    imagefiles_this = c.fetchall()
+    c_ref.execute('SELECT imagefile FROM images')
+    imagefiles_ref = c_ref.fetchall()
+    logging.info('The open db has %d, and the ref db has %d imagefiles.',
+                 len(imagefiles_this), len(imagefiles_ref))
+    # Works only on the intersection of imagefiles.
+    imagefiles = list(set(imagefiles_this) & set(imagefiles_ref))
+    if not len(imagefiles):
+        raise ValueError('No matching imagefiles in between the open db with '
+                         '%d images and the reference db with %d images.' %
+                         (len(imagefiles_this), len(imagefiles_ref)))
+
+    # ASSUME: all objects in the open and the ref db have bboxes values.
+
+    # The new available objectid should be above the max of either db.
+    next_objectid = max(_getNextObjectidInDb(c), _getNextObjectidInDb(c_ref))
+
+    # Need to retire "objects" table to avoid objectid conflict during renaming.
+    c.execute('ALTER TABLE objects RENAME TO objects_old')
+    backendDb.createTableObjects(c)
+
+    num_common, num_new = 0, 0
+    for imagefile, in progressbar(imagefiles):
+        logging.debug('Processing imagefile %s' % imagefile)
+
+        # Get objects of interest from imagefile.
+        c.execute('SELECT * FROM objects_old WHERE imagefile=?', (imagefile, ))
+        objects = c.fetchall()
+        c_ref.execute('SELECT * FROM objects WHERE imagefile=?', (imagefile, ))
+        objects_ref = c_ref.fetchall()
+        logging.debug('Image %s has %d and %d objects to match' %
+                      (imagefile, len(objects), len(objects_ref)))
+        objectid_this_to_ref_map = dict(
+            util.getIntersectingObjects(objects, objects_ref,
+                                        args.IoU_threshold))
+        logging.debug(pformat(objectid_this_to_ref_map))
+
+        for object_ in objects:
+            objectid = backendDb.objectField(object_, 'objectid')
+            if objectid in objectid_this_to_ref_map:
+                new_objectid = objectid_this_to_ref_map[objectid]
+                num_common += 1
+            else:
+                new_objectid = next_objectid
+                next_objectid += 1
+                num_new += 1
+            logging.debug('Inserting id %d in place of %d', new_objectid,
+                          objectid)
+            object_ = list(object_)
+            object_[0] = new_objectid
+            object_ = tuple(object_)
+            c.execute('INSERT INTO objects VALUES (?,?,?,?,?,?,?,?)', object_)
+
+    logging.info('Found %d common and %d new objects', num_common, num_new)
+
+    c.execute('DROP TABLE objects_old;')
+
+    conn_ref.close()
 
 
 def renameObjectsParser(subparsers):

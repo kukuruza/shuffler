@@ -2,7 +2,39 @@ import logging
 import numpy as np
 import cv2
 
-from lib.utils.util import roi2bbox
+
+def bbox2roi(bbox):
+    '''
+    Args:     [x1, y1, width, height]
+    Returns:  [y1, x1, y2, x2]
+    '''
+    if not (isinstance(bbox, (list, tuple))):
+        raise TypeError('Need a list of a tuple, got %s' % type(bbox))
+    if not len(bbox) == 4:
+        raise ValueError('Need 4 numbers, not %d.' % len(bbox))
+    for x in bbox:
+        if not (isinstance(x, (int, float))):
+            raise TypeError('Each element must be a number, got %s' % type(x))
+    if bbox[2] < 0 or bbox[3] < 0:
+        raise ValueError('Bbox %s has negative width or height.' % str(bbox))
+    return [bbox[1], bbox[0], bbox[3] + bbox[1], bbox[2] + bbox[0]]
+
+
+def roi2bbox(roi):
+    '''
+    Args:     [y1, x1, y2, x2]
+    Returns:  [x1, y1, width, height]
+    '''
+    if not (isinstance(roi, list) or isinstance(roi, tuple)):
+        raise TypeError('Need a list of a tuple, got %s' % type(roi))
+    if not len(roi) == 4:
+        raise ValueError('Need 4 numbers, not %d.' % len(roi))
+    for x in roi:
+        if not (isinstance(x, (int, float))):
+            raise TypeError('Each element must be a number, got %s' % type(x))
+    if roi[2] < roi[0] or roi[3] < roi[1]:
+        raise ValueError('Roi %s has negative width or height.' % str(roi))
+    return [roi[1], roi[0], roi[3] - roi[1], roi[2] - roi[0]]
 
 
 def getIoU(roi1, roi2):

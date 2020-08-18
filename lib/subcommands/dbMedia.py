@@ -11,7 +11,6 @@ import sqlite3
 
 from lib.backend.backendDb import imageField, objectField, polygonField, deleteImage, parseTimeString, makeTimeString
 from lib.backend.backendMedia import MediaReader, MediaWriter
-from lib.utils.util import drawTextOnImage, drawMaskOnImage, drawMaskAside, drawScoredPolygon, drawScoredRoi, bbox2roi, applyLabelMappingToMask
 from lib.backend import backendMedia
 from lib.backend import backendDb
 from lib.utils import utilBoxes
@@ -200,7 +199,7 @@ def cropObjects(c, args):
         name, score, old_maskfile, timestamp in progressbar(old_entries):
         logging.debug('Processing object %d from imagefile %s.' %
                       (old_objectid, old_imagefile))
-        old_roi = bbox2roi((old_x1, old_y1, old_width, old_height))
+        old_roi = utilBoxes.bbox2roi((old_x1, old_y1, old_width, old_height))
 
         # Write image.
         old_image = imreader.imread(old_imagefile)
@@ -346,8 +345,9 @@ def writeMedia(c, args):
                            mask_media=args.mask_path,
                            overwrite=args.overwrite)
 
-    c.execute('SELECT imagefile,maskfile FROM images WHERE %s ORDER BY imagefile' %
-              args.where_image)
+    c.execute(
+        'SELECT imagefile,maskfile FROM images WHERE %s ORDER BY imagefile' %
+        args.where_image)
     entries = c.fetchall()
 
     logging.info('Deleting entries which are not in "where_image".')
@@ -367,19 +367,19 @@ def writeMedia(c, args):
             mask = imreader.maskread(maskfile)
             if args.image_path is not None:
                 if args.mask_aside:
-                    image = drawMaskAside(image, mask, labelmap=labelmap)
+                    image = util.drawMaskAside(image, mask, labelmap=labelmap)
                 elif args.mask_alpha is not None:
-                    image = drawMaskOnImage(image,
-                                            mask,
-                                            alpha=args.mask_alpha,
-                                            labelmap=labelmap)
+                    image = util.drawMaskOnImage(image,
+                                                 mask,
+                                                 alpha=args.mask_alpha,
+                                                 labelmap=labelmap)
         else:
             mask = None
             logging.debug('No mask for this image.')
 
         # Overlay imagefile.
         if args.with_imageid:
-            drawTextOnImage(image, op.basename(imagefile))
+            util.drawTextOnImage(image, op.basename(imagefile))
 
         # Draw objects as polygons (preferred) or ROI.
         if args.with_objects:
@@ -398,10 +398,13 @@ def writeMedia(c, args):
                     logging.debug('showing object with a polygon.')
                     polygon = [(polygonField(p, 'x'), polygonField(p, 'y'))
                                for p in polygon_entries]
-                    drawScoredPolygon(image, polygon, label=name, score=score)
+                    util.drawScoredPolygon(image,
+                                           polygon,
+                                           label=name,
+                                           score=score)
                 elif roi is not None:
                     logging.debug('showing object with a bounding box.')
-                    drawScoredRoi(image, roi, label=name, score=score)
+                    util.drawScoredRoi(image, roi, label=name, score=score)
                 else:
                     raise Exception(
                         'Neither polygon, nor bbox is available for objectid %d'
@@ -654,7 +657,7 @@ def writeMediaGridByTime(c, args):
             image = cv2.resize(image, dsize=(width, height))
             assert len(image.shape) == 3  # Now only color images.
             if args.with_timestamp:
-                drawTextOnImage(image, makeTimeString(in_time))
+                util.drawTextOnImage(image, makeTimeString(in_time))
 
             # Lazy initialization.
             if 'grid' not in locals():
@@ -727,7 +730,8 @@ def repaintMask(c, args):
             # Read mask.
             mask = imreader.maskread(maskfile)
             # Repaint mask.
-            mask = applyLabelMappingToMask(mask, labelmap).astype(np.uint8)
+            mask = util.applyLabelMappingToMask(mask,
+                                                labelmap).astype(np.uint8)
             # Write mask to video and to the db.
             maskfile_new = imwriter.maskwrite(
                 mask, namehint=(maskfile if use_namehint else None))

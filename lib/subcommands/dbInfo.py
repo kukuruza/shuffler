@@ -378,7 +378,7 @@ def printInfo(c, args):
     matches = c.fetchall()
     info['matches'] = len(matches)
 
-    pprint(info)
+    pprint.pprint(info)
 
 
 def dumpDbParser(subparsers):
@@ -414,15 +414,18 @@ def diffDbParser(subparsers):
         description='Compute the diff between the open and the reference db. '
         'Print the results, and return them as a dict.')
     parser.set_defaults(func=diffDb)
-    parser.add_argument('--db_file',
+    parser.add_argument('--ref_db_file',
                         required=True,
                         help='The database to take diff against.')
+    parser.add_argument('--where_object',
+                        default='TRUE',
+                        help='SQL "where" clause for the "objects" table.')
 
 
 def diffDb(c, args):
     results = {}
 
-    c.execute('ATTACH ? AS "ref"', (args.db_file, ))
+    c.execute('ATTACH ? AS "ref"', (args.ref_db_file, ))
 
     # Get imagefiles.
     c.execute('SELECT imagefile FROM images')
@@ -443,23 +446,26 @@ def diffDb(c, args):
     # Object statistics.
     c.execute(
         'SELECT COUNT(1) FROM objects obj INNER JOIN ref.objects ref_obj '
-        'ON obj.objectid=ref_obj.objectid')
+        'ON obj.objectid=ref_obj.objectid AND (%s)' % args.where_object)
     num_remaining = c.fetchone()[0]
-    c.execute('SELECT COUNT(1) FROM objects WHERE objectid NOT IN '
-              '(SELECT objectid FROM ref.objects)')
+    c.execute('SELECT COUNT(1) FROM objects obj WHERE objectid NOT IN '
+              '(SELECT objectid FROM ref.objects) AND (%s)' %
+              args.where_object)
     num_new = c.fetchone()[0]
-    c.execute('SELECT COUNT(1) FROM ref.objects WHERE objectid NOT IN '
-              '(SELECT objectid FROM objects)')
+    c.execute('SELECT COUNT(1) FROM ref.objects obj WHERE objectid NOT IN '
+              '(SELECT objectid FROM objects) AND (%s)' % args.where_object)
     num_old = c.fetchone()[0]
     c.execute(
         'SELECT COUNT(1) FROM objects obj INNER JOIN ref.objects ref_obj '
         'ON obj.objectid=ref_obj.objectid '
-        'WHERE obj.x1 != ref_obj.x1 OR obj.y1 != ref_obj.y1 OR '
-        'obj.width != ref_obj.width OR obj.height != ref_obj.height')
+        'WHERE (obj.x1 != ref_obj.x1 OR obj.y1 != ref_obj.y1 OR '
+        'obj.width != ref_obj.width OR obj.height != ref_obj.height) AND (%s)'
+        % args.where_object)
     num_moved = c.fetchone()[0]
     c.execute(
         'SELECT COUNT(1) FROM objects obj INNER JOIN ref.objects ref_obj '
-        'ON obj.objectid=ref_obj.objectid WHERE obj.name != ref_obj.name')
+        'ON obj.objectid=ref_obj.objectid WHERE (obj.name != ref_obj.name) AND (%s)'
+        % args.where_object)
     num_renamed = c.fetchone()[0]
     results['objects'] = {
         'remaining': num_remaining,

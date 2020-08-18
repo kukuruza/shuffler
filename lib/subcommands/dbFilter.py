@@ -9,7 +9,8 @@ from progressbar import progressbar
 
 from lib.backend.backendDb import objectField, polygonField, deleteImage, deleteObject
 from lib.backend.backendMedia import MediaReader
-from lib.utils.util import drawScoredRoi, drawScoredPolygon, bbox2roi
+from lib.utils.util import drawScoredRoi, drawScoredPolygon
+from lib.utils import utilBoxes
 
 
 def add_parsers(subparsers):
@@ -150,7 +151,7 @@ def filterObjectsAtBorder(c, args):
 
             # Get all necessary entries.
             objectid = objectField(object_entry, 'objectid')
-            roi = bbox2roi(objectField(object_entry, 'bbox'))
+            roi = utilBoxes.bbox2roi(objectField(object_entry, 'bbox'))
             c.execute('SELECT * FROM polygons WHERE objectid=?', (objectid, ))
             polygon_entries = c.fetchall()
 

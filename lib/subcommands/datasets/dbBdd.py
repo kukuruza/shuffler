@@ -12,7 +12,8 @@ from pprint import pformat
 
 from lib.backend.backendDb import objectField
 from lib.backend.backendMedia import MediaReader, getPictureSize
-from lib.utils.util import bbox2roi, drawScoredRoi, drawScoredPolygon, drawMaskAside
+from lib.utils import util
+from lib.utils import utilBoxes
 
 
 def add_parsers(subparsers):
@@ -163,8 +164,8 @@ def importBdd(c, args):
                     width = int(float(box2d['x2']) - x1)
                     height = int(float(box2d['y2']) - y1)
                     if args.with_display:
-                        roi = bbox2roi((x1, y1, width, height))
-                        drawScoredRoi(img, roi, object_name)
+                        roi = utilBoxes.bbox2roi((x1, y1, width, height))
+                        util.drawScoredRoi(img, roi, object_name)
 
                 c.execute(
                     'INSERT INTO objects(imagefile,x1,y1,width,height,name) '
@@ -184,9 +185,10 @@ def importBdd(c, args):
                             'VALUES (?,?,?,?)',
                             (objectid, pt[0], pt[1], polygon_name))
                     if args.with_display:
-                        drawScoredPolygon(img, [(int(x[0]), int(x[1]))
+                        util.drawScoredPolygon(img,
+                                               [(int(x[0]), int(x[1]))
                                                 for x in polygon['vertices']],
-                                          object_name)
+                                               object_name)
 
                 # Insert image-level and object-level attributes into
                 # "properties" table.
@@ -210,7 +212,7 @@ def importBdd(c, args):
 
             if args.with_display:
                 mask = imreader.maskread(maskfile)
-                img = drawMaskAside(img, mask, labelmap=None)
+                img = util.drawMaskAside(img, mask, labelmap=None)
 
         # Maybe display.
         if args.with_display:

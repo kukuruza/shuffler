@@ -68,60 +68,60 @@ class TestCopyWithBackup(unittest.TestCase):
 
 class TestBbox2roi(unittest.TestCase):
     def test_normal(self):
-        self.assertEqual(util.bbox2roi([1, 2, 3, 4]), [2, 1, 6, 4])
-        self.assertEqual(util.bbox2roi((1, 2, 3, 4)), [2, 1, 6, 4])
+        self.assertEqual(utilBoxes.bbox2roi([1, 2, 3, 4]), [2, 1, 6, 4])
+        self.assertEqual(utilBoxes.bbox2roi((1, 2, 3, 4)), [2, 1, 6, 4])
 
     def test_zeroDims(self):
-        self.assertEqual(util.bbox2roi([1, 2, 0, 0]), [2, 1, 2, 1])
+        self.assertEqual(utilBoxes.bbox2roi([1, 2, 0, 0]), [2, 1, 2, 1])
 
     def test_notSequence(self):
         with self.assertRaises(TypeError):
-            util.bbox2roi(42)
+            utilBoxes.bbox2roi(42)
 
     def test_LessThanFourNumbers(self):
         with self.assertRaises(ValueError):
-            util.bbox2roi([42])
+            utilBoxes.bbox2roi([42])
 
     def test_MoreThanFourNumbers(self):
         with self.assertRaises(ValueError):
-            util.bbox2roi([42, 42, 42, 42, 42])
+            utilBoxes.bbox2roi([42, 42, 42, 42, 42])
 
     def test_NotNumbers(self):
         with self.assertRaises(TypeError):
-            util.bbox2roi(['a', 'b', 'c', 'd'])
+            utilBoxes.bbox2roi(['a', 'b', 'c', 'd'])
 
     def test_negativeDims(self):
         with self.assertRaises(ValueError):
-            util.bbox2roi([1, 2, 3, -1])
+            utilBoxes.bbox2roi([1, 2, 3, -1])
 
 
 class TestRoi2Bbox(unittest.TestCase):
     def test_normal(self):
-        self.assertEqual(util.roi2bbox([2, 1, 6, 4]), [1, 2, 3, 4])
-        self.assertEqual(util.roi2bbox((2, 1, 6, 4)), [1, 2, 3, 4])
+        self.assertEqual(utilBoxes.roi2bbox([2, 1, 6, 4]), [1, 2, 3, 4])
+        self.assertEqual(utilBoxes.roi2bbox((2, 1, 6, 4)), [1, 2, 3, 4])
 
     def test_zeroDims(self):
-        self.assertEqual(util.roi2bbox([2, 1, 2, 1]), [1, 2, 0, 0])
+        self.assertEqual(utilBoxes.roi2bbox([2, 1, 2, 1]), [1, 2, 0, 0])
 
     def test_notSequence(self):
         with self.assertRaises(TypeError):
-            util.roi2bbox(42)
+            utilBoxes.roi2bbox(42)
 
     def test_LessThanFourNumbers(self):
         with self.assertRaises(ValueError):
-            util.roi2bbox([42])
+            utilBoxes.roi2bbox([42])
 
     def test_MoreThanFourNumbers(self):
         with self.assertRaises(ValueError):
-            util.roi2bbox([42, 42, 42, 42, 42])
+            utilBoxes.roi2bbox([42, 42, 42, 42, 42])
 
     def test_NotNumbers(self):
         with self.assertRaises(TypeError):
-            util.roi2bbox(['a', 'b', 'c', 'd'])
+            utilBoxes.roi2bbox(['a', 'b', 'c', 'd'])
 
     def test_negativeDims(self):
         with self.assertRaises(ValueError):
-            util.roi2bbox([2, 1, 1, 2])
+            utilBoxes.roi2bbox([2, 1, 1, 2])
 
 
 if __name__ == '__main__':

@@ -12,7 +12,8 @@ from pprint import pformat
 import re
 
 from lib.backend.backendMedia import MediaReader, getPictureSize
-from lib.utils.util import drawScoredRoi, drawScoredPolygon, drawMaskAside, bbox2roi
+from lib.utils import util
+from lib.utils import utilBoxes
 
 
 def add_parsers(subparsers):
@@ -104,8 +105,8 @@ def importPascalVoc2012(c, args):
                 c.execute(s, (objectid, 'occluded', occluded))
 
                 if args.with_display:
-                    roi = bbox2roi((x1, y1, width, height))
-                    drawScoredRoi(img, roi, name)
+                    roi = utilBoxes.bbox2roi((x1, y1, width, height))
+                    util.drawScoredRoi(img, roi, name)
 
                 for part in object_.findall('part'):
                     # Each part is inserted as a 4-point polygon with the name
@@ -124,7 +125,7 @@ def importPascalVoc2012(c, args):
 
                     if args.with_display:
                         pts = [[x1, y1], [x1, y2], [x2, y2], [x2, y1]]
-                        drawScoredPolygon(img, pts, name, score=1)
+                        util.drawScoredPolygon(img, pts, name, score=1)
 
         # Class egmentation annotations.
         if args.segmentation_class:
@@ -140,7 +141,7 @@ def importPascalVoc2012(c, args):
                           (maskfile, imagefile))
                 if args.with_display:
                     mask = imreader.maskread(maskfile)
-                    img = drawMaskAside(img, mask, labelmap=None)
+                    img = util.drawMaskAside(img, mask, labelmap=None)
 
         # Object segmentation annotations.
         elif args.segmentation_object:
@@ -156,7 +157,7 @@ def importPascalVoc2012(c, args):
                           (maskfile, imagefile))
                 if args.with_display:
                     mask = imreader.maskread(maskfile)
-                    img = drawMaskAside(img, mask, labelmap=None)
+                    img = util.drawMaskAside(img, mask, labelmap=None)
 
         # Maybe display.
         if args.with_display:

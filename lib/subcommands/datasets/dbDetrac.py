@@ -12,7 +12,8 @@ from pprint import pformat
 
 from lib.backend.backendDb import objectField
 from lib.backend.backendMedia import MediaReader, getPictureSize
-from lib.utils.util import drawScoredRoi, drawMaskAside, bbox2roi
+from lib.utils import util
+from lib.utils import utilBoxes
 
 
 def add_parsers(subparsers):
@@ -144,8 +145,9 @@ def importDetrac(c, args):
                          str(trajectory_length)))
 
                     if args.with_display:
-                        drawScoredRoi(img, bbox2roi([x1, y1, width, height]),
-                                      vehicle_type)
+                        util.drawScoredRoi(
+                            img, utilBoxes.bbox2roi([x1, y1, width, height]),
+                            vehicle_type)
 
                 # Maybe display.
                 if args.with_display:

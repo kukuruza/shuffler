@@ -7,7 +7,6 @@ from scipy.cluster import hierarchy
 from lib.backend.backendDb import objectField
 from lib.backend.backendMedia import MediaReader
 from lib.subcommands.dbGui import KeyReader
-from lib.utils.util import roi2bbox, bbox2roi
 
 
 def add_parsers(subparsers):

@@ -48,40 +48,6 @@ def copyWithBackup(in_path, out_path):
         shutil.copyfile(in_path, out_path)
 
 
-def bbox2roi(bbox):
-    '''
-    Args:     [x1, y1, width, height]
-    Returns:  [y1, x1, y2, x2]
-    '''
-    if not (isinstance(bbox, (list, tuple))):
-        raise TypeError('Need a list of a tuple, got %s' % type(bbox))
-    if not len(bbox) == 4:
-        raise ValueError('Need 4 numbers, not %d.' % len(bbox))
-    for x in bbox:
-        if not (isinstance(x, (int, float))):
-            raise TypeError('Each element must be a number, got %s' % type(x))
-    if bbox[2] < 0 or bbox[3] < 0:
-        raise ValueError('Bbox %s has negative width or height.' % str(bbox))
-    return [bbox[1], bbox[0], bbox[3] + bbox[1], bbox[2] + bbox[0]]
-
-
-def roi2bbox(roi):
-    '''
-    Args:     [y1, x1, y2, x2]
-    Returns:  [x1, y1, width, height]
-    '''
-    if not (isinstance(roi, list) or isinstance(roi, tuple)):
-        raise TypeError('Need a list of a tuple, got %s' % type(roi))
-    if not len(roi) == 4:
-        raise ValueError('Need 4 numbers, not %d.' % len(roi))
-    for x in roi:
-        if not (isinstance(x, (int, float))):
-            raise TypeError('Each element must be a number, got %s' % type(x))
-    if roi[2] < roi[0] or roi[3] < roi[1]:
-        raise ValueError('Roi %s has negative width or height.' % str(roi))
-    return [roi[1], roi[0], roi[3] - roi[1], roi[2] - roi[0]]
-
-
 def overlapRatio(roi1, roi2):
     assert (len(roi1) == 4 and len(roi2) == 4)
     if roi1 == roi2: return 1  # same object
@@ -406,7 +372,11 @@ def polygons2mask(cursor, objectid):
     return mask
 
 
-def _getIntersectingObjects(objects1, objects2, IoU_threshold):
+def getIntersectingObjects(objects1, objects2, IoU_threshold):
+    '''
+    Returns:
+      A dict from objectid in objects1 to objectid in objects2.
+    '''
 
     # Compute pairwise distances between rectangles.
     pairwise_IoU = np.zeros(shape=(len(objects1), len(objects2)), dtype=float)
@@ -435,11 +405,11 @@ def _getIntersectingObjects(objects1, objects2, IoU_threshold):
         pairwise_IoU[i1, :] = 0.
         pairwise_IoU[:, i2] = 0.
         # Add a pair to the list.
-        pairs_to_merge.append([i1, i2])
-        logging.info('Will merge objects %d (%s) and %d (%s) with IoU %f.' %
-                     (objectField(objects1[i1], 'objectid'),
-                      objectField(objects1[i1], 'name'),
-                      objectField(objects2[i2], 'objectid'),
-                      objectField(objects2[i2], 'name'), IoU))
+        objectid1 = objectField(objects1[i1], 'objectid')
+        objectid2 = objectField(objects2[i2], 'objectid')
+        pairs_to_merge.append([objectid1, objectid2])
+        logging.debug('Will merge objects %d (%s) and %d (%s) with IoU %f.' %
+                      (objectid1, objectField(objects1[i1], 'name'), objectid2,
+                       objectField(objects2[i2], 'name'), IoU))
 
     return pairs_to_merge
