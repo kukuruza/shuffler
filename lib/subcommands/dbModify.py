@@ -424,7 +424,7 @@ def moveMedia(c, args):
             newpath = op.join(args.rootdir, newfile)
             if not op.exists(newpath):
                 raise IOError('New file "%s" does not exist (rootdir "%s"), '
-                              '(created from "%s")',
+                              '(created from "%s")' %
                               (newpath, args.rootdir, oldfile))
             if args.adjust_size:
                 c.execute('SELECT height, width FROM images WHERE imagefile=?',
