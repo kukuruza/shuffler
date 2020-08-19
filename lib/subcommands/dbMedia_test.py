@@ -348,6 +348,10 @@ class Test_cropObjects_SyntheticDb(unittest.TestCase):
         c.execute('SELECT x,y FROM polygons')
         x, y = c.fetchone()
         self.assertEqual((x, y), (25, 35))
+        # Check that all temporary tables are cleaned up.
+        c.execute('SELECT name FROM sqlite_master WHERE type="table";')
+        table_names = c.fetchall()
+        self.assertEqual(len(table_names), 5, table_names)
 
 
 if __name__ == '__main__':
