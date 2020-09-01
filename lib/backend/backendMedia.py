@@ -157,14 +157,14 @@ class VideoWriter:
         self.fps = fps
         if vimagefile is not None and op.exists(vimagefile) and not overwrite:
             raise ValueError(
-                'VideoWriter tried is given video "%s" for writing, '
+                'VideoWriter has to write to file "%s", '
                 'but that file already exists. Pass overwrite=True.' %
                 vimagefile)
         if vmaskfile is not None and op.exists(vmaskfile) and not overwrite:
             raise ValueError(
-                'VideoWriter tried is given video "%s" for writing, '
+                'VideoWriter has to write to file "%s", '
                 'but that file already exists. Pass overwrite=True.' %
-                vimagefile)
+                vmaskfile)
 
     def _openVideo(self, ref_frame, ismask):
         '''
@@ -479,7 +479,12 @@ class MediaReader:
 
 
 class MockWriter:
-    def __init__(self):
+    def __init__(self,
+                 imagedir=None,
+                 maskdir=None):
+        # TODO: Use imagedir and maskdir to return proper paths.
+        self.imagedir = imagedir     # Ignored.
+        self.maskdir = maskdir       # Ignored.
         self.image_current_frame = -1
         self.mask_current_frame = -1
 
@@ -552,7 +557,8 @@ class MediaWriter:
                                         maskdir=mask_media,
                                         overwrite=overwrite)
         elif media_type == 'mock':
-            self.writer = MockWriter()
+            self.writer = MockWriter(imagedir=image_media,
+                                     maskdir=mask_media)
         else:
             raise ValueError(
                 '"media" must be either "video" or "pictures", not %s' %

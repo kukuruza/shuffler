@@ -12,7 +12,8 @@ from datetime import datetime
 from progressbar import progressbar
 from ast import literal_eval
 
-from lib.backend.backendDb import makeTimeString, deleteImage, deleteObject, objectField, createDb
+from lib.backend import backendDb
+from lib.backend.backendDb import makeTimeString, deleteImage, deleteObject, objectField, createDb, imageField
 from lib.backend.backendMedia import getPictureSize, MediaReader
 from lib.backend import backendDb
 from lib.utils import util
@@ -334,9 +335,13 @@ def expandBoxes(c, args):
             if args.target_ratio:
                 roi = utilBoxes.expandRoiToRatio(oldroi, args.expand_perc,
                                                  args.target_ratio)
+                logging.debug('Roi changed from %s to %s for object %d',
+                              str(oldroi), str(roi), objectid)
             else:
                 roi = utilBoxes.expandRoi(oldroi,
                                           (args.expand_perc, args.expand_perc))
+                logging.debug('Roi changed from %s to %s for object %d',
+                              str(oldroi), str(roi), objectid)
             c.execute(
                 'UPDATE objects SET x1=?, y1=?,width=?,height=? WHERE objectid=?',
                 tuple(utilBoxes.roi2bbox(roi) + [objectid]))
@@ -465,10 +470,10 @@ def moveRootdirParser(subparsers):
                         help='All paths will be relative to the newrootdir.')
 
 
-def moveRootdir(c, args):
+def _moveRootDir(c, oldrootdir, newrootdir):
     logging.info('Moving from rootdir %s to new rootdir %s' %
-                 (args.rootdir, args.newrootdir))
-    relpath = op.relpath(args.rootdir, args.newrootdir)
+                 (oldrootdir, newrootdir))
+    relpath = op.relpath(oldrootdir, newrootdir)
     logging.info('The path of oldroot relative to newrootdir is %s' % relpath)
 
     c.execute('SELECT imagefile FROM images')
@@ -488,6 +493,10 @@ def moveRootdir(c, args):
                       (newfile, oldfile))
 
 
+def moveRootdir(c, args):
+    _moveRootDir(c, args.rootdir, args.newrootdir)
+
+
 def addDbParser(subparsers):
     parser = subparsers.add_parser(
         'addDb',
@@ -505,17 +514,45 @@ def addDbParser(subparsers):
     parser.add_argument('--merge_duplicate_objects', action='store_true')
 
 
-def addDb(c, args):
-    c.execute('ATTACH ? AS "added"', (args.db_file, ))
-    c.execute('BEGIN TRANSACTION')
+def _maybeUpdateImageField(image_entry, image_entry_add, field):
+    value_add = backendDb.imageField(image_entry_add, field)
+    value = backendDb.imageField(image_entry, field)
+    if value is None and value_add is not None:
+        logging.debug('Field %s will set to %s.', field, str(value))
+        image_entry = backendDb.setImageField(image_entry, field, value)
+    return image_entry
 
-    c.execute('SELECT COUNT(1) FROM added.images')
-    if (c.fetchone()[0] == 0):
+def addDb(c, args):
+    if not op.exists(args.db_file):
+        raise FileNotFoundError('File does not exist: %s' % args.db_file)
+    conn_add = backendDb.connect(args.db_file, 'load_to_memory')
+    c_add = conn_add.cursor()
+    if args.db_rootdir is not None:
+        _moveRootDir(c_add, args.db_rootdir, args.rootdir)
+
+    c_add.execute('SELECT COUNT(1) FROM images')
+    if (c_add.fetchone()[0] == 0):
         logging.error('Added detabase "%s" has no images.', args.db_file)
         return
 
     # Copy images.
-    c.execute('INSERT OR REPLACE INTO images SELECT * FROM added.images')
+    c_add.execute('SELECT * FROM images')
+    for image_entry_add in c_add.fetchall():
+        imagefile = backendDb.imageField(image_entry_add, 'imagefile')
+        
+        c.execute('SELECT * FROM images WHERE imagefile=?', (imagefile,))
+        image_entry = c.fetchone()
+        if not image_entry:
+            logging.debug('Imagefile will be added: %s', imagefile)
+            c.execute('INSERT INTO images VALUES (?,?,?,?,?,?,?)', image_entry_add)
+        else:
+            logging.debug('Imagefile will be updated: %s', imagefile)
+            _maybeUpdateImageField(image_entry, image_entry_add, 'maskfile')
+            _maybeUpdateImageField(image_entry, image_entry_add, 'name')
+            _maybeUpdateImageField(image_entry, image_entry_add, 'score')
+            c.execute('UPDATE images SET width=?, height=?, maskfile=?, '
+                      'timestamp=?, name=?, score=? WHERE imagefile=?', 
+                      image_entry[1:] + image_entry[0:1])
 
     # Find the max "match" in "matches" table. New matches will go after that value.
     c.execute('SELECT MAX(match) FROM matches')
@@ -524,9 +561,9 @@ def addDb(c, args):
         max_match = 0
 
     # Copy all other tables.
-    c.execute('SELECT * FROM added.objects')
+    c_add.execute('SELECT * FROM objects')
     logging.info('Copying objects.')
-    for object_entry_add in progressbar(c.fetchall()):
+    for object_entry_add in progressbar(c_add.fetchall()):
         objectid_add = objectField(object_entry_add, 'objectid')
 
         # Copy objects.
@@ -536,49 +573,27 @@ def addDb(c, args):
         objectid = c.lastrowid
 
         # Copy properties.
-        c.execute('SELECT key,value FROM added.properties WHERE objectid=?',
+        c_add.execute('SELECT key,value FROM properties WHERE objectid=?',
                   (objectid_add, ))
-        for key, value in c.fetchall():
+        for key, value in c_add.fetchall():
             c.execute(
                 'INSERT INTO properties(objectid,key,value) VALUES (?,?,?)',
                 (objectid, key, value))
 
         # Copy polygons.
-        c.execute('SELECT x,y,name FROM added.polygons WHERE objectid=?',
+        c_add.execute('SELECT x,y,name FROM polygons WHERE objectid=?',
                   (objectid_add, ))
-        for x, y, name in c.fetchall():
+        for x, y, name in c_add.fetchall():
             c.execute(
                 'INSERT INTO polygons(objectid,x,y,name) VALUES (?,?,?,?)',
                 (objectid, x, y, name))
 
         # Copy matches.
-        c.execute('SELECT match FROM added.matches WHERE objectid=?',
+        c_add.execute('SELECT match FROM matches WHERE objectid=?',
                   (objectid_add, ))
-        for match, in c.fetchall():
+        for match, in c_add.fetchall():
             c.execute('INSERT INTO matches(objectid,match) VALUES (?,?)',
                       (objectid, match + max_match))
-
-    # Change all the added imagefiles so that they are relative
-    # to args.rootdir instead of args.db_rootdir.
-    if args.db_rootdir is not None:
-        c.execute('SELECT imagefile,maskfile FROM added.images')
-        for imagefile, maskfile in c.fetchall():
-            imagefile_new = op.relpath(op.join(args.db_rootdir, imagefile),
-                                       args.rootdir)
-            if maskfile is None:
-                maskfile_new = maskfile
-            else:
-                maskfile_new = op.relpath(op.join(args.db_rootdir, maskfile),
-                                          args.rootdir)
-            c.execute(
-                'UPDATE images SET imagefile=?, maskfile=? WHERE imagefile=?',
-                (imagefile_new, maskfile_new, imagefile))
-            c.execute(
-                'UPDATE objects SET imagefile=?, maskfile=? WHERE imagefile=?',
-                (imagefile_new, maskfile_new, imagefile))
-
-    c.execute('END TRANSACTION')
-    c.execute('DETACH DATABASE "added"')
 
 
 def subtractDbParser(subparsers):

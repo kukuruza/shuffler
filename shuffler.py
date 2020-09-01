@@ -6,12 +6,9 @@ import argparse
 import sqlite3
 import progressbar
 from itertools import groupby
-import io
-import tempfile
-import shutil
 
-from lib.utils.util import copyWithBackup
-from lib.backend.backendDb import createDb
+from lib.utils import util
+from lib.backend import backendDb
 from lib import subcommands
 
 
@@ -68,29 +65,7 @@ def getParser():
     return parser
 
 
-def load_db_to_memory(in_db_path):
-    # Read database to tempfile
-    conn = sqlite3.connect('file:%s?mode=ro' % in_db_path, uri=True)
-    tempfile = io.StringIO()
-    for line in conn.iterdump():
-        tempfile.write('%s\n' % line)
-    conn.close()
-    tempfile.seek(0)
-
-    # Create a database in memory and import from tempfile
-    conn = sqlite3.connect(":memory:")
-    conn.cursor().executescript(tempfile.read())
-    return conn
-
-
-def copy_db_to_tmpfile(in_db_path):
-    tmp_path = tempfile.NamedTemporaryFile()
-    shutil.copy(in_db_path, tmp_path)
-    conn = sqlite3.connect("tmp_path")
-    return conn
-
-
-def connect(in_db_path=None, out_db_path=None, read_only='load_to_memory'):
+def connect(in_db_path=None, out_db_path=None):
     '''
     Connect to a new or existing database.
     Args:
@@ -121,13 +96,13 @@ def connect(in_db_path=None, out_db_path=None, read_only='load_to_memory'):
             raise Exception(
                 'Database "-o" exists. Specify it in "-i" too to change it.')
         conn = sqlite3.connect(out_db_path)
-        createDb(conn)
+        backendDb.createDb(conn)
 
     elif in_db_path is not None and out_db_path is not None:
         # Load db from in_db_path and save as out_db_path.
         logging.info('will copy existing database from %s to %s.', in_db_path,
                      out_db_path)
-        copyWithBackup(in_db_path, out_db_path)
+        util.copyWithBackup(in_db_path, out_db_path)
         conn = sqlite3.connect(out_db_path)
 
     elif in_db_path is not None and out_db_path is None:
@@ -135,18 +110,13 @@ def connect(in_db_path=None, out_db_path=None, read_only='load_to_memory'):
         logging.info(
             'will load existing database from %s, but will not commit.',
             in_db_path)
-        if read_only == 'read_only':
-            conn = sqlite3.connect('file:%s?mode=ro' % in_db_path, uri=True)
-        elif read_only == 'load_to_memory':
-            conn = load_db_to_memory(in_db_path)
-        elif read_only == 'as_write':
-            conn = sqlite3.connect(in_db_path)
+        conn = backendDb.connect(in_db_path, 'load_to_memory')
 
     elif in_db_path is None and out_db_path is None:
         # Create a db and discard it in the end.
         logging.info('will create a temporary database in memory.')
         conn = sqlite3.connect(':memory:')  # Create an in-memory database.
-        createDb(conn)
+        backendDb.createDb(conn)
 
     else:
         assert False

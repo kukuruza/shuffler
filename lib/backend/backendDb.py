@@ -3,6 +3,42 @@ import logging
 import sqlite3
 from datetime import datetime
 from progressbar import progressbar
+import io
+import shutil
+import tempfile
+
+
+def _load_db_to_memory(in_db_path):
+    # Read database to tempfile
+    conn = sqlite3.connect('file:%s?mode=ro' % in_db_path, uri=True)
+    tempfile = io.StringIO()
+    for line in conn.iterdump():
+        tempfile.write('%s\n' % line)
+    conn.close()
+    tempfile.seek(0)
+
+    # Create a database in memory and import from tempfile
+    conn = sqlite3.connect(":memory:")
+    conn.cursor().executescript(tempfile.read())
+    return conn
+
+
+def _copy_db_to_tmpfile(in_db_path):
+    tmp_path = tempfile.NamedTemporaryFile()
+    shutil.copy(in_db_path, tmp_path)
+    conn = sqlite3.connect("tmp_path")
+    return conn
+
+
+def connect(in_db_path, how):
+    ''' Connect to database in different ways. '''
+    if how == 'read_only':
+        conn = sqlite3.connect('file:%s?mode=ro' % in_db_path, uri=True)
+    elif how == 'load_to_memory':
+        conn = _load_db_to_memory(in_db_path)
+    elif how == 'as_write':
+        conn = _sqlite3.connect(in_db_path)
+    return conn
 
 
 def doesTableExist(cursor, table):
@@ -171,6 +207,23 @@ def objectField(entry, field):
     raise KeyError('No field "%s" in object entry %s' % (field, entry))
 
 
+def setObjectField(entry, field, value):
+    ''' Setter for object entry fields. '''
+
+    entry = list(entry)
+    if field == 'objectid': entry[0] = value
+    elif field == 'imagefile': entry[1] = value
+    elif field == 'x1': entry[2] = value
+    elif field == 'y1': entry[3] = value
+    elif field == 'width': entry[4] = value
+    elif field == 'height': entry[5] = value
+    elif field == 'name': entry[6] = value
+    elif field == 'score': entry[7] = value
+    else: raise KeyError('No field "%s" in object entry %s' % (field, entry))
+    return tuple(entry)
+
+
+
 def imageField(entry, field):
     ''' Convenience function to access by field name. '''
 
@@ -182,6 +235,22 @@ def imageField(entry, field):
     if field == 'name': return entry[5]
     if field == 'score': return entry[6]
     raise KeyError('No field "%s" in image entry %s' % (field, entry))
+
+
+def setImageField(entry, field, value):
+    ''' Setter for image entry fields. '''
+
+    entry = list(entry)
+    if field == 'imagefile': entry[0] = value
+    elif field == 'width': entry[1] = value
+    elif field == 'height': entry[2] = value
+    elif field == 'maskfile': entry[3] = value
+    elif field == 'timestamp': entry[4] = value
+    elif field == 'name': entry[5] = value
+    elif field == 'score': entry[6] = value
+    else: raise KeyError('No field "%s" in image entry %s' % (field, entry))
+    return tuple(entry)
+    
 
 
 def polygonField(entry, field):

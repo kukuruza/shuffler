@@ -451,7 +451,7 @@ def polygonsToMaskParser(subparsers):
         '--media',
         choices=['pictures', 'video'],
         required=True,
-        help='output either a directory with pictures or a video file.')
+        help='output either a directory with pictures or a video file')
     parser.add_argument(
         '--mask_path',
         help=
@@ -534,7 +534,7 @@ def polygonsToMask(c, args):
             continue
 
         out_maskfile = imwriter.maskwrite(
-            mask_per_image)  #, namehint='%s.png' % op.splitext(imagefile)[0])
+                mask_per_image, namehint=op.basename(op.splitext(imagefile)[0]))
         c.execute('UPDATE images SET maskfile=? WHERE imagefile=?',
                   (out_maskfile, imagefile))
 

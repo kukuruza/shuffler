@@ -108,6 +108,7 @@ def expandRoiBorder(roi, imsize, perc, integer_result=True):
 
 def expandRoi(roi, perc, integer_result=True):
     ''' Expands a ROI. Floats are rounded to the nearest integer. '''
+    roi = list(roi)
     perc_y, perc_x = perc
     if (perc_y, perc_x) == (0, 0): return roi
 
