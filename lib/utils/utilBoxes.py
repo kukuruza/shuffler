@@ -127,6 +127,26 @@ def expandRoi(roi, perc, integer_result=True):
     return roi
 
 
+def expandPolygon(xs, ys, perc, integer_result=True):
+    '''
+    Expand polygon from its median center in all directions.
+    Floating-point numbers are then rounded to the nearest integer.
+    Args:
+      xs:    A list of x values.
+      ys:    A list of y values.
+      perc:  A tuple of (perc_y, perc_x). Both values are float from -1 to inf.
+    Returns:
+      xs:    A list of x values.
+      ys:    A list of y values.
+    '''
+    perc_y, perc_x = perc
+    center_x = np.array(xs, dtype=float).mean()
+    center_y = np.array(ys, dtype=float).mean()
+    xs = [int(center_x + (x - center_x) * (1 + perc_x)) for x in xs]
+    ys = [int(center_y + (y - center_y) * (1 + perc_y)) for y in ys]
+    return xs, ys
+
+
 def expandRoiToRatioBorder(roi, imsize, expand_perc, ratio):
     ''' Expands a ROI to keep 'ratio', and maybe more, up to 'expand_perc' '''
     imheight, imwidth = imsize

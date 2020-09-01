@@ -29,7 +29,7 @@ def add_parsers(subparsers):
     headImagesParser(subparsers)
     tailImagesParser(subparsers)
     randomNImagesParser(subparsers)
-    expandBoxesParser(subparsers)
+    expandObjectsParser(subparsers)
     moveMediaParser(subparsers)
     moveRootdirParser(subparsers)
     addDbParser(subparsers)
@@ -293,12 +293,11 @@ def randomNImages(c, args):
         deleteImage(c, imagefile)
 
 
-def expandBoxesParser(subparsers):
+def expandObjectsParser(subparsers):
     parser = subparsers.add_parser(
-        'expandBoxes',
-        description='Expand bbox in all four directions. In order to expand '
-        'polygons too, first convert them to roi, using "polygonsToRoi" tool.')
-    parser.set_defaults(func=expandBoxes)
+        'expandObjects',
+        description='Expand bbox and polygons in all four directions.')
+    parser.set_defaults(func=expandObjects)
     parser.add_argument('--expand_perc', type=float, required=True)
     parser.add_argument(
         '--target_ratio',
@@ -312,7 +311,7 @@ def expandBoxesParser(subparsers):
         'Until <Esc> key, display old and new bounding box for each object.')
 
 
-def expandBoxes(c, args):
+def expandObjects(c, args):
     if args.with_display:
         imreader = MediaReader(rootdir=args.rootdir)
 
@@ -329,25 +328,50 @@ def expandBoxes(c, args):
 
         for object_entry in object_entries:
             objectid = objectField(object_entry, 'objectid')
-            oldroi = objectField(object_entry, 'roi')
-            if oldroi is None:  # Roi is not specified.
-                continue
+            old_roi = objectField(object_entry, 'roi')
+            c.execute('SELECT * FROM polygons WHERE objectid=?', (objectid, ))
+            old_polygon = c.fetchall()
+
+            # Scale.
             if args.target_ratio:
-                roi = utilBoxes.expandRoiToRatio(oldroi, args.expand_perc,
-                                                 args.target_ratio)
-                logging.debug('Roi changed from %s to %s for object %d',
-                              str(oldroi), str(roi), objectid)
+                if old_roi is not None:
+                    roi = utilBoxes.expandRoiToRatio(old_roi, args.expand_perc,
+                                                     args.target_ratio)
+                    logging.debug('Roi changed from %s to %s for object %d',
+                                  str(old_roi), str(roi), objectid)
+                if len(old_polygon):
+                    raise NotImplementedError(
+                        'Cant scale polygons to target ratio. It is a TODO.')
             else:
-                roi = utilBoxes.expandRoi(oldroi,
-                                          (args.expand_perc, args.expand_perc))
-                logging.debug('Roi changed from %s to %s for object %d',
-                              str(oldroi), str(roi), objectid)
-            c.execute(
-                'UPDATE objects SET x1=?, y1=?,width=?,height=? WHERE objectid=?',
-                tuple(utilBoxes.roi2bbox(roi) + [objectid]))
+                if old_roi is not None:
+                    roi = utilBoxes.expandRoi(
+                        old_roi, (args.expand_perc, args.expand_perc))
+                    logging.debug('Roi changed from %s to %s for object %d',
+                                  str(old_roi), str(roi), objectid)
+                if len(old_polygon):
+                    ids = [backendDb.polygonField(p, 'id') for p in old_polygon]
+                    old_xs = [backendDb.polygonField(p, 'x') for p in old_polygon]
+                    old_ys = [backendDb.polygonField(p, 'y') for p in old_polygon]
+                    xs, ys = utilBoxes.expandPolygon(
+                        old_xs, old_ys, (args.expand_perc, args.expand_perc))
+                    polygon = zip(ids, xs, ys)
+                    logging.debug(
+                        'Polygon changed from %s to %s for object %d',
+                        str(list(zip(old_xs, old_ys))), 
+                        str(list(zip(xs, ys))), objectid)
+
+            # Update the database.
+            if old_roi is not None:
+                c.execute(
+                    'UPDATE objects SET x1=?, y1=?,width=?,height=? WHERE objectid=?',
+                    tuple(utilBoxes.roi2bbox(roi) + [objectid]))
+            if len(old_polygon):
+                for id, x, y in polygon:
+                    c.execute('UPDATE polygons SET x=?, y=? WHERE id=?',
+                              (x, y, id))
 
             if args.with_display:
-                util.drawScoredRoi(image, oldroi, score=0)
+                util.drawScoredRoi(image, old_roi, score=0)
                 util.drawScoredRoi(image, roi, score=1)
 
         if args.with_display:
@@ -522,6 +546,7 @@ def _maybeUpdateImageField(image_entry, image_entry_add, field):
         image_entry = backendDb.setImageField(image_entry, field, value)
     return image_entry
 
+
 def addDb(c, args):
     if not op.exists(args.db_file):
         raise FileNotFoundError('File does not exist: %s' % args.db_file)
@@ -539,20 +564,22 @@ def addDb(c, args):
     c_add.execute('SELECT * FROM images')
     for image_entry_add in c_add.fetchall():
         imagefile = backendDb.imageField(image_entry_add, 'imagefile')
-        
-        c.execute('SELECT * FROM images WHERE imagefile=?', (imagefile,))
+
+        c.execute('SELECT * FROM images WHERE imagefile=?', (imagefile, ))
         image_entry = c.fetchone()
         if not image_entry:
             logging.debug('Imagefile will be added: %s', imagefile)
-            c.execute('INSERT INTO images VALUES (?,?,?,?,?,?,?)', image_entry_add)
+            c.execute('INSERT INTO images VALUES (?,?,?,?,?,?,?)',
+                      image_entry_add)
         else:
             logging.debug('Imagefile will be updated: %s', imagefile)
             _maybeUpdateImageField(image_entry, image_entry_add, 'maskfile')
             _maybeUpdateImageField(image_entry, image_entry_add, 'name')
             _maybeUpdateImageField(image_entry, image_entry_add, 'score')
-            c.execute('UPDATE images SET width=?, height=?, maskfile=?, '
-                      'timestamp=?, name=?, score=? WHERE imagefile=?', 
-                      image_entry[1:] + image_entry[0:1])
+            c.execute(
+                'UPDATE images SET width=?, height=?, maskfile=?, '
+                'timestamp=?, name=?, score=? WHERE imagefile=?',
+                image_entry[1:] + image_entry[0:1])
 
     # Find the max "match" in "matches" table. New matches will go after that value.
     c.execute('SELECT MAX(match) FROM matches')
@@ -574,7 +601,7 @@ def addDb(c, args):
 
         # Copy properties.
         c_add.execute('SELECT key,value FROM properties WHERE objectid=?',
-                  (objectid_add, ))
+                      (objectid_add, ))
         for key, value in c_add.fetchall():
             c.execute(
                 'INSERT INTO properties(objectid,key,value) VALUES (?,?,?)',
@@ -582,7 +609,7 @@ def addDb(c, args):
 
         # Copy polygons.
         c_add.execute('SELECT x,y,name FROM polygons WHERE objectid=?',
-                  (objectid_add, ))
+                      (objectid_add, ))
         for x, y, name in c_add.fetchall():
             c.execute(
                 'INSERT INTO polygons(objectid,x,y,name) VALUES (?,?,?,?)',
@@ -590,7 +617,7 @@ def addDb(c, args):
 
         # Copy matches.
         c_add.execute('SELECT match FROM matches WHERE objectid=?',
-                  (objectid_add, ))
+                      (objectid_add, ))
         for match, in c_add.fetchall():
             c.execute('INSERT INTO matches(objectid,match) VALUES (?,?)',
                       (objectid, match + max_match))
