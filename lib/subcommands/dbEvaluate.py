@@ -10,6 +10,7 @@ from ast import literal_eval
 from matplotlib import pyplot as plt
 from pprint import pformat
 
+from lib.backend import backendDb
 from lib.backend.backendDb import objectField
 from lib.backend.backendMedia import MediaReader
 from lib.utils.util import applyLabelMappingToMask
@@ -21,156 +22,340 @@ def add_parsers(subparsers):
     evaluateBinarySegmentationParser(subparsers)
 
 
-def _voc_ap(rec, prec):
-    """ Compute VOC AP given precision and recall. """
+def _evaluateDetectionForClassPascal(c, c_gt, name, args):
+    def _voc_ap(rec, prec):
+        """ Compute VOC AP given precision and recall. """
 
-    # first append sentinel values at the end
-    mrec = np.concatenate(([0.], rec, [1.]))
-    mpre = np.concatenate(([0.], prec, [0.]))
+        # first append sentinel values at the end
+        mrec = np.concatenate(([0.], rec, [1.]))
+        mpre = np.concatenate(([0.], prec, [0.]))
 
-    # compute the precision envelope
-    for i in range(mpre.size - 1, 0, -1):
-        mpre[i - 1] = np.maximum(mpre[i - 1], mpre[i])
+        # compute the precision envelope
+        for i in range(mpre.size - 1, 0, -1):
+            mpre[i - 1] = np.maximum(mpre[i - 1], mpre[i])
 
-    # to calculate area under PR curve, look for points
-    # where X axis (recall) changes value
-    i = np.where(mrec[1:] != mrec[:-1])[0]
+        # to calculate area under PR curve, look for points
+        # where X axis (recall) changes value
+        i = np.where(mrec[1:] != mrec[:-1])[0]
 
-    # and sum (\Delta recall) * prec
-    ap = np.sum((mrec[i + 1] - mrec[i]) * mpre[i + 1])
-    return ap
+        # and sum (\Delta recall) * prec
+        ap = np.sum((mrec[i + 1] - mrec[i]) * mpre[i + 1])
+        return ap
+
+    c.execute('SELECT * FROM objects WHERE name=? ORDER BY score DESC',
+              (name, ))
+    entries_det = c.fetchall()
+    logging.info('Total %d detected objects for class "%s"' %
+                 (len(entries_det), name))
+
+    # go down dets and mark TPs and FPs
+    tp = np.zeros(len(entries_det), dtype=float)
+    fp = np.zeros(len(entries_det), dtype=float)
+    # detected of no interest.
+    ignored = np.zeros(len(entries_det), dtype=bool)
+
+    # 'already_detected' used to penalize multiple detections of same GT box
+    already_detected = set()
+
+    # go through each detection
+    for idet, entry_det in progressbar(enumerate(entries_det)):
+
+        bbox_det = np.array(objectField(entry_det, 'bbox'), dtype=float)
+        imagefile = objectField(entry_det, 'imagefile')
+        name = objectField(entry_det, 'name')
+
+        # get all GT boxes from the same imagefile [of the same class]
+        c_gt.execute('SELECT * FROM objects WHERE imagefile=? AND name=?',
+                     (imagefile, name))
+        entries_gt = c_gt.fetchall()
+        objectids_gt = [objectField(entry, 'objectid') for entry in entries_gt]
+        bboxes_gt = np.array(
+            [objectField(entry, 'bbox') for entry in entries_gt], dtype=float)
+
+        # separately manage no GT boxes
+        if bboxes_gt.size == 0:
+            fp[idet] = 1.
+            continue
+
+        # intersection between bbox_det and all bboxes_gt.
+        ixmin = np.maximum(bboxes_gt[:, 0], bbox_det[0])
+        iymin = np.maximum(bboxes_gt[:, 1], bbox_det[1])
+        ixmax = np.minimum(bboxes_gt[:, 0] + bboxes_gt[:, 2],
+                           bbox_det[0] + bbox_det[2])
+        iymax = np.minimum(bboxes_gt[:, 1] + bboxes_gt[:, 3],
+                           bbox_det[1] + bbox_det[3])
+        iw = np.maximum(ixmax - ixmin, 0.)
+        ih = np.maximum(iymax - iymin, 0.)
+        inters = iw * ih
+
+        # union between bbox_det and all bboxes_gt.
+        uni = (bbox_det[2] * bbox_det[3] + bboxes_gt[:, 2] * bboxes_gt[:, 3] -
+               inters)
+
+        # overlaps and get the best overlap.
+        overlaps = inters / uni
+        max_overlap = np.max(overlaps)
+        objectid_gt = objectids_gt[np.argmax(overlaps)]
+
+        # find which objects count towards TP and FN (should be detected).
+        c_gt.execute(
+            'SELECT * FROM objects WHERE imagefile=? AND name=? AND %s' %
+            args.where_object_gt, (imagefile, name))
+        entries_gt = c_gt.fetchall()
+        objectids_gt_of_interest = [
+            objectField(entry, 'objectid') for entry in entries_gt
+        ]
+
+        # if 1) large enough overlap and
+        #    2) this GT box was not detected before
+        if max_overlap > args.overlap_thresh and not objectid_gt in already_detected:
+            if objectid_gt in objectids_gt_of_interest:
+                tp[idet] = 1.
+            else:
+                ignored[idet] = True
+            already_detected.add(objectid_gt)
+        else:
+            fp[idet] = 1.
+
+    # find the number of GT of interest
+    c_gt.execute(
+        'SELECT COUNT(1) FROM objects WHERE %s AND name=?' %
+        args.where_object_gt, (name, ))
+    n_gt = c_gt.fetchone()[0]
+    logging.info('Total objects of interest: %d' % n_gt)
+
+    # remove dets, neither TP or FP
+    tp = tp[np.bitwise_not(ignored)]
+    fp = fp[np.bitwise_not(ignored)]
+
+    logging.info('ignored: %d, tp: %d, fp: %d, gt: %d' %
+                 (np.count_nonzero(ignored), np.count_nonzero(tp),
+                  np.count_nonzero(fp), n_gt))
+    assert np.count_nonzero(tp) + np.count_nonzero(fp) + np.count_nonzero(
+        ignored) == len(entries_det)
+
+    fp = np.cumsum(fp)
+    tp = np.cumsum(tp)
+    rec = tp / float(n_gt)
+    # avoid divide by zero in case the first detection matches a difficult
+    # ground truth
+    prec = tp / np.maximum(tp + fp, np.finfo(np.float64).eps)
+    aps = _voc_ap(rec, prec)
+    print('Average precision for class "%s": %.4f' % (name, aps))
+    return aps
+
+
+def _evaluateDetectionForClassSklearn(c, c_gt, name, args, sklearn):
+    ''' Helper function for evaluateDetection. '''
+
+    # Detected objects sorted by descending score (confidence).
+    c.execute('SELECT * FROM objects WHERE name=? ORDER BY score DESC',
+              (name, ))
+    entries_det = c.fetchall()
+    logging.info('Num of positive "%s": %d', name, len(entries_det))
+
+    # Create arrays 'y_score' with predicted scores, binary 'y_true' for GT,
+    # and a binary 'y_ignored' for detected objects that are neither TP nor FP.
+    y_score = np.zeros(len(entries_det), dtype=float)
+    y_true = np.zeros(len(entries_det), dtype=bool)
+    y_ignored = np.zeros(len(entries_det), dtype=bool)
+
+    # 'already_detected' used to penalize multiple detections of same GT box
+    already_detected = set()
+
+    # Go through each detection.
+    for idet, entry_det in progressbar(enumerate(entries_det)):
+
+        bbox_det = np.array(backendDb.objectField(entry_det, 'bbox'),
+                            dtype=float)
+        imagefile = backendDb.objectField(entry_det, 'imagefile')
+        name = backendDb.objectField(entry_det, 'name')
+        score = backendDb.objectField(entry_det, 'score')
+
+        y_score[idet] = score
+
+        # Get all GT boxes from the same imagefile and of the same class.
+        # TODO: Precompute this, when the time becomes a problem.
+        c_gt.execute('SELECT * FROM objects WHERE imagefile=? AND name=?',
+                     (imagefile, name))
+        entries_gt = c_gt.fetchall()
+        objectids_gt = [
+            backendDb.objectField(entry, 'objectid') for entry in entries_gt
+        ]
+        bboxes_gt = np.array(
+            [backendDb.objectField(entry, 'bbox') for entry in entries_gt],
+            dtype=float)
+
+        # Separately manage the case of no GT boxes in this image.
+        if bboxes_gt.size == 0:
+            y_score[idet] = False
+            continue
+
+        # Intersection between bbox_det and all bboxes_gt.
+        ixmin = np.maximum(bboxes_gt[:, 0], bbox_det[0])
+        iymin = np.maximum(bboxes_gt[:, 1], bbox_det[1])
+        ixmax = np.minimum(bboxes_gt[:, 0] + bboxes_gt[:, 2],
+                           bbox_det[0] + bbox_det[2])
+        iymax = np.minimum(bboxes_gt[:, 1] + bboxes_gt[:, 3],
+                           bbox_det[1] + bbox_det[3])
+        iw = np.maximum(ixmax - ixmin, 0.)
+        ih = np.maximum(iymax - iymin, 0.)
+        intersection = iw * ih
+
+        # Union between bbox_det and all bboxes_gt.
+        union = (bbox_det[2] * bbox_det[3] +
+                 bboxes_gt[:, 2] * bboxes_gt[:, 3] - intersection)
+
+        # Compute the best overlap between the bbox_det and all bboxes_gt.
+        overlaps = intersection / union
+        max_overlap = np.max(overlaps)
+        objectid_gt = objectids_gt[np.argmax(overlaps)]
+
+        # Get all GT objects that are of interest.
+        c_gt.execute(
+            'SELECT * FROM objects WHERE imagefile=? AND name=? AND %s' %
+            args.where_object_gt, (imagefile, name))
+        entries_gt = c_gt.fetchall()
+        objectids_gt_of_interest = [
+            objectField(entry, 'objectid') for entry in entries_gt
+        ]
+
+        # Compute TP and FP. An object is a TP if:
+        #   1) it has a large enough overlap with a GT object and
+        #   2) this GT object was not detected before.
+        if max_overlap > args.overlap_thresh and not objectid_gt in already_detected:
+            if objectid_gt not in objectids_gt_of_interest:
+                y_ignored[idet] = True
+            already_detected.add(objectid_gt)
+            y_true[idet] = True
+        else:
+            y_true[idet] = False
+
+    # It doesn't matter if y_ignore'd GT fall into TP or FP. Kick them out.
+    y_score = y_score[np.bitwise_not(y_ignored)]
+    y_true = y_true[np.bitwise_not(y_ignored)]
+
+    # Find the number of GT of interest.
+    c_gt.execute(
+        'SELECT COUNT(1) FROM objects WHERE %s AND name=?' %
+        args.where_object_gt, (name, ))
+    num_gt = c_gt.fetchone()[0]
+    logging.info('Number of ground truth "%s": %d', name, num_gt)
+
+    # Add FN to y_score and y_true.
+    num_fn = num_gt - np.count_nonzero(y_true)
+    logging.info('Number of false negative "%s": %d', name, num_fn)
+    y_score = np.pad(y_score, [0, num_fn], constant_values=0.)
+    y_true = np.pad(y_true, [0, num_fn], constant_values=True)
+
+    # We need the point for threshold=0 to have y=0. Not sure why it's not yet.
+    # TODO: figure out how to do it properly.
+    y_score = np.pad(y_score, [0, 1000000], constant_values=0.0001)
+    y_true = np.pad(y_true, [0, 1000000], constant_values=False)
+
+    def _writeCurveValues(out_dir, X, Y, metrics_name, header):
+        plt.savefig(op.join(out_dir, '%s.png' % metrics_name))
+        plt.savefig(op.join(out_dir, '%s.eps' % metrics_name))
+        with open(op.join(out_dir, '%s.txt' % metrics_name), 'w') as f:
+            f.write('%s\n' % header)
+            for x, y in zip(X, Y):
+                f.write('%f %f\n' % (x, y))
+
+    if 'precision_recall_curve' in args.extra_metrics:
+        precision, recall, _ = sklearn.metrics.precision_recall_curve(
+            y_true=y_true, y_score=y_score)
+        if args.out_dir:
+            plt.reset()
+            plt.plot(recall, precision)
+            plt.xlim([0, 1])
+            plt.ylim([0, 1])
+            plt.xlabel('Recall')
+            plt.ylabel('Precision')
+            _writeCurveValues(args.out_dir, recall, precision,
+                              'precision-recall', 'recall precision')
+
+    if 'roc_curve' in args.extra_metrics:
+        fpr, tpr, _ = sklearn.metrics.roc_curve(y_true=y_true, y_score=y_score)
+        sklearn.metrics.auc(x=fpr, y=tpr)
+        if args.out_dir:
+            plt.reset()
+            plt.plot(fpr, tpr)
+            plt.xlim([0, 1])
+            plt.ylim([0, 1])
+            plt.xlabel('FPR')
+            plt.ylabel('TPR')
+            _writeCurveValues(args.out_dir, fpr, tpr, 'roc', 'fpr tpr')
+
+    # Compute all metrics for this class.
+    aps = sklearn.metrics.average_precision_score(y_true=y_true,
+                                                  y_score=y_score)
+    print('Average precision for class "%s": %.4f' % (name, aps))
+    return aps
 
 
 def evaluateDetectionParser(subparsers):
     parser = subparsers.add_parser(
         'evaluateDetection',
-        description='Evaluate detections in the open db with a ground truth db.'
-    )
+        description='Evaluate detections given a ground truth database.')
     parser.set_defaults(func=evaluateDetection)
     parser.add_argument('--gt_db_file', required=True)
     parser.add_argument('--overlap_thresh', type=float, default=0.5)
     parser.add_argument('--where_object_gt', default='TRUE')
+    parser.add_argument(
+        '--out_dir',
+        help='If specified, plots and text files are written here.')
+    parser.add_argument(
+        '--extra_metrics',
+        nargs='+',
+        default=[],
+        choices=[
+            'precision_recall_curve',
+            'roc_curve',
+        ],
+        help='Select metrics to be computed in addition to average precision. '
+        'This is implemented only for evaluation_backend="sklearn". '
+        'They are computed for every class. The names match those at '
+        'https://scikit-learn.org/stable/modules/classes.html#module-sklearn.metrics'
+    )
+    parser.add_argument(
+        '--evaluation_backend',
+        choices=['sklearn', 'pascal-voc'],
+        default='sklearn',
+        help='Detection evaluation is different across papers and methods. '
+        'PASCAL VOC produces average-precision score a bit different '
+        'than the sklearn package. A good overview on metrics: '
+        'https://github.com/rafaelpadilla/Object-Detection-Metrics')
 
 
 def evaluateDetection(c, args):
+    if args.evaluation_backend == 'sklearn':
+        import sklearn.metrics
 
-    # Attach the ground truth database.
-    c.execute('ATTACH DATABASE ? AS "gt"', (args.gt_db_file, ))
-    c.execute('SELECT DISTINCT(name) FROM gt.objects')
-    names = [x for x, in c.fetchall()]
-    aps = []  # Average precision per class.
+    # Load the ground truth database.
+    if not op.exists(args.gt_db_file):
+        raise FileNotFoundError('File does not exist: %s' % args.gt_db_file)
+    conn_gt = backendDb.connect(args.gt_db_file, 'load_to_memory')
+    c_gt = conn_gt.cursor()
 
-    for name in names:
+    # Some info for logging.
+    c.execute('SELECT COUNT(1) FROM objects')
+    logging.info('The evaluated database has %d objects.', c.fetchone()[0])
+    c_gt.execute('SELECT COUNT(1) FROM objects WHERE %s' %
+                 args.where_object_gt)
+    logging.info('The ground truth database has %d objects of interest.',
+                 c_gt.fetchone()[0])
 
-        c.execute('SELECT * FROM objects WHERE name=? ORDER BY score DESC',
-                  (name, ))
-        entries_det = c.fetchall()
-        logging.info('Total %d detected objects for class "%s"' %
-                     (len(entries_det), name))
-
-        # go down dets and mark TPs and FPs
-        tp = np.zeros(len(entries_det), dtype=float)
-        fp = np.zeros(len(entries_det), dtype=float)
-        # detected of no interest.
-        ignored = np.zeros(len(entries_det), dtype=bool)
-
-        # 'already_detected' used to penalize multiple detections of same GT box
-        already_detected = set()
-
-        # go through each detection
-        for idet, entry_det in progressbar(enumerate(entries_det)):
-
-            bbox_det = np.array(objectField(entry_det, 'bbox'), dtype=float)
-            imagefile = objectField(entry_det, 'imagefile')
-            score = objectField(entry_det, 'score')
-            name = objectField(entry_det, 'name')
-
-            # get all GT boxes from the same imagefile [of the same class]
-            c.execute('SELECT * FROM gt.objects WHERE imagefile=? AND name=?',
-                      (imagefile, name))
-            entries_gt = c.fetchall()
-            objectids_gt = [
-                objectField(entry, 'objectid') for entry in entries_gt
-            ]
-            bboxes_gt = np.array(
-                [objectField(entry, 'bbox') for entry in entries_gt],
-                dtype=float)
-
-            # separately manage no GT boxes
-            if bboxes_gt.size == 0:
-                fp[idet] = 1.
-                continue
-
-            # intersection between bbox_det and all bboxes_gt.
-            ixmin = np.maximum(bboxes_gt[:, 0], bbox_det[0])
-            iymin = np.maximum(bboxes_gt[:, 1], bbox_det[1])
-            ixmax = np.minimum(bboxes_gt[:, 0] + bboxes_gt[:, 2],
-                               bbox_det[0] + bbox_det[2])
-            iymax = np.minimum(bboxes_gt[:, 1] + bboxes_gt[:, 3],
-                               bbox_det[1] + bbox_det[3])
-            iw = np.maximum(ixmax - ixmin, 0.)
-            ih = np.maximum(iymax - iymin, 0.)
-            inters = iw * ih
-
-            # union between bbox_det and all bboxes_gt.
-            uni = bbox_det[2] * bbox_det[
-                3] + bboxes_gt[:, 2] * bboxes_gt[:, 3] - inters
-
-            # overlaps and get the best overlap.
-            overlaps = inters / uni
-            max_overlap = np.max(overlaps)
-            objectid_gt = objectids_gt[np.argmax(overlaps)]
-
-            # find which objects count towards TP and FN (should be detected).
-            c.execute(
-                'SELECT * FROM gt.objects WHERE imagefile=? AND name=? AND %s'
-                % args.where_object_gt, (imagefile, name))
-            entries_gt = c.fetchall()
-            objectids_gt_of_interest = [
-                objectField(entry, 'objectid') for entry in entries_gt
-            ]
-
-            # if 1) large enough overlap and
-            #    2) this GT box was not detected before
-            if max_overlap > args.overlap_thresh and not objectid_gt in already_detected:
-                if objectid_gt in objectids_gt_of_interest:
-                    tp[idet] = 1.
-                else:
-                    ignored[idet] = True
-                already_detected.add(objectid_gt)
-            else:
-                fp[idet] = 1.
-
-        # find the number of GT of interest
-        c.execute(
-            'SELECT COUNT(1) FROM gt.objects WHERE %s AND name=?' %
-            args.where_object_gt, (name, ))
-        n_gt = c.fetchone()[0]
-        logging.info('Total objects of interest: %d' % n_gt)
-
-        # remove dets, neither TP or FP
-        tp = tp[np.bitwise_not(ignored)]
-        fp = fp[np.bitwise_not(ignored)]
-
-        logging.info('ignored: %d, tp: %d, fp: %d, gt: %d' %
-                     (np.count_nonzero(ignored), np.count_nonzero(tp),
-                      np.count_nonzero(fp), n_gt))
-        assert np.count_nonzero(tp) + np.count_nonzero(fp) + np.count_nonzero(
-            ignored) == len(entries_det)
-
-        # compute precision-recall
-        fp = np.cumsum(fp)
-        tp = np.cumsum(tp)
-        rec = tp / float(n_gt)
-        # avoid divide by zero in case the first detection matches a difficult
-        # ground truth
-        prec = tp / np.maximum(tp + fp, np.finfo(np.float64).eps)
-        ap = _voc_ap(rec, prec)
-        print('Average precision for class "%s": %.3f' % (name, ap))
-        aps.append(ap)
-    print('Mean average precision: %.3f' % np.array(aps).mean())
-
-    c.execute('DETACH DATABASE "gt"')
+    c_gt.execute('SELECT DISTINCT(name) FROM objects')
+    for name, in c_gt.fetchall():
+        if args.evaluation_backend == 'sklearn':
+            _evaluateDetectionForClassSklearn(c, c_gt, name, args, sklearn)
+        elif args.evaluation_backend == 'pascal-voc':
+            if args.metrics is not None:
+                logging.warning('extra_metrics not supported for pascal-voc.')
+            _evaluateDetectionForClassPascal(c, c_gt, name, args)
+        else:
+            assert False
+    conn_gt.close()
 
 
 def fast_hist(a, b, n):

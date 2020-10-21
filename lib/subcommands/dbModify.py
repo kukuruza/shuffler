@@ -15,7 +15,6 @@ from ast import literal_eval
 from lib.backend import backendDb
 from lib.backend.backendDb import makeTimeString, deleteImage, deleteObject, objectField, createDb, imageField
 from lib.backend.backendMedia import getPictureSize, MediaReader
-from lib.backend import backendDb
 from lib.utils import util
 from lib.utils import utilBoxes
 
@@ -357,7 +356,7 @@ def expandObjects(c, args):
                     polygon = zip(ids, xs, ys)
                     logging.debug(
                         'Polygon changed from %s to %s for object %d',
-                        str(list(zip(old_xs, old_ys))), 
+                        str(list(zip(old_xs, old_ys))),
                         str(list(zip(xs, ys))), objectid)
 
             # Update the database.
