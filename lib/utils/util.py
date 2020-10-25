@@ -79,6 +79,8 @@ def drawScoredPolygon(img, polygon, label=None, score=None):
     if score is None:
         score = 1
     color = tuple([int(x * 255) for x in plt.cm.jet(float(score))][0:3][::-1])
+    # In case some function did not cast them.
+    polygon = [(int(x), int(y)) for x, y in polygon]
     for i1 in range(len(polygon)):
         i2 = (i1 + 1) % len(polygon)
         cv2.line(img, tuple(polygon[i1]), tuple(polygon[i2]), color, THICKNESS)
@@ -102,6 +104,7 @@ def drawScoredRoi(img, roi, label=None, score=None):
     if score is None:
         score = 1
     color = tuple([int(x * 255) for x in plt.cm.jet(float(score))][0:3][::-1])
+    roi = [int(a) for a in roi]  # In case some function did not cast them.
     cv2.rectangle(img, (roi[1], roi[0]), (roi[3], roi[2]), color, THICKNESS)
     text_coords = (roi[1], roi[0] - SCALE)
     cv2.putText(img, label, text_coords, FONT, FONT_SIZE, (0, 0, 0), THICKNESS)

@@ -24,6 +24,7 @@ def add_parsers(subparsers):
     polygonsToMaskParser(subparsers)
     writeMediaGridByTimeParser(subparsers)
     repaintMaskParser(subparsers)
+    tileObjectsParser(subparsers)
 
 
 def cropMediaParser(subparsers):
@@ -274,6 +275,192 @@ def cropObjects(c, args):
                 c.execute(
                     'INSERT INTO properties(objectid,key,value) VALUES (?,?,?)',
                     (old_objectid, 'cropped', 'true'))
+
+    backendDb.dropRetiredTables(c)
+    imwriter.close()
+
+
+def tileObjectsParser(subparsers):
+    parser = subparsers.add_parser(
+        'tileObjects',
+        description=
+        'Tile objects into collage images, each collage having YxX objects. '
+        'Any objects in the original images are preserved, '
+        'their bounding boxes and polygons adjusted accordingly. '
+        'The purpose of the function is to create collages for the convenient '
+        'inspection of objects. Masks are not supported at this moment.')
+    parser.set_defaults(func=tileObjects)
+    parser.add_argument(
+        '--media',
+        choices=['pictures', 'video'],
+        required=True,
+        help='Output either a directory with pictures or a video file.')
+    parser.add_argument('--image_path',
+                        required=True,
+                        help='The directory for pictures OR video file, '
+                        'where cropped images are written to.')
+    parser.add_argument(
+        '--where_object',
+        default='TRUE',
+        help='SQL "where" clause that specifies which objects to crop. '
+        'Queries table "objects". Example: \'objects.name == "car"\'')
+    parser.add_argument(
+        '--where_other_objects',
+        default='FALSE',
+        help='SQL "where" clause that specifies which other objects from '
+        'a frame to write for each crop. '
+        'By default, only the cropped object is recorded.'
+        'Queries table "objects". Example: \'objects.name == "bus"\'')
+    parser.add_argument('--num_cells_Y',
+                        type=int,
+                        default=5,
+                        help='Number of objects in Y dimension.')
+    parser.add_argument('--num_cells_X',
+                        type=int,
+                        default=5,
+                        help='Number of objects in X dimension.')
+    parser.add_argument('--inter_cell_gap',
+                        type=int,
+                        default=10,
+                        help='Gap in between objects in pixels.')
+    parser.add_argument('--cell_width', type=int, required=True)
+    parser.add_argument('--cell_height', type=int, required=True)
+    parser.add_argument(
+        '--edges',
+        default='constant',
+        choices={'constant', 'background'},
+        help='"constant" keeps the ratio but pads the patch with zeros, '
+        '"background" keeps the ratio but includes image background.')
+    parser.add_argument('--overwrite',
+                        action='store_true',
+                        help='overwrite video if it exists.')
+
+
+def tileObjects(c, args):
+    # Temporary imagefile. See the use below.
+    TEMP_IMAGEFILE = 'temp_imagefile'
+
+    imreader = backendMedia.MediaReader(rootdir=args.rootdir)
+    imwriter = backendMedia.MediaWriter(media_type=args.media,
+                                        rootdir=args.rootdir,
+                                        image_media=args.image_path,
+                                        overwrite=args.overwrite)
+
+    backendDb.retireTables(c)
+
+    c.execute(
+        'SELECT '
+        'objects.objectid,'
+        'objects.imagefile,'
+        'objects.x1,'
+        'objects.y1,'
+        'objects.width,'
+        'objects.height,'
+        'objects.name,'
+        'objects.score,'
+        'images.maskfile,'
+        'images.timestamp '
+        'FROM objects_old AS objects '
+        'INNER JOIN images_old AS images ON images.imagefile = objects.imagefile '
+        'WHERE (%s) ORDER BY objects.name' % args.where_object)
+    old_entries = c.fetchall()
+    logging.debug(pformat(old_entries))
+
+    # Create collages and info about them.
+    num_cells_per_collage = args.num_cells_Y * args.num_cells_X
+    if num_cells_per_collage == 0:
+        raise ValueError('Need num_cells_Y > 0 and num_cells_X > 0.')
+    gap = args.inter_cell_gap  # Convenience alias.
+    collage_X = args.num_cells_X * (args.cell_width + gap) - gap
+    collage_Y = args.num_cells_Y * (args.cell_height + gap) - gap
+
+    def _recordCollage(c, collage, i_old_entry):
+        namehint = '%09d' % (i_old_entry / num_cells_per_collage)
+        new_imagefile = imwriter.imwrite(collage, namehint=namehint)
+        # Insert image values.
+        logging.info(i_old_entry)
+        logging.info('Recording imagefile %s' % new_imagefile)
+        c.execute(
+            'INSERT INTO images(imagefile, width, height, timestamp, name, score) '
+            'VALUES (?,?,?,?,?,?)',
+            (new_imagefile, collage_X, collage_Y, timestamp, name, score))
+        # Before now objects were written to TEMP_IMAGEFILE
+        c.execute('UPDATE objects SET imagefile=? WHERE imagefile=?',
+                  (new_imagefile, TEMP_IMAGEFILE))
+
+    for i_old_entry, old_entry in progressbar(enumerate(old_entries)):
+        # Record the collage when the previous collage is full.
+        if i_old_entry % num_cells_per_collage == 0 and i_old_entry != 0:
+            _recordCollage(c, collage, i_old_entry - 1)
+        # Re-initialization of the collage.
+        if i_old_entry % num_cells_per_collage == 0:
+            collage = np.zeros((collage_Y, collage_X, 3), dtype=np.uint8)
+
+        # Extract all the info from 'old_entry'.
+        (old_objectid, old_imagefile, old_x1, old_y1, old_width, old_height,
+         name, score, _, timestamp) = old_entry
+        logging.debug('Processing object %d from imagefile %s.' %
+                      (old_objectid, old_imagefile))
+        old_roi = utilBoxes.bbox2roi((old_x1, old_y1, old_width, old_height))
+
+        # Crop object.
+        old_image = imreader.imread(old_imagefile)
+        logging.debug('Cropping roi=%s from image of shape %s' %
+                      (old_roi, old_image.shape))
+        crop, transform = utilBoxes.cropPatch(old_image, old_roi, args.edges,
+                                              args.cell_height,
+                                              args.cell_width)
+
+        # Get the cell coordinates. Cells are populated row by row.
+        cell_x = (i_old_entry % args.num_cells_X) * (args.cell_width + gap)
+        cell_y = (i_old_entry % args.num_cells_Y) * (args.cell_height + gap)
+
+        assert cell_y + args.cell_height <= collage_Y, collage_Y
+        assert cell_x + args.cell_width <= collage_X, collage_X
+        collage[cell_y:cell_y + args.cell_height,
+                cell_x:cell_x + args.cell_width] = crop
+
+        # Write transform as x_new = x_old * kx + bx, y_new = y_old * ky + by.
+        ky = transform[0, 0]
+        kx = transform[1, 1]
+        by = transform[0, 2] + cell_y
+        bx = transform[1, 2] + cell_x
+
+        # Select the cropped object and "where_other_objects" objects in this image.
+        c.execute(
+            'SELECT objectid FROM objects_old WHERE objectid=? OR (imagefile=? AND (%s))'
+            % args.where_other_objects, (old_objectid, old_imagefile))
+        for old_im_objectid, in c.fetchall():
+            # Insert to objects.
+            c.execute(
+                'INSERT INTO objects(imagefile,x1,y1,width,height,name,score) '
+                'SELECT ?, x1 * ? + ?, y1 * ? + ?, width * ?, height * ?, name, score '
+                'FROM objects_old WHERE objectid=?',
+                (TEMP_IMAGEFILE, kx, bx, ky, by, kx, ky, old_im_objectid))
+            new_im_objectid = c.lastrowid
+            # Insert to properties.
+            c.execute(
+                'INSERT INTO properties(objectid,key,value) '
+                'SELECT ?,key,value FROM properties_old WHERE objectid=?',
+                (new_im_objectid, old_im_objectid))
+            # Insert to polygons.
+            c.execute(
+                'INSERT INTO polygons(objectid,x,y) '
+                'SELECT ?, x * ? + ?, y * ? + ? FROM polygons_old WHERE objectid=?',
+                (new_im_objectid, kx, bx, ky, by, old_im_objectid))
+            # Insert to matches.
+            c.execute(
+                'INSERT INTO matches(match,objectid) '
+                'SELECT match,? FROM matches_old WHERE objectid=?',
+                (new_im_objectid, old_im_objectid))
+            # Add a property to the actual cropped object that says it is cropped.
+            if old_im_objectid == old_objectid:
+                c.execute(
+                    'INSERT INTO properties(objectid,key,value) VALUES (?,?,?)',
+                    (old_objectid, 'cropped', 'true'))
+
+    # Record the last (partially filled) collage.
+    _recordCollage(c, collage, i_old_entry)
 
     backendDb.dropRetiredTables(c)
     imwriter.close()
@@ -533,8 +720,9 @@ def polygonsToMask(c, args):
         if np.sum(mask_per_image) == 0 and args.skip_empty_masks:
             continue
 
-        out_maskfile = imwriter.maskwrite(
-                mask_per_image, namehint=op.basename(op.splitext(imagefile)[0]))
+        out_maskfile = imwriter.maskwrite(mask_per_image,
+                                          namehint=op.basename(
+                                              op.splitext(imagefile)[0]))
         c.execute('UPDATE images SET maskfile=? WHERE imagefile=?',
                   (out_maskfile, imagefile))
 
