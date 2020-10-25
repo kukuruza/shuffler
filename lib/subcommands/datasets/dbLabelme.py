@@ -112,7 +112,9 @@ def importLabelme(c, args):
                 continue
 
             # find the name of object.
-            name = object_.find('name').text.encode('utf-8')
+            name = object_.find('name').text
+            if name is not None:
+                name = name.encode('utf-8')
 
             # get all the points
             xs, ys = _pointsOfPolygon(object_)
