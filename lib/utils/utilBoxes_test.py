@@ -86,6 +86,74 @@ class TestCropPatch(unittest.TestCase):
         expected_roi = roi
         self.assertEqual(actual_roi, expected_roi)
 
+    def test_edgeOriginal_outOfBoundary1(self):
+        roi = [-10, 30, 10, 70]
+        # Compare patches.
+        actual_patch, transform = utilBoxes.cropPatch(self.image, roi,
+                                                      'original', None, None)
+        expected_patch = TestCropPatch.makeGradientImage(height=10,
+                                                         width=40,
+                                                         min_y=0,
+                                                         min_x=30)
+        expected_patch = np.pad(expected_patch, ((10, 0), (0, 0), (0, 0)))
+        self.assertEqual(actual_patch.shape, expected_patch.shape)
+        np.testing.assert_array_equal(actual_patch, expected_patch)
+        # Compare roi.
+        actual_roi = TestCropPatch.transformRoi(transform, roi)
+        expected_roi = [0, 0, 20, 40]
+        self.assertEqual(actual_roi, expected_roi)
+
+    def test_edgeOriginal_outOfBoundary2(self):
+        roi = [40, -10, 60, 30]
+        # Compare patches.
+        actual_patch, transform = utilBoxes.cropPatch(self.image, roi,
+                                                      'original', None, None)
+        expected_patch = TestCropPatch.makeGradientImage(height=20,
+                                                         width=30,
+                                                         min_y=40,
+                                                         min_x=0)
+        expected_patch = np.pad(expected_patch, ((0, 0), (10, 0), (0, 0)))
+        self.assertEqual(actual_patch.shape, expected_patch.shape)
+        np.testing.assert_array_equal(actual_patch, expected_patch)
+        # Compare roi.
+        actual_roi = TestCropPatch.transformRoi(transform, roi)
+        expected_roi = [0, 0, 20, 40]
+        self.assertEqual(actual_roi, expected_roi)
+
+    def test_edgeOriginal_outOfBoundary3(self):
+        roi = [90, 30, 110, 70]
+        # Compare patches.
+        actual_patch, transform = utilBoxes.cropPatch(self.image, roi,
+                                                      'original', None, None)
+        expected_patch = TestCropPatch.makeGradientImage(height=10,
+                                                         width=40,
+                                                         min_y=90,
+                                                         min_x=30)
+        expected_patch = np.pad(expected_patch, ((0, 10), (0, 0), (0, 0)))
+        self.assertEqual(actual_patch.shape, expected_patch.shape)
+        np.testing.assert_array_equal(actual_patch, expected_patch)
+        # Compare roi.
+        actual_roi = TestCropPatch.transformRoi(transform, roi)
+        expected_roi = [0, 0, 20, 40]
+        self.assertEqual(actual_roi, expected_roi)
+
+    def test_edgeOriginal_outOfBoundary4(self):
+        roi = [40, 170, 60, 210]
+        # Compare patches.
+        actual_patch, transform = utilBoxes.cropPatch(self.image, roi,
+                                                      'original', None, None)
+        expected_patch = TestCropPatch.makeGradientImage(height=20,
+                                                         width=30,
+                                                         min_y=40,
+                                                         min_x=170)
+        expected_patch = np.pad(expected_patch, ((0, 0), (0, 10), (0, 0)))
+        self.assertEqual(actual_patch.shape, expected_patch.shape)
+        np.testing.assert_array_equal(actual_patch, expected_patch)
+        # Compare roi.
+        actual_roi = TestCropPatch.transformRoi(transform, roi)
+        expected_roi = [0, 0, 20, 40]
+        self.assertEqual(actual_roi, expected_roi)
+
     def test_edgeOriginal(self):
         roi = [40, 30, 60, 70]
         # Compare patches.

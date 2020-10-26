@@ -236,20 +236,33 @@ def cropPatch(image, roi, edge, target_height, target_width):
 
     if edge == 'background':
         if grayscale:
-            pad_width = ((height, height), (width, width))
+            pads = ((height, height), (width, width))
         else:
-            pad_width = ((height, height), (width, width), (0, 0))
-        image = np.pad(image, pad_width=pad_width, mode='constant')
+            pads = ((height, height), (width, width), (0, 0))
+        image = np.pad(image, pad_width=pads, mode='constant')
         roi = [
             roi[0] + height, roi[1] + width, roi[2] + height, roi[3] + width
         ]
         logging.debug('Cropping as "background" adjusted ROI to: %s', str(roi))
 
-    # Crop the image.
+    # Pad parts of the rois out of the image boundaries with zero.
+    padsy = max(0, -roi[0]), max(0, roi[2] - image.shape[0])
+    padsx = max(0, -roi[1]), max(0, roi[3] - image.shape[1])
     if grayscale:
-        patch = image[roi[0]:roi[2], roi[1]:roi[3]]
+        pads = (padsy, padsx)
     else:
-        patch = image[roi[0]:roi[2], roi[1]:roi[3], :]
+        pads = (padsy, padsx, (0, 0))
+    logging.debug('Pads for compensating ROI out of boundaries: %s', str(pads))
+    roi[0] += padsy[0]
+    roi[1] += padsx[0]
+    roi[2] -= padsy[1]
+    roi[3] -= padsx[1]
+
+    # Crop the image.
+    patch = image[roi[0]:roi[2], roi[1]:roi[3]]
+
+    # Apply the pads for compensating for ROI out of boundaries.
+    patch = np.pad(patch, pad_width=pads, mode='constant')
 
     if edge == 'constant':
         if target_height is None or target_width is None:
@@ -261,24 +274,24 @@ def cropPatch(image, roi, edge, target_height, target_width):
             pad1 = (int(height / target_ratio) - width) // 2
             pad2 = int(height / target_ratio) - width - pad1
             if grayscale:
-                pad_width = ((0, 0), (pad1, pad2))
+                pads = ((0, 0), (pad1, pad2))
             else:
-                pad_width = ((0, 0), (pad1, pad2), (0, 0))
+                pads = ((0, 0), (pad1, pad2), (0, 0))
         else:
             pad1 = (int(target_ratio * width) - height) // 2
             pad2 = int(target_ratio * width) - height - pad1
             if grayscale:
-                pad_width = ((pad1, pad2), (0, 0))
+                pads = ((pad1, pad2), (0, 0))
             else:
-                pad_width = ((pad1, pad2), (0, 0), (0, 0))
+                pads = ((pad1, pad2), (0, 0), (0, 0))
 
         logging.debug(
             'Padding as "constant" (target_ratio: %.3f) with pad1: %d, pad2: %d'
             ' to shape %s.', target_ratio, pad1, pad2, str(patch.shape))
-        patch = np.pad(patch, pad_width=pad_width, mode='constant')
+        patch = np.pad(patch, pad_width=pads, mode='constant')
         # Transform is offset to match the bottom-left corner now.
-        transform[0, 2] += pad_width[0][0]
-        transform[1, 2] += pad_width[1][0]
+        transform[0, 2] += pads[0][0]
+        transform[1, 2] += pads[1][0]
 
     if edge != 'original':
         # The transform is scaled on X and Y to match the top-right corner.
