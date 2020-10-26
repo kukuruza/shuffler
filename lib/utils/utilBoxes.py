@@ -219,6 +219,7 @@ def cropPatch(image, roi, edge, target_height, target_width):
 
     # Make a copy of ROI.
     roi = list(roi)
+    logging.debug('Cropping with ROI: %s', str(roi))
 
     # Maybe expand the ROI.
     if edge == 'background':
@@ -242,6 +243,7 @@ def cropPatch(image, roi, edge, target_height, target_width):
         roi = [
             roi[0] + height, roi[1] + width, roi[2] + height, roi[3] + width
         ]
+        logging.debug('Cropping as "background" adjusted ROI to: %s', str(roi))
 
     # Crop the image.
     if grayscale:
@@ -270,6 +272,9 @@ def cropPatch(image, roi, edge, target_height, target_width):
             else:
                 pad_width = ((pad1, pad2), (0, 0), (0, 0))
 
+        logging.debug(
+            'Padding as "constant" (target_ratio: %.3f) with pad1: %d, pad2: %d'
+            ' to shape %s.', target_ratio, pad1, pad2, str(patch.shape))
         patch = np.pad(patch, pad_width=pad_width, mode='constant')
         # Transform is offset to match the bottom-left corner now.
         transform[0, 2] += pad_width[0][0]
