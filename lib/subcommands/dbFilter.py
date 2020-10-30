@@ -8,6 +8,7 @@ from pprint import pformat
 from progressbar import progressbar
 
 from lib.backend.backendDb import objectField, polygonField, deleteImage, deleteObject
+from lib.backend import backendDb
 from lib.backend.backendMedia import MediaReader
 from lib.utils.util import drawScoredRoi, drawScoredPolygon
 from lib.utils import utilBoxes
@@ -20,6 +21,7 @@ def add_parsers(subparsers):
     filterObjectsByNameParser(subparsers)
     filterEmptyImagesParser(subparsers)
     filterObjectsByScoreParser(subparsers)
+    filterObjectsInsideCertainObjectsParser(subparsers)
     filterObjectsSQLParser(subparsers)
     filterImagesSQLParser(subparsers)
     filterImagesByIdsParser(subparsers)
@@ -296,19 +298,30 @@ def filterObjectsByNameParser(subparsers):
     parser = subparsers.add_parser(
         'filterObjectsByName',
         description='Filter away car entries with unknown names.')
-    parser.add_argument(
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
         '--good_names',
         nargs='+',
         help='A list of object names to keep. Others will be filtered.')
+    group.add_argument('--bad_names',
+                       nargs='+',
+                       help='A list of object names to delete.')
     parser.set_defaults(func=filterObjectsByName)
 
 
 def filterObjectsByName(c, args):
-    good_names = ','.join(['"%s"' % x for x in args.good_names])
-    logging.info('Will keep the following object names: %s' %
-                 pformat(good_names))
-    c.execute('SELECT objectid FROM objects WHERE name NOT IN (%s)' %
-              good_names)
+    if args.good_names is not None:
+        good_names = ','.join(['"%s"' % x for x in args.good_names])
+        logging.info('Will keep the following object names: %s' % good_names)
+        c.execute('SELECT objectid FROM objects WHERE name NOT IN (%s)' %
+                  good_names)
+    elif args.bad_names is not None:
+        bad_names = ','.join(['"%s"' % x for x in args.bad_names])
+        logging.info('Will delete the following object names: %s' % bad_names)
+        c.execute('SELECT objectid FROM objects WHERE name IN (%s)' %
+                  bad_names)
+    else:
+        raise ValueError('"good_names" or "bad_names" must be specified.')
     for objectid, in progressbar(c.fetchall()):
         deleteObject(c, objectid)
 
@@ -345,6 +358,99 @@ def filterObjectsByScore(c, args):
               args.score_threshold)
     for objectid, in progressbar(c.fetchall()):
         deleteObject(c, objectid)
+
+
+def filterObjectsInsideCertainObjectsParser(subparsers):
+    parser = subparsers.add_parser(
+        'filterObjectsInsideCertainObjects',
+        description='Delete objects with CENTERS inside certain other objects.'
+    )
+    parser.set_defaults(func=filterObjectsInsideCertainObjects)
+    parser.add_argument(
+        '--where_shadowing_objects',
+        required=True,
+        help='SQL "where" clause that queries for "objectid". '
+        'Everything with the center inside these objects '
+        '(subject to "where_objects") will be deleted. '
+        'Whether a point is "inside" an object is determined by its polygon '
+        'if it exists, otherwise the bounding box. '
+        'Queries table "objects". Example: \'objects.name == "bus"\'')
+    parser.add_argument(
+        '--where_objects',
+        default='TRUE',
+        help='SQL "where" clause that queries for "objectid" to crop. '
+        'Queries table "objects". Example: \'objects.name == "car"\'')
+
+
+def filterObjectsInsideCertainObjects(c, args):
+    c.execute('SELECT imagefile FROM images')
+    for imagefile, in progressbar(c.fetchall()):
+
+        # Shadow objects.
+        c.execute(
+            'SELECT * FROM objects WHERE imagefile=? AND (%s)' %
+            args.where_shadowing_objects, (imagefile, ))
+        shadow_object_entries = c.fetchall()
+        logging.info('Found %d shadowing objects.', len(shadow_object_entries))
+        # Populate polygons of the shadow objects.
+        shadow_object_polygons = []
+        for shadow_object_entry in shadow_object_entries:
+            shadow_objectid = backendDb.objectField(shadow_object_entry,
+                                                    'objectid')
+            c.execute('SELECT y,x FROM polygons WHERE objectid=?',
+                      (shadow_objectid, ))
+            shadow_polygon = c.fetchall()
+            shadow_object_polygons.append(shadow_polygon)
+        shadow_object_ids_set = set([
+            backendDb.objectField(entry, 'objectid')
+            for entry in shadow_object_entries
+        ])
+
+        # Get all the objects that can be considered.
+        c.execute(
+            'SELECT * FROM objects WHERE imagefile=? AND (%s)' %
+            args.where_objects, (imagefile, ))
+        object_entries = c.fetchall()
+        logging.info('Total %d objects satisfying the condition.',
+                     len(object_entries))
+
+        for object_entry in object_entries:
+            objectid = backendDb.objectField(object_entry, 'objectid')
+            if objectid in shadow_object_ids_set:
+                logging.debug('Object %d is in the shadow set', objectid)
+                continue
+            c.execute('SELECT AVG(y),AVG(x) FROM polygons WHERE objectid=?',
+                      (objectid, ))
+            center_yx = c.fetchone()
+            # If polygon does not exist, use bbox.
+            if center_yx[0] is None:
+                roi = utilBoxes.bbox2roi(
+                    backendDb.objectField(object_entry, 'bbox'))
+                center_yx = (roi[0] + roi[2]) / 2, (roi[1] + roi[3]) / 2
+            logging.debug('center_yx: %s', str(center_yx))
+
+            for shadow_object_entry, shadow_polygon in zip(
+                    shadow_object_entries, shadow_object_polygons):
+                # Get the shadow roi, or polygon if it exists.
+                shadow_objectid = backendDb.objectField(
+                    object_entry, 'objectid')
+
+                # Check that the center is within the shadow polygon or bbox.
+                if len(shadow_polygon) > 0:
+                    is_inside = cv2.pointPolygonTest(np.array(shadow_polygon),
+                                                     center_yx, False) >= 0
+                else:
+                    shadow_roi = utilBoxes.bbox2roi(
+                        backendDb.objectField(shadow_object_entry, 'bbox'))
+                    is_inside = (center_yx[0] > shadow_roi[0]
+                                 and center_yx[0] < shadow_roi[2]
+                                 and center_yx[1] > shadow_roi[1]
+                                 and center_yx[1] < shadow_roi[3])
+
+                if is_inside:
+                    backendDb.deleteObject(c, objectid)
+                    # We do not need to check other shadow_object_entries.
+                    continue
 
 
 def filterObjectsSQLParser(subparsers):
