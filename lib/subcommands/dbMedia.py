@@ -334,6 +334,9 @@ def tileObjectsParser(subparsers):
     parser.add_argument('--overwrite',
                         action='store_true',
                         help='overwrite video if it exists.')
+    parser.add_argument('--split_by_name',
+                        action='store_true',
+                        help='Start a new collage with every new name.')
 
 
 def tileObjects(c, args):
@@ -374,11 +377,10 @@ def tileObjects(c, args):
     collage_X = args.num_cells_X * (args.cell_width + gap) - gap
     collage_Y = args.num_cells_Y * (args.cell_height + gap) - gap
 
-    def _recordCollage(c, collage, i_entry):
-        namehint = '%09d' % (i_entry / num_cells_per_collage)
+    def _recordCollage(c, collage, namehint):
         new_imagefile = imwriter.imwrite(collage, namehint=namehint)
         # Insert image values.
-        logging.debug('Recording imagefile at i_entry: %d', i_entry)
+        logging.debug('Recording imagefile at: %d', namehint)
         logging.info('Recording imagefile %s' % new_imagefile)
         c.execute(
             'INSERT INTO images(imagefile, width, height, timestamp, name, score) '
@@ -388,14 +390,13 @@ def tileObjects(c, args):
         c.execute('UPDATE objects SET imagefile=? WHERE imagefile=?',
                   (new_imagefile, TEMP_IMAGEFILE))
 
-    for i_entry, old_entry in progressbar(enumerate(old_entries)):
-        # Record the collage when the previous collage is full.
-        if i_entry % num_cells_per_collage == 0 and i_entry != 0:
-            _recordCollage(c, collage, i_entry - 1)
-        # Re-initialization of the collage.
-        if i_entry % num_cells_per_collage == 0:
-            collage = np.zeros((collage_Y, collage_X, 3), dtype=np.uint8)
+    # Bookkeeping.
+    previous_name = None
+    i_cell = 0
+    i_collage = 0
+    collage = np.zeros((collage_Y, collage_X, 3), dtype=np.uint8)
 
+    for old_entry in progressbar(old_entries):
         # Extract all the info from 'old_entry'.
         (old_objectid, old_imagefile, old_x1, old_y1, old_width, old_height,
          name, score, _, timestamp) = old_entry
@@ -406,6 +407,19 @@ def tileObjects(c, args):
                              old_objectid, old_width, old_height)
         old_roi = utilBoxes.bbox2roi((old_x1, old_y1, old_width, old_height))
 
+        # Record the collage when the previous collage is full or name changed.
+        if i_cell == num_cells_per_collage or (args.split_by_name
+                                               and previous_name != name):
+            namehint = '%09d' % i_collage
+            if args.split_by_name:
+                namehint += '-%s' % previous_name
+            _recordCollage(c, collage, namehint)
+            collage = np.zeros((collage_Y, collage_X, 3), dtype=np.uint8)
+            i_cell = -1
+            i_collage += 1
+        i_cell += 1
+        previous_name = name
+
         # Crop object.
         old_image = imreader.imread(old_imagefile)
         logging.debug('Cropping roi=%s from image of shape %s' %
@@ -415,14 +429,14 @@ def tileObjects(c, args):
                                               args.cell_width)
 
         # Get the cell coordinates. Cells are populated row by row.
-        cell_x = (i_entry % args.num_cells_X) * (args.cell_width + gap)
-        cell_y = (i_entry % num_cells_per_collage //
+        cell_x = (i_cell % args.num_cells_X) * (args.cell_width + gap)
+        cell_y = (i_cell % num_cells_per_collage //
                   args.num_cells_X) * (args.cell_height + gap)
-        logging.debug('i_entry: %d, cell_x: %d, cell_y: %d', i_entry, cell_x,
+        logging.debug('i_cell: %d, cell_x: %d, cell_y: %d', i_cell, cell_x,
                       cell_y)
 
-        assert cell_y + args.cell_height <= collage_Y, i_entry
-        assert cell_x + args.cell_width <= collage_X, i_entry
+        assert cell_y + args.cell_height <= collage_Y, i_cell
+        assert cell_x + args.cell_width <= collage_X, i_cell
         collage[cell_y:cell_y + args.cell_height,
                 cell_x:cell_x + args.cell_width] = crop
 
@@ -466,7 +480,10 @@ def tileObjects(c, args):
                     (old_objectid, 'cropped', 'true'))
 
     # Record the last (partially filled) collage.
-    _recordCollage(c, collage, i_entry)
+    namehint = '%09d' % i_collage
+    if args.split_by_name:
+        namehint += '-%s' % previous_name
+    _recordCollage(c, collage, namehint)
 
     backendDb.dropRetiredTables(c)
     imwriter.close()
