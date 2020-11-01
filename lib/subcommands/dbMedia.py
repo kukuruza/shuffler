@@ -192,9 +192,12 @@ def cropObjects(c, args):
         'images.timestamp '
         'FROM objects_old AS objects '
         'INNER JOIN images_old AS images ON images.imagefile = objects.imagefile '
-        'WHERE (%s) ORDER BY objectid' % args.where_object)
+        'WHERE (%s) ORDER BY images.imagefile' % args.where_object)
     old_entries = c.fetchall()
     logging.debug(pformat(old_entries))
+
+    # Avoid unnecessary reloading the same image if imagefile = prev_imagefile.
+    prev_old_imagefile = None
 
     for old_objectid, old_imagefile, old_x1, old_y1, old_width, old_height, \
         name, score, old_maskfile, timestamp in progressbar(old_entries):
@@ -203,7 +206,8 @@ def cropObjects(c, args):
         old_roi = utilBoxes.bbox2roi((old_x1, old_y1, old_width, old_height))
 
         # Write image.
-        old_image = imreader.imread(old_imagefile)
+        if prev_old_imagefile != old_imagefile:
+            old_image = imreader.imread(old_imagefile)
         logging.debug('Cropping roi=%s from image of shape %s' %
                       (old_roi, old_image.shape))
         new_image, transform = utilBoxes.cropPatch(old_image, old_roi,
@@ -227,7 +231,8 @@ def cropObjects(c, args):
 
         # Write mask.
         if args.mask_path is not None and old_maskfile is not None:
-            old_mask = imreader.maskread(old_maskfile)
+            if prev_old_imagefile != old_imagefile:
+                old_mask = imreader.maskread(old_maskfile)
             new_mask, _ = utilBoxes.cropPatch(old_mask, old_roi, args.edges,
                                               args.target_height,
                                               args.target_width)
@@ -275,6 +280,8 @@ def cropObjects(c, args):
                 c.execute(
                     'INSERT INTO properties(objectid,key,value) VALUES (?,?,?)',
                     (old_objectid, 'cropped', 'true'))
+
+        prev_old_imagefile = prev_old_imagefile
 
     backendDb.dropRetiredTables(c)
     imwriter.close()
