@@ -14,12 +14,6 @@ from lib.backend import backendDb
 from lib.subcommands import dbFilter
 from lib.utils import testUtils
 
-# c = self.conn.cursor()
-# c.execute('INSERT INTO images(imagefile) VALUES ("image0")')
-# c.execute('INSERT INTO objects(imagefile,objectid,x1,y1,width,height) '
-#           'VALUES ("image0",0,40,20,40,20)')
-# c.execute('INSERT INTO polygons(objectid,x,y) VALUES (0,40,20)')
-
 
 class Test_filterObjectsInsideCertainObjects_SyntheticDb(unittest.TestCase):
     def setUp(self):
