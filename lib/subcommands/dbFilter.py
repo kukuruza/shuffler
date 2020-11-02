@@ -7,10 +7,9 @@ from glob import glob
 from pprint import pformat
 from progressbar import progressbar
 
-from lib.backend.backendDb import objectField, polygonField, deleteImage, deleteObject
 from lib.backend import backendDb
-from lib.backend.backendMedia import MediaReader
-from lib.utils.util import drawScoredRoi, drawScoredPolygon
+from lib.backend import backendMedia
+from lib.utils import util
 from lib.utils import utilBoxes
 
 
@@ -83,7 +82,7 @@ def filterImagesOfAnotherDb(c, args):
 
     # Delete.
     for imagefile_del in imagefiles_del:
-        deleteImage(c, imagefile_del)
+        backendDb.deleteImage(c, imagefile_del)
 
     # Get all the imagefiles from the main db.
     c.execute('SELECT COUNT(*) FROM images')
@@ -112,8 +111,8 @@ def filterObjectsAtBorderParser(subparsers):
 
 def filterObjectsAtBorder(c, args):
     def isPolygonAtBorder(polygon_entries, width, height, border_thresh_perc):
-        xs = [polygonField(p, 'x') for p in polygon_entries]
-        ys = [polygonField(p, 'y') for p in polygon_entries]
+        xs = [backendDb.polygonField(p, 'x') for p in polygon_entries]
+        ys = [backendDb.polygonField(p, 'y') for p in polygon_entries]
         border_thresh = (height + width) / 2 * border_thresh_perc
         dist_to_border = min(xs, [width - x for x in xs], ys,
                              [height - y for y in ys])
@@ -127,7 +126,7 @@ def filterObjectsAtBorder(c, args):
                    width + 1 - roi[3]) < border_thresh
 
     if args.with_display:
-        imreader = MediaReader(rootdir=args.rootdir)
+        imreader = backendMedia.MediaReader(rootdir=args.rootdir)
 
     # For the reference.
     c.execute('SELECT COUNT(1) FROM objects')
@@ -152,8 +151,8 @@ def filterObjectsAtBorder(c, args):
             for_deletion = False
 
             # Get all necessary entries.
-            objectid = objectField(object_entry, 'objectid')
-            roi = utilBoxes.bbox2roi(objectField(object_entry, 'bbox'))
+            objectid = backendDb.objectField(object_entry, 'objectid')
+            roi = backendDb.objectField(object_entry, 'roi')
             c.execute('SELECT * FROM polygons WHERE objectid=?', (objectid, ))
             polygon_entries = c.fetchall()
 
@@ -176,17 +175,20 @@ def filterObjectsAtBorder(c, args):
             # Draw polygon or roi.
             if args.with_display:
                 if len(polygon_entries) > 0:
-                    polygon = [(polygonField(p, 'x'), polygonField(p, 'y'))
+                    polygon = [(backendDb.polygonField(p, 'x'),
+                                backendDb.polygonField(p, 'y'))
                                for p in polygon_entries]
-                    drawScoredPolygon(image,
-                                      polygon,
-                                      score=(0 if for_deletion else 1))
+                    util.drawScoredPolygon(image,
+                                           polygon,
+                                           score=(0 if for_deletion else 1))
                 elif roi is not None:
-                    drawScoredRoi(image, roi, score=(0 if for_deletion else 1))
+                    util.drawScoredRoi(image,
+                                       roi,
+                                       score=(0 if for_deletion else 1))
 
             # Delete if necessary
             if for_deletion:
-                deleteObject(c, objectid)
+                backendDb.deleteObject(c, objectid)
 
         if args.with_display:
             cv2.imshow('filterObjectsAtBorder', image[:, :, ::-1])
@@ -229,7 +231,7 @@ def filterObjectsByIntersection(c, args):
         return dy * dx
 
     if args.with_display:
-        imreader = MediaReader(rootdir=args.rootdir)
+        imreader = backendMedia.MediaReader(rootdir=args.rootdir)
 
     c.execute('SELECT imagefile FROM images')
     for imagefile, in progressbar(c.fetchall()):
@@ -246,7 +248,7 @@ def filterObjectsByIntersection(c, args):
         for iobject1, object_entry1 in enumerate(object_entries):
 
             #roi1 = _expandCarBbox_(object_entry1, args)
-            roi1 = objectField(object_entry1, 'roi')
+            roi1 = backendDb.objectField(object_entry1, 'roi')
             if roi1 is None:
                 logging.error(
                     'No roi for objectid %d, intersection on polygons '
@@ -263,7 +265,7 @@ def filterObjectsByIntersection(c, args):
             for iobject2, object_entry2 in enumerate(object_entries):
                 if iobject2 == iobject1:
                     continue
-                roi2 = objectField(object_entry2, 'roi')
+                roi2 = backendDb.objectField(object_entry2, 'roi')
                 if roi2 is None:
                     continue
                 intersection = getRoiIntesection(roi1, roi2) / float(area1)
@@ -273,16 +275,16 @@ def filterObjectsByIntersection(c, args):
 
             if args.with_display:
                 image = imreader.imread(imagefile)
-                drawScoredRoi(image,
-                              roi1,
-                              score=(1 if good_objects[iobject1] else 0))
+                util.drawScoredRoi(image,
+                                   roi1,
+                                   score=(1 if good_objects[iobject1] else 0))
                 for iobject2, object_entry2 in enumerate(object_entries):
                     if iobject1 == iobject2:
                         continue
-                    roi2 = objectField(object_entry2, 'roi')
+                    roi2 = backendDb.objectField(object_entry2, 'roi')
                     if roi2 is None:
                         continue
-                    drawScoredRoi(image, roi2, score=0.5)
+                    util.drawScoredRoi(image, roi2, score=0.5)
                 cv2.imshow('filterObjectsByIntersection', image[:, :, ::-1])
                 key = cv2.waitKey(-1)
                 if key == 27:
@@ -291,7 +293,8 @@ def filterObjectsByIntersection(c, args):
 
         for object_entry, is_object_good in zip(object_entries, good_objects):
             if not is_object_good:
-                deleteObject(c, objectField(object_entry, 'objectid'))
+                backendDb.deleteObject(
+                    c, backendDb.objectField(object_entry, 'objectid'))
 
 
 def filterObjectsByNameParser(subparsers):
@@ -323,7 +326,7 @@ def filterObjectsByName(c, args):
     else:
         raise ValueError('"good_names" or "bad_names" must be specified.')
     for objectid, in progressbar(c.fetchall()):
-        deleteObject(c, objectid)
+        backendDb.deleteObject(c, objectid)
 
 
 def filterEmptyImagesParser(subparsers):
@@ -341,7 +344,7 @@ def filterEmptyImages(c, args):
     c.execute('SELECT imagefile FROM images WHERE (%s) AND imagefile NOT IN '
               '(SELECT imagefile FROM objects)' % args.where_image)
     for imagefile, in progressbar(c.fetchall()):
-        deleteImage(c, imagefile)
+        backendDb.deleteImage(c, imagefile)
 
 
 def filterObjectsByScoreParser(subparsers):
@@ -357,7 +360,7 @@ def filterObjectsByScore(c, args):
     c.execute('SELECT objectid FROM objects WHERE score < %f' %
               args.score_threshold)
     for objectid, in progressbar(c.fetchall()):
-        deleteObject(c, objectid)
+        backendDb.deleteObject(c, objectid)
 
 
 def filterObjectsInsideCertainObjectsParser(subparsers):
@@ -475,7 +478,7 @@ def filterObjectsSQL(c, args):
     objectids = c.fetchall()
     logging.info('Going to remove %d objects.' % len(objectids))
     for objectid, in progressbar(objectids):
-        deleteObject(c, objectid)
+        backendDb.deleteObject(c, objectid)
 
 
 def filterImagesSQLParser(subparsers):
@@ -497,7 +500,7 @@ def filterImagesSQL(c, args):
 
     imagefiles = c.fetchall()
     for imagefile, in progressbar(imagefiles):
-        deleteImage(c, imagefile)
+        backendDb.deleteImage(c, imagefile)
 
 
 def filterImagesByIdsParser(subparsers):
@@ -518,4 +521,4 @@ def filterImagesByIds(c, args):
     imagefiles = np.array(imagefiles)[np.array(args.ids)]
 
     for imagefile, in progressbar(imagefiles):
-        deleteImage(c, imagefile)
+        backendDb.deleteImage(c, imagefile)

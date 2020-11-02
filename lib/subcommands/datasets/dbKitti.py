@@ -9,9 +9,9 @@ import sqlite3
 from progressbar import progressbar
 from pprint import pformat
 
-from lib.backend.backendDb import objectField
-from lib.backend.backendMedia import MediaReader, getPictureSize
-from lib.utils.util import drawScoredRoi, drawMaskAside
+from lib.backend import backendDb
+from lib.backend import backendMedia
+from lib.utils import util
 
 
 def add_parsers(subparsers):
@@ -172,7 +172,7 @@ def importKittiParser(subparsers):
 
 def importKitti(c, args):
     if args.with_display:
-        imreader = MediaReader(args.rootdir)
+        imreader = backendMedia.MediaReader(args.rootdir)
 
     image_paths = sorted(glob(op.join(args.images_dir, '*.png')))
     logging.info('Found %d PNG images in %s' %
@@ -183,7 +183,7 @@ def importKitti(c, args):
         logging.debug('Processing image: "%s"' % filename)
 
         # Add image to the database.
-        imheight, imwidth = getPictureSize(image_path)
+        imheight, imwidth = backendMedia.getPictureSize(image_path)
         imagefile = op.relpath(image_path, args.rootdir)
         c.execute('INSERT INTO images(imagefile,width,height) VALUES (?,?,?)',
                   (imagefile, imwidth, imheight))
@@ -210,10 +210,10 @@ def importKitti(c, args):
                     c.execute('SELECT * FROM objects WHERE objectid=?',
                               (objectid, ))
                     object_entry = c.fetchone()
-                    name = objectField(object_entry, 'name')
-                    roi = objectField(object_entry, 'roi')
-                    score = objectField(object_entry, 'score')
-                    drawScoredRoi(img, roi, name, score=score)
+                    name = backendDb.objectField(object_entry, 'name')
+                    roi = backendDb.objectField(object_entry, 'roi')
+                    score = backendDb.objectField(object_entry, 'score')
+                    util.drawScoredRoi(img, roi, name, score=score)
 
         # Segmentation annotations.
         if args.segmentation_dir:
@@ -230,7 +230,7 @@ def importKitti(c, args):
 
             if args.with_display:
                 mask = imreader.maskread(maskfile)
-                img = drawMaskAside(img, mask, labelmap=None)
+                img = util.drawMaskAside(img, mask, labelmap=None)
 
         # Maybe display.
         if args.with_display:

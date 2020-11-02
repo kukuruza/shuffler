@@ -8,7 +8,7 @@ from progressbar import progressbar
 import simplejson as json
 import matplotlib.pyplot as plt  # for colormaps
 
-from lib.backend.backendDb import objectField
+from lib.backend import backendDb
 from lib.utils import utilBoxes
 
 FONT = cv2.FONT_HERSHEY_SIMPLEX
@@ -309,7 +309,7 @@ def bboxes2polygons(cursor, objectid):
     object_entry = cursor.fetchone()
     if object_entry is None:
         raise ValueError('Objectid %d does not exist.' % objectid)
-    y1, x1, y2, x2 = objectField(object_entry, 'roi')
+    y1, x1, y2, x2 = backendDb.objectField(object_entry, 'roi')
     for x, y in [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]:
         cursor.execute(
             'INSERT INTO polygons(objectid,x,y,name) VALUES (?,?,?,"bounding box")',
@@ -386,12 +386,13 @@ def getIntersectingObjects(objects1, objects2, IoU_threshold):
     for i1, object1 in enumerate(objects1):
         for i2, object2 in enumerate(objects2):
             # Do not merge an object with itself.
-            if objectField(object1,
-                           'objectid') == objectField(object2, 'objectid'):
+            objectid1 = backendDb.objectField(object1, 'objectid')
+            objectid2 = backendDb.objectField(object2, 'objectid')
+            if (objectid1 == objectid2):
                 pairwise_IoU[i1, i2] = np.inf
             else:
-                roi1 = objectField(object1, 'roi')
-                roi2 = objectField(object2, 'roi')
+                roi1 = backendDb.objectField(object1, 'roi')
+                roi2 = backendDb.objectField(object2, 'roi')
                 pairwise_IoU[i1, i2] = utilBoxes.getIoU(roi1, roi2)
     logging.debug('Pairwise_IoU is:\n%s' % pformat(pairwise_IoU))
 
@@ -408,11 +409,12 @@ def getIntersectingObjects(objects1, objects2, IoU_threshold):
         pairwise_IoU[i1, :] = 0.
         pairwise_IoU[:, i2] = 0.
         # Add a pair to the list.
-        objectid1 = objectField(objects1[i1], 'objectid')
-        objectid2 = objectField(objects2[i2], 'objectid')
+        objectid1 = backendDb.objectField(objects1[i1], 'objectid')
+        objectid2 = backendDb.objectField(objects2[i2], 'objectid')
         pairs_to_merge.append([objectid1, objectid2])
-        logging.debug('Will merge objects %d (%s) and %d (%s) with IoU %f.' %
-                      (objectid1, objectField(objects1[i1], 'name'), objectid2,
-                       objectField(objects2[i2], 'name'), IoU))
+        logging.debug(
+            'Will merge objects %d (%s) and %d (%s) with IoU %f.' %
+            (objectid1, backendDb.objectField(objects1[i1], 'name'), objectid2,
+             backendDb.objectField(objects2[i2], 'name'), IoU))
 
     return pairs_to_merge

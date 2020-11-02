@@ -9,8 +9,6 @@ from datetime import timedelta
 from math import sqrt
 import sqlite3
 
-from lib.backend.backendDb import imageField, objectField, polygonField, deleteImage, parseTimeString, makeTimeString
-from lib.backend.backendMedia import MediaReader, MediaWriter
 from lib.backend import backendMedia
 from lib.backend import backendDb
 from lib.utils import utilBoxes
@@ -70,8 +68,8 @@ def cropMedia(c, args):
 
     c.execute('SELECT * FROM images')
     for image_entry in progressbar(c.fetchall()):
-        imagefile = imageField(image_entry, 'imagefile')
-        maskfile = imageField(image_entry, 'maskfile')
+        imagefile = backendDb.imageField(image_entry, 'imagefile')
+        maskfile = backendDb.imageField(image_entry, 'maskfile')
 
         image = imreader.imread(imagefile)
         image = image[args.y1:args.y2, args.x1:args.x2, :]
@@ -547,7 +545,7 @@ def writeMediaParser(subparsers):
 
 
 def writeMedia(c, args):
-    imreader = MediaReader(rootdir=args.rootdir)
+    imreader = backendMedia.MediaReader(rootdir=args.rootdir)
 
     # For overlaying masks.
     labelmap = literal_eval(
@@ -556,11 +554,11 @@ def writeMedia(c, args):
 
     # Create a writer. Rootdir may be changed.
     out_rootdir = args.out_rootdir if args.out_rootdir is not None else args.rootdir
-    imwriter = MediaWriter(rootdir=out_rootdir,
-                           media_type=args.media,
-                           image_media=args.image_path,
-                           mask_media=args.mask_path,
-                           overwrite=args.overwrite)
+    imwriter = backendMedia.MediaWriter(rootdir=out_rootdir,
+                                        media_type=args.media,
+                                        image_media=args.image_path,
+                                        mask_media=args.mask_path,
+                                        overwrite=args.overwrite)
 
     c.execute(
         'SELECT imagefile,maskfile FROM images WHERE %s ORDER BY imagefile' %
@@ -570,7 +568,7 @@ def writeMedia(c, args):
     logging.info('Deleting entries which are not in "where_image".')
     c.execute('SELECT imagefile FROM images WHERE NOT %s' % args.where_image)
     for imagefile, in c.fetchall():
-        deleteImage(c, imagefile)
+        backendDb.deleteImage(c, imagefile)
 
     logging.info('Writing imagery and updating the database.')
     for imagefile, maskfile in progressbar(entries):
@@ -604,16 +602,17 @@ def writeMedia(c, args):
             object_entries = c.fetchall()
             logging.debug('Found %d objects' % len(object_entries))
             for object_entry in object_entries:
-                objectid = objectField(object_entry, 'objectid')
-                roi = objectField(object_entry, 'roi')
-                score = objectField(object_entry, 'score')
-                name = objectField(object_entry, 'name')
+                objectid = backendDb.objectField(object_entry, 'objectid')
+                roi = backendDb.objectField(object_entry, 'roi')
+                score = backendDb.objectField(object_entry, 'score')
+                name = backendDb.objectField(object_entry, 'name')
                 c.execute('SELECT * FROM polygons WHERE objectid=?',
                           (objectid, ))
                 polygon_entries = c.fetchall()
                 if len(polygon_entries) > 0:
                     logging.debug('showing object with a polygon.')
-                    polygon = [(polygonField(p, 'x'), polygonField(p, 'y'))
+                    polygon = [(backendDb.polygonField(p, 'x'),
+                                backendDb.polygonField(p, 'y'))
                                for p in polygon_entries]
                     util.drawScoredPolygon(image,
                                            polygon,
@@ -687,10 +686,10 @@ def polygonsToMaskParser(subparsers):
 
 
 def polygonsToMask(c, args):
-    imwriter = MediaWriter(media_type=args.media,
-                           rootdir=args.rootdir,
-                           mask_media=args.mask_path,
-                           overwrite=args.overwrite)
+    imwriter = backendMedia.MediaWriter(media_type=args.media,
+                                        rootdir=args.rootdir,
+                                        mask_media=args.mask_path,
+                                        overwrite=args.overwrite)
 
     # Iterate images.
     c.execute('SELECT imagefile,width,height FROM images')
@@ -735,7 +734,7 @@ def polygonsToMask(c, args):
                 c.execute('SELECT * FROM objects WHERE objectid=?',
                           (objectid, ))
                 object_entry = c.fetchone()
-                roi = objectField(object_entry, 'roi')
+                roi = backendDb.objectField(object_entry, 'roi')
                 cv2.rectangle(mask_per_object, (roi[1], roi[0]),
                               (roi[3], roi[2]),
                               255,
@@ -805,11 +804,11 @@ def writeMediaGridByTimeParser(subparsers):
 
 
 def writeMediaGridByTime(c, args):
-    imreader = MediaReader(rootdir=args.rootdir)
-    imwriter = MediaWriter(media_type=args.media,
-                           image_media=args.image_path,
-                           mask_media=args.mask_path,
-                           overwrite=args.overwrite)
+    imreader = backendMedia.MediaReader(rootdir=args.rootdir)
+    imwriter = backendMedia.MediaWriter(media_type=args.media,
+                                        image_media=args.image_path,
+                                        mask_media=args.mask_path,
+                                        overwrite=args.overwrite)
 
     if not args.imagedirs:
         c.execute(
@@ -836,7 +835,7 @@ def writeMediaGridByTime(c, args):
 
     c.execute('SELECT imagefile,timestamp FROM images')
     image_entries = c.fetchall()
-    image_entries = [(imagefile, parseTimeString(timestamp))
+    image_entries = [(imagefile, backendDb.parseTimeString(timestamp))
                      for imagefile, timestamp in image_entries]
     image_entries = sorted(image_entries, key=lambda x: x[1])
 
@@ -875,7 +874,7 @@ def writeMediaGridByTime(c, args):
             image = cv2.resize(image, dsize=(width, height))
             assert len(image.shape) == 3  # Now only color images.
             if args.with_timestamp:
-                util.drawTextOnImage(image, makeTimeString(in_time))
+                util.drawTextOnImage(image, backendDb.makeTimeString(in_time))
 
             # Lazy initialization.
             if 'grid' not in locals():
@@ -924,13 +923,13 @@ def repaintMask(c, args):
     labelmap = literal_eval(args.mask_mapping_dict)
     logging.info('Parsed mask_mapping_dict to %s' % pformat(labelmap))
 
-    imreader = MediaReader(rootdir=args.rootdir)
+    imreader = backendMedia.MediaReader(rootdir=args.rootdir)
 
     out_rootdir = args.out_rootdir if args.out_rootdir is not None else args.rootdir
-    imwriter = MediaWriter(rootdir=out_rootdir,
-                           media_type=args.media,
-                           mask_media=args.mask_path,
-                           overwrite=args.overwrite)
+    imwriter = backendMedia.MediaWriter(rootdir=out_rootdir,
+                                        media_type=args.media,
+                                        mask_media=args.mask_path,
+                                        overwrite=args.overwrite)
 
     # Iterate images.
     c.execute('SELECT maskfile FROM images')

@@ -4,9 +4,9 @@ import logging
 import cv2
 from scipy.cluster import hierarchy
 
-from lib.backend.backendDb import objectField
-from lib.backend.backendMedia import MediaReader
-from lib.subcommands.dbGui import KeyReader
+from lib.backend import backendDb
+from lib.backend import backendMedia
+from lib.subcommands import dbGui
 
 
 def add_parsers(subparsers):
@@ -41,8 +41,8 @@ def labelAzimuth(c, args):
 
     os.environ['SCENES_PATH'] = args.scenes_dir
 
-    imreader = MediaReader(rootdir=args.rootdir)
-    key_reader = KeyReader(args.key_dict)
+    imreader = backendMedia.MediaReader(rootdir=args.rootdir)
+    key_reader = dbGui.KeyReader(args.key_dict)
 
     c.execute('SELECT * FROM objects WHERE (%s)' % args.where_object)
     object_entries = c.fetchall()
@@ -72,10 +72,10 @@ def labelAzimuth(c, args):
             logging.info('Object %d out of %d' %
                          (index_object, len(object_entries)))
             object_entry = object_entries[index_object]
-            objectid = objectField(object_entry, 'objectid')
-            bbox = objectField(object_entry, 'bbox')
-            roi = objectField(object_entry, 'roi')
-            imagefile = objectField(object_entry, 'imagefile')
+            objectid = backendDb.objectField(object_entry, 'objectid')
+            bbox = backendDb.objectField(object_entry, 'bbox')
+            roi = backendDb.objectField(object_entry, 'roi')
+            imagefile = backendDb.objectField(object_entry, 'imagefile')
             # Update yaw inside the loop in case it was just assigned.
             c.execute(
                 'SELECT value FROM properties WHERE objectid=? AND key="yaw"',

@@ -11,7 +11,7 @@ from progressbar import progressbar
 from pprint import pformat
 import re
 
-from lib.backend.backendMedia import MediaReader, getPictureSize
+from lib.backend import backendMedia
 from lib.utils import util
 from lib.utils import utilBoxes
 
@@ -47,7 +47,7 @@ def importPascalVoc2012Parser(subparsers):
 
 def importPascalVoc2012(c, args):
     if args.with_display:
-        imreader = MediaReader(args.rootdir)
+        imreader = backendMedia.MediaReader(args.rootdir)
 
     image_paths = sorted(glob(op.join(args.pascal_dir, 'JPEGImages/*.jpg')))
     logging.info('Found %d JPG images in %s/JPEGImages', len(image_paths),
@@ -58,7 +58,7 @@ def importPascalVoc2012(c, args):
         logging.debug('Processing image: "%s"' % filename)
 
         # Add image to the database.
-        imheight, imwidth = getPictureSize(image_path)
+        imheight, imwidth = backendMedia.getPictureSize(image_path)
         imagefile = op.relpath(image_path, args.rootdir)
         c.execute('INSERT INTO images(imagefile,width,height) VALUES (?,?,?)',
                   (imagefile, imwidth, imheight))

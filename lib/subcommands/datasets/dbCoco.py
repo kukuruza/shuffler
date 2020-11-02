@@ -10,9 +10,8 @@ from progressbar import progressbar
 from pprint import pformat
 from datetime import datetime
 
-from lib.backend.backendDb import imageField, objectField, parseTimeString
-from lib.backend.backendMedia import MediaReader, getPictureSize
-from lib.utils.util import drawScoredPolygon, polygons2mask, polygons2bboxes
+from lib.backend import backendDb
+from lib.utils import util
 
 
 def add_parsers(subparsers):
@@ -129,15 +128,15 @@ def exportCoco(c, args):
     imageids = {}  # necessary to retrieve imageid by imagefile.
     c.execute('SELECT * FROM images')
     for imageid, image_entry in progressbar(enumerate(c.fetchall())):
-        imagefile = imageField(image_entry, 'imagefile')
-        width = imageField(image_entry, 'width')
-        height = imageField(image_entry, 'height')
-        timestamp = imageField(image_entry, 'timestamp')
+        imagefile = backendDb.imageField(image_entry, 'imagefile')
+        width = backendDb.imageField(image_entry, 'width')
+        height = backendDb.imageField(image_entry, 'height')
+        timestamp = backendDb.imageField(image_entry, 'timestamp')
         file_name = op.basename(imagefile)
         license = 1 if len(
             licenses) == 1 else None  # Only one license is supported.
         date_captured = datetime.strftime(
-            parseTimeString(timestamp),
+            backendDb.parseTimeString(timestamp),
             '%Y-%m-%d %H:%M:%S') if timestamp is not None else None
         # For reference in objects.
         imageids[imagefile] = imageid
@@ -195,12 +194,12 @@ def exportCoco(c, args):
                   categories_str)
     c.execute('SELECT * FROM objects WHERE name IN (%s)' % categories_str)
     for object_entry in progressbar(c.fetchall()):
-        objectid = objectField(object_entry, 'objectid')
-        name = objectField(object_entry, 'name')
-        imagefile = objectField(object_entry, 'imagefile')
-        bbox = objectField(object_entry, 'bbox')
+        objectid = backendDb.objectField(object_entry, 'objectid')
+        name = backendDb.objectField(object_entry, 'name')
+        imagefile = backendDb.objectField(object_entry, 'imagefile')
+        bbox = backendDb.objectField(object_entry, 'bbox')
         imageid = imageids[imagefile]
-        polygons2bboxes(c, objectid)  # Write proper bboxes.
+        util.polygons2bboxes(c, objectid)  # Write proper bboxes.
 
         # Get polygons.
         c.execute('SELECT DISTINCT(name) FROM polygons WHERE objectid=?',
@@ -222,7 +221,7 @@ def exportCoco(c, args):
             polygons_coco.append(polygon_coco)
 
         # Get area.
-        mask = polygons2mask(c, objectid)
+        mask = util.polygons2mask(c, objectid)
         area = np.count_nonzero(mask)
 
         annotations.append({

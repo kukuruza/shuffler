@@ -12,9 +12,9 @@ from pprint import pformat
 import re
 from datetime import datetime
 
-from lib.backend.backendDb import makeTimeString, parseTimeString, objectField, deleteObject
-from lib.backend.backendMedia import MediaReader, MediaWriter, getPictureSize
-from lib.utils.util import drawScoredPolygon, polygons2bboxes, bboxes2polygons
+from lib.backend import backendDb
+from lib.backend import backendMedia
+from lib.utils import util
 
 
 def add_parsers(subparsers):
@@ -59,7 +59,7 @@ def importLabelmeParser(subparsers):
 
 def importLabelme(c, args):
     if args.with_display:
-        imreader = MediaReader(args.rootdir)
+        imreader = backendMedia.MediaReader(args.rootdir)
 
     # Adding images.
     image_paths = (glob(op.join(args.images_dir, '*.jpg')) +
@@ -67,14 +67,14 @@ def importLabelme(c, args):
     logging.info('Adding %d images.' % len(image_paths))
     imagefiles = []
     for image_path in progressbar(image_paths):
-        height, width = getPictureSize(image_path)
+        height, width = backendMedia.getPictureSize(image_path)
         imagefile = op.relpath(op.abspath(image_path), args.rootdir)
-        timestamp = makeTimeString(datetime.now())
+        timestamp = backendDb.makeTimeString(datetime.now())
         if not args.replace:
-          c.execute(
-              'INSERT INTO images('
-              'imagefile, width, height, timestamp) VALUES (?,?,?,?)',
-              (imagefile, width, height, timestamp))
+            c.execute(
+                'INSERT INTO images('
+                'imagefile, width, height, timestamp) VALUES (?,?,?,?)',
+                (imagefile, width, height, timestamp))
         imagefiles.append(imagefile)
     logging.info('Found %d new imagefiles.' % len(imagefiles))
 
@@ -129,14 +129,16 @@ def importLabelme(c, args):
                 # If replace, expect the objectid to be there.
                 xml_objectid = int(object_.find('id').text)
                 c.execute('SELECT COUNT(1) FROM objects WHERE objectid=?',
-                          (xml_objectid,))
+                          (xml_objectid, ))
                 if not c.fetchone()[0]:
                     raise ValueError('"replace" is specified but objectid %d '
                                      'does not exist.' % xml_objectid)
-                c.execute('UPDATE objects SET name=?,x1=NULL,'
-                          'y1=NULL,width=NULL,height=NULL WHERE objectid=?',
-                          (name, xml_objectid))
-                c.execute('DELETE FROM polygons WHERE objectid=?', (xml_objectid,))
+                c.execute(
+                    'UPDATE objects SET name=?,x1=NULL,'
+                    'y1=NULL,width=NULL,height=NULL WHERE objectid=?',
+                    (name, xml_objectid))
+                c.execute('DELETE FROM polygons WHERE objectid=?',
+                          (xml_objectid, ))
                 objectid = xml_objectid
                 logging.info('Updated objectid %d.', objectid)
             else:
@@ -144,7 +146,7 @@ def importLabelme(c, args):
                           (imagefile, name))
                 objectid = c.lastrowid
                 logging.debug('Will assign a new objectid %d.', objectid)
-            
+
             for i in range(len(xs)):
                 c.execute('INSERT INTO polygons(objectid,x,y) VALUES (?,?,?);',
                           (objectid, xs[i], ys[i]))
@@ -162,11 +164,11 @@ def importLabelme(c, args):
                     'INSERT INTO properties(objectid,key,value) VALUES (?,?,?);',
                     (objectid, attrib.text.encode('utf-8'), 'true'))
 
-            polygons2bboxes(c, objectid)  # Generate a bounding box.
+            util.polygons2bboxes(c, objectid)  # Generate a bounding box.
 
             if args.with_display:
                 pts = np.array([xs, ys], dtype=np.int32).transpose()
-                drawScoredPolygon(img, pts, name, score=1)
+                util.drawScoredPolygon(img, pts, name, score=1)
 
         if args.with_display:
             cv2.imshow('importLabelmeImages', img[:, :, ::-1])
@@ -195,7 +197,7 @@ def importLabelmeObjectsParser(subparsers):
 
 def importLabelmeObjects(c, args):
     if args.with_display:
-        imreader = MediaReader(rootdir=args.rootdir)
+        imreader = backendMedia.MediaReader(rootdir=args.rootdir)
 
     annotations_paths = os.listdir(args.annotations_dir)
 
@@ -267,7 +269,7 @@ def importLabelmeObjects(c, args):
         if args.with_display:
             img = imreader.imread(imagefile)
             pts = np.array([xs, ys], dtype=np.int32).transpose()
-            drawScoredPolygon(img, pts, name, score=1)
+            util.drawScoredPolygon(img, pts, name, score=1)
             cv2.imshow('importLabelmeObjects', img[:, :, ::-1])
             if cv2.waitKey(-1) == 27:
                 args.with_display = False
@@ -310,11 +312,11 @@ def exportLabelme(c, args):
         os.makedirs(args.annotations_dir)
 
     if args.images_dir is not None:
-        imreader = MediaReader(rootdir=args.rootdir)
-        imwriter = MediaWriter(media_type='pictures',
-                               rootdir=args.rootdir,
-                               image_media=args.images_dir,
-                               overwrite=args.overwrite)
+        imreader = backendMedia.MediaReader(rootdir=args.rootdir)
+        imwriter = backendMedia.MediaWriter(media_type='pictures',
+                                            rootdir=args.rootdir,
+                                            image_media=args.images_dir,
+                                            overwrite=args.overwrite)
 
     c.execute('SELECT imagefile,height,width,timestamp FROM images')
     for imagefile, imheight, imwidth, timestamp in progressbar(c.fetchall()):
@@ -332,13 +334,13 @@ def exportLabelme(c, args):
         ET.SubElement(el_imagesize, 'nrows').text = str(imheight)
         ET.SubElement(el_imagesize, 'ncols').text = str(imwidth)
 
-        time = parseTimeString(timestamp)
+        time = backendDb.parseTimeString(timestamp)
         timestamp = datetime.strftime(time, '%Y-%m-%d %H:%M:%S')
 
         c.execute('SELECT * FROM objects WHERE imagefile=?', (imagefile, ))
         for object_entry in c.fetchall():
-            objectid = objectField(object_entry, 'objectid')
-            name = objectField(object_entry, 'name')
+            objectid = backendDb.objectField(object_entry, 'objectid')
+            name = backendDb.objectField(object_entry, 'name')
             c.execute(
                 'SELECT value FROM properties '
                 'WHERE objectid = ? AND key = "occluded"', (objectid, ))
@@ -348,7 +350,7 @@ def exportLabelme(c, args):
             occluded = 'yes' if occluded is not None and occluded == 'true' else 'no'
 
             # In case bboxes were not recorded as polygons.
-            bboxes2polygons(c, objectid)
+            util.bboxes2polygons(c, objectid)
 
             el_object = ET.SubElement(el_root, "object")
             ET.SubElement(el_object,

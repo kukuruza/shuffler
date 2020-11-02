@@ -9,9 +9,9 @@ import sqlite3
 from progressbar import progressbar
 from pprint import pformat
 
-from lib.backend.backendDb import objectField
-from lib.backend.backendMedia import MediaReader, getPictureSize
-from lib.utils.util import drawScoredPolygon
+from lib.backend import backendDb
+from lib.backend import backendMedia
+from lib.utils import util
 
 
 def add_parsers(subparsers):
@@ -79,7 +79,7 @@ def importCityscapesParser(subparsers):
 
 def importCityscapes(c, args):
     if args.with_display:
-        imreader = MediaReader(args.rootdir)
+        imreader = backendMedia.MediaReader(args.rootdir)
 
     logging.info('Will load splits: %s' % args.splits)
     logging.info('Will load json type: %s' % args.type)
@@ -137,7 +137,7 @@ def importCityscapes(c, args):
                     raise Exception('The last part of name of image "%s" '
                                     'is expected to be city "leftImg8bit".' %
                                     image_name)
-                imheight, imwidth = getPictureSize(image_path)
+                imheight, imwidth = backendMedia.getPictureSize(image_path)
                 imagefile = op.relpath(image_path, args.rootdir)
                 c.execute(
                     'INSERT INTO images(imagefile,width,height) VALUES (?,?,?)',
@@ -177,8 +177,8 @@ def importCityscapes(c, args):
                         c.execute('SELECT x,y FROM polygons WHERE objectid=?',
                                   (objectid, ))
                         polygon = c.fetchall()
-                        drawScoredPolygon(img, [(int(pt[0]), int(pt[1]))
-                                                for pt in polygon], name)
+                        util.drawScoredPolygon(img, [(int(pt[0]), int(pt[1]))
+                                                     for pt in polygon], name)
                     cv2.imshow('importCityscapes', img[:, :, ::-1])
                     if cv2.waitKey(-1) == 27:
                         args.with_display = False
@@ -223,8 +223,8 @@ def _exportLabel(c, out_path_noext, imagefile):
 
     c.execute('SELECT * FROM objects WHERE imagefile=?', (imagefile, ))
     for object_ in c.fetchall():
-        objectid = objectField(object_, 'objectid')
-        name = objectField(object_, 'name')
+        objectid = backendDb.objectField(object_, 'objectid')
+        name = backendDb.objectField(object_, 'name')
 
         # Polygon = [[x1, y1], [x2, y2], ...].
         # Check if the object has a polygon.
@@ -232,7 +232,7 @@ def _exportLabel(c, out_path_noext, imagefile):
         polygon = c.fetchall()
         if len(polygon) == 0:
             # If there is no polygon, make one from bounding box.
-            [y1, x1, y2, x2] = objectField(object_, 'roi')
+            [y1, x1, y2, x2] = backendDb.objectField(object_, 'roi')
             polygon = [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]
             color = (255, )
             cv2.rectangle(mask, (x1, y1), (x2, y2), color, -1)

@@ -10,8 +10,7 @@ import sqlite3
 from progressbar import progressbar
 from pprint import pformat
 
-from lib.backend.backendDb import objectField
-from lib.backend.backendMedia import MediaReader, getPictureSize
+from lib.backend import backendMedia
 from lib.utils import util
 from lib.utils import utilBoxes
 
@@ -36,7 +35,7 @@ def importDetracParser(subparsers):
 
 def importDetrac(c, args):
     if args.with_display:
-        imreader = MediaReader(args.rootdir)
+        imreader = backendMedia.MediaReader(args.rootdir)
 
     video_dirs = sorted(glob(op.join(args.videos_dir, 'MVI_?????')))
     logging.info('Found %d videos in %s' % (len(video_dirs), args.videos_dir))
@@ -53,7 +52,7 @@ def importDetrac(c, args):
                 raise FileNotFoundError('Image file not found at "%s".' %
                                         image_path)
 
-            imheight, imwidth = getPictureSize(image_path)
+            imheight, imwidth = backendMedia.getPictureSize(image_path)
             imagefile = op.relpath(image_path, args.rootdir)
             logging.debug(
                 'Parsed image into imagefile=%s, width=%s, height=%s' %

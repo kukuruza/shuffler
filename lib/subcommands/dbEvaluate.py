@@ -11,9 +11,8 @@ from matplotlib import pyplot as plt
 from pprint import pformat
 
 from lib.backend import backendDb
-from lib.backend.backendDb import objectField
-from lib.backend.backendMedia import MediaReader
-from lib.utils.util import applyLabelMappingToMask
+from lib.backend import backendMedia
+from lib.utils import util
 
 
 def add_parsers(subparsers):
@@ -60,17 +59,21 @@ def _evaluateDetectionForClassPascal(c, c_gt, name, args):
     # go through each detection
     for idet, entry_det in enumerate(entries_det):
 
-        bbox_det = np.array(objectField(entry_det, 'bbox'), dtype=float)
-        imagefile = objectField(entry_det, 'imagefile')
-        name = objectField(entry_det, 'name')
+        bbox_det = np.array(backendDb.objectField(entry_det, 'bbox'),
+                            dtype=float)
+        imagefile = backendDb.objectField(entry_det, 'imagefile')
+        name = backendDb.objectField(entry_det, 'name')
 
         # get all GT boxes from the same imagefile [of the same class]
         c_gt.execute('SELECT * FROM objects WHERE imagefile=? AND name=?',
                      (imagefile, name))
         entries_gt = c_gt.fetchall()
-        objectids_gt = [objectField(entry, 'objectid') for entry in entries_gt]
+        objectids_gt = [
+            backendDb.objectField(entry, 'objectid') for entry in entries_gt
+        ]
         bboxes_gt = np.array(
-            [objectField(entry, 'bbox') for entry in entries_gt], dtype=float)
+            [backendDb.objectField(entry, 'bbox') for entry in entries_gt],
+            dtype=float)
 
         # separately manage no GT boxes
         if bboxes_gt.size == 0:
@@ -105,7 +108,7 @@ def _evaluateDetectionForClassPascal(c, c_gt, name, args):
             args.where_object_gt, (imagefile, name))
         entries_gt = c_gt.fetchall()
         objectids_gt_of_interest = [
-            objectField(entry, 'objectid') for entry in entries_gt
+            backendDb.objectField(entry, 'objectid') for entry in entries_gt
         ]
 
         # if 1) large enough IoU and
@@ -221,7 +224,7 @@ def _evaluateDetectionForClassSklearn(c, c_gt, name, args, sklearn):
             args.where_object_gt, (imagefile, name))
         entries_gt = c_gt.fetchall()
         objectids_gt_of_interest = [
-            objectField(entry, 'objectid') for entry in entries_gt
+            backendDb.objectField(entry, 'objectid') for entry in entries_gt
         ]
 
         # Compute TP and FP. An object is a TP if:
@@ -515,7 +518,7 @@ def evaluateSegmentationIoU(c, args):
         len(entries))
     logging.debug(pformat(entries))
 
-    imreader = MediaReader(rootdir=args.rootdir)
+    imreader = backendMedia.MediaReader(rootdir=args.rootdir)
 
     labelmap_gt, labelmap_pr, class_names = _label2classMapping(
         args.gt_mapping_dict, args.pred_mapping_dict)
@@ -530,10 +533,10 @@ def evaluateSegmentationIoU(c, args):
     for imagefile, maskfile_pr, maskfile_gt in progressbar(entries):
 
         # Load masks and bring them to comparable form.
-        mask_gt = applyLabelMappingToMask(imreader.maskread(maskfile_gt),
-                                          labelmap_gt)
-        mask_pr = applyLabelMappingToMask(imreader.maskread(maskfile_pr),
-                                          labelmap_pr)
+        mask_gt = util.applyLabelMappingToMask(imreader.maskread(maskfile_gt),
+                                               labelmap_gt)
+        mask_pr = util.applyLabelMappingToMask(imreader.maskread(maskfile_pr),
+                                               labelmap_pr)
         mask_pr = cv2.resize(mask_pr, (mask_gt.shape[1], mask_gt.shape[0]),
                              interpolation=cv2.INTER_NEAREST)
 
@@ -682,7 +685,7 @@ def evaluateBinarySegmentation(c, args):
         len(entries))
     logging.debug(pformat(entries))
 
-    imreader = MediaReader(rootdir=args.rootdir)
+    imreader = backendMedia.MediaReader(rootdir=args.rootdir)
 
     TPs = np.zeros((256, ), dtype=int)
     TNs = np.zeros((256, ), dtype=int)

@@ -13,8 +13,6 @@ from progressbar import progressbar
 from ast import literal_eval
 
 from lib.backend import backendDb
-from lib.backend.backendDb import makeTimeString, deleteImage, deleteObject, objectField, createDb, imageField
-from lib.backend.backendMedia import getPictureSize, MediaReader
 from lib.utils import util
 from lib.utils import utilBoxes
 
@@ -144,7 +142,7 @@ def addVideo(c, args):
         imagefile = op.join(image_video_rel_path, '%06d' % iframe)
         maskfile = op.join(mask_video_rel_path, '%06d' %
                            iframe) if args.mask_video_path else None
-        timestamp = makeTimeString(datetime.now())
+        timestamp = backendDb.makeTimeString(datetime.now())
         c.execute(
             'INSERT INTO images('
             'imagefile, width, height, maskfile, timestamp) VALUES (?,?,?,?,?)',
@@ -218,11 +216,11 @@ def addPictures(c, args):
                           args.width_hint, args.height_hint)
             height, width = args.height_hint, args.width_hint
         else:
-            height, width = getPictureSize(image_path)
+            height, width = backendMedia.getPictureSize(image_path)
         imagefile = op.relpath(op.abspath(image_path), args.rootdir)
         maskfile = op.relpath(op.abspath(mask_path),
                               args.rootdir) if mask_path else None
-        timestamp = makeTimeString(datetime.now())
+        timestamp = backendDb.makeTimeString(datetime.now())
         c.execute(
             'INSERT INTO images('
             'imagefile, width, height, maskfile, timestamp) VALUES (?,?,?,?,?)',
@@ -246,7 +244,7 @@ def headImages(c, args):
         return
 
     for imagefile, in imagefiles[args.n:]:
-        deleteImage(c, imagefile)
+        backendDb.deleteImage(c, imagefile)
 
 
 def tailImagesParser(subparsers):
@@ -266,7 +264,7 @@ def tailImages(c, args):
         return
 
     for imagefile, in imagefiles[:-args.n]:
-        deleteImage(c, imagefile)
+        backendDb.deleteImage(c, imagefile)
 
 
 def randomNImagesParser(subparsers):
@@ -289,7 +287,7 @@ def randomNImages(c, args):
         return
 
     for imagefile, in imagefiles[args.n:]:
-        deleteImage(c, imagefile)
+        backendDb.deleteImage(c, imagefile)
 
 
 def expandObjectsParser(subparsers):
@@ -312,7 +310,7 @@ def expandObjectsParser(subparsers):
 
 def expandObjects(c, args):
     if args.with_display:
-        imreader = MediaReader(rootdir=args.rootdir)
+        imreader = backendMedia.MediaReader(rootdir=args.rootdir)
 
     c.execute('SELECT imagefile FROM images')
     for (imagefile, ) in progressbar(c.fetchall()):
@@ -326,8 +324,8 @@ def expandObjects(c, args):
             image = imreader.imread(imagefile)
 
         for object_entry in object_entries:
-            objectid = objectField(object_entry, 'objectid')
-            old_roi = objectField(object_entry, 'roi')
+            objectid = backendDb.objectField(object_entry, 'objectid')
+            old_roi = backendDb.objectField(object_entry, 'roi')
             c.execute('SELECT * FROM polygons WHERE objectid=?', (objectid, ))
             old_polygon = c.fetchall()
 
@@ -348,16 +346,22 @@ def expandObjects(c, args):
                     logging.debug('Roi changed from %s to %s for object %d',
                                   str(old_roi), str(roi), objectid)
                 if len(old_polygon):
-                    ids = [backendDb.polygonField(p, 'id') for p in old_polygon]
-                    old_xs = [backendDb.polygonField(p, 'x') for p in old_polygon]
-                    old_ys = [backendDb.polygonField(p, 'y') for p in old_polygon]
+                    ids = [
+                        backendDb.polygonField(p, 'id') for p in old_polygon
+                    ]
+                    old_xs = [
+                        backendDb.polygonField(p, 'x') for p in old_polygon
+                    ]
+                    old_ys = [
+                        backendDb.polygonField(p, 'y') for p in old_polygon
+                    ]
                     xs, ys = utilBoxes.expandPolygon(
                         old_xs, old_ys, (args.expand_perc, args.expand_perc))
                     polygon = zip(ids, xs, ys)
                     logging.debug(
                         'Polygon changed from %s to %s for object %d',
-                        str(list(zip(old_xs, old_ys))),
-                        str(list(zip(xs, ys))), objectid)
+                        str(list(zip(old_xs, old_ys))), str(list(zip(xs, ys))),
+                        objectid)
 
             # Update the database.
             if old_roi is not None:
@@ -462,7 +466,7 @@ def moveMedia(c, args):
                 c.execute('SELECT height, width FROM images WHERE imagefile=?',
                           (newfile, ))
                 oldheight, oldwidth = c.fetchone()
-                newheight, newwidth = getPictureSize(newpath)
+                newheight, newwidth = backendMedia.getPictureSize(newpath)
                 if newheight != oldheight or newwidth != oldwidth:
                     logging.info(
                         'Scaling annotations in "%s" from %dx%d to %dx%d.',
@@ -590,7 +594,7 @@ def addDb(c, args):
     c_add.execute('SELECT * FROM objects')
     logging.info('Copying objects.')
     for object_entry_add in progressbar(c_add.fetchall()):
-        objectid_add = objectField(object_entry_add, 'objectid')
+        objectid_add = backendDb.objectField(object_entry_add, 'objectid')
 
         # Copy objects.
         c.execute(
@@ -654,7 +658,7 @@ def subtractDb(c, args):
         c.execute('SELECT COUNT(1) FROM images WHERE imagefile=?;',
                   (imagefile, ))
         if c.fetchone()[0] != 0:
-            deleteImage(c, imagefile)
+            backendDb.deleteImage(c, imagefile)
 
 
 def splitDbParser(subparsers):
@@ -710,7 +714,7 @@ def splitDb(c, args):
         if op.exists(db_out_path):
             os.remove(db_out_path)
         conn_out = sqlite3.connect(db_out_path)
-        createDb(conn_out)
+        backendDb.createDb(conn_out)
         c_out = conn_out.cursor()
 
         for imagefile, in imagefiles[current:next]:
@@ -891,7 +895,7 @@ def mergeIntersectingObjectsParser(subparsers):
 def mergeIntersectingObjects(c, args):
 
     if args.with_display:
-        imreader = MediaReader(rootdir=args.rootdir)
+        imreader = backendMedia.MediaReader(rootdir=args.rootdir)
 
     # Make polygons if necessary
     logging.info('Syncing bboxes and polygons.')
@@ -924,9 +928,9 @@ def mergeIntersectingObjects(c, args):
         for objectid1, objectid2 in pairs_to_merge:
             # Get rois.
             c.execute('SELECT * WHERE objectid=?', objectid1)
-            old_roi1 = objectField(c.fetchone(), 'roi')
+            old_roi1 = backendDb.objectField(c.fetchone(), 'roi')
             c.execute('SELECT * WHERE objectid=?', objectid2)
-            old_roi2 = objectField(c.fetchone(), 'roi')
+            old_roi2 = backendDb.objectField(c.fetchone(), 'roi')
 
             if args.with_display:
                 util.drawScoredRoi(image, old_roi1, score=0)
@@ -943,7 +947,7 @@ def mergeIntersectingObjects(c, args):
 
             c.execute('SELECT * FROM objects WHERE objectid=?',
                       (new_objectid, ))
-            new_roi = objectField(c.fetchone(), 'roi')
+            new_roi = backendDb.objectField(c.fetchone(), 'roi')
             logging.info('Merged ROIs %s and %s to make one %s' %
                          (old_roi1, old_roi2, new_roi))
 
@@ -1084,7 +1088,7 @@ def renameObjects(c, args):
         other_objectids = c.fetchall()
         logging.info('Will delete %d objects with names not in the map.')
         for objectid, in other_objectids:
-            deleteObject(c, objectid)
+            backendDb.deleteObject(c, objectid)
 
     # Remap the rest.
     for key, value in namesmap.items():

@@ -6,11 +6,9 @@ from ast import literal_eval
 from pprint import pformat
 import imageio
 
-from lib.utils.util import drawTextOnImage, drawMaskOnImage, drawMaskAside
-from lib.utils.util import drawScoredRoi, drawScoredPolygon
-from lib.utils.util import FONT, SCALE, FONT_SIZE, THICKNESS
-from lib.backend.backendDb import deleteImage, deleteObject, imageField, objectField, polygonField
-from lib.backend.backendMedia import MediaReader, normalizeSeparators
+from lib.utils import util
+from lib.backend import backendDb
+from lib.backend import backendMedia
 
 
 def add_parsers(subparsers):
@@ -130,7 +128,7 @@ def examineImages(c, args):
     if args.snapshot_dir and not op.exists(args.snapshot_dir):
         os.makedirs(args.snapshot_dir)
 
-    imreader = MediaReader(rootdir=args.rootdir)
+    imreader = backendMedia.MediaReader(rootdir=args.rootdir)
 
     # For parsing keys.
     key_reader = KeyReader(args.key_dict)
@@ -145,10 +143,10 @@ def examineImages(c, args):
     while True:  # Until a user hits the key for the "exit" action.
 
         image_entry = image_entries[index_image]
-        imagefile = imageField(image_entry, 'imagefile')
-        maskfile = imageField(image_entry, 'maskfile')
-        imname = (imageField(image_entry, 'name'))
-        imscore = (imageField(image_entry, 'score'))
+        imagefile = backendDb.imageField(image_entry, 'imagefile')
+        maskfile = backendDb.imageField(image_entry, 'maskfile')
+        imname = backendDb.imageField(image_entry, 'name')
+        imscore = backendDb.imageField(image_entry, 'score')
         logging.info('Imagefile "%s"' % imagefile)
         logging.debug('Image name="%s", score=%s' % (imname, imscore))
         image = imreader.imread(imagefile)
@@ -157,12 +155,12 @@ def examineImages(c, args):
         if maskfile is not None:
             mask = imreader.maskread(maskfile)
             if args.mask_aside:
-                image = drawMaskAside(image, mask, labelmap=labelmap)
+                image = util.drawMaskAside(image, mask, labelmap=labelmap)
             elif args.mask_alpha is not None:
-                image = drawMaskOnImage(image,
-                                        mask,
-                                        alpha=args.mask_alpha,
-                                        labelmap=labelmap)
+                image = util.drawMaskOnImage(image,
+                                             mask,
+                                             alpha=args.mask_alpha,
+                                             labelmap=labelmap)
         else:
             logging.info('No mask for this image.')
 
@@ -173,10 +171,10 @@ def examineImages(c, args):
             logging.info('Found %d objects for image %s' %
                          (len(object_entries), imagefile))
             for object_entry in object_entries:
-                objectid = objectField(object_entry, 'objectid')
-                roi = objectField(object_entry, 'roi')
-                score = objectField(object_entry, 'score')
-                name = objectField(object_entry, 'name')
+                objectid = backendDb.objectField(object_entry, 'objectid')
+                roi = backendDb.objectField(object_entry, 'roi')
+                score = backendDb.objectField(object_entry, 'score')
+                name = backendDb.objectField(object_entry, 'name')
                 logging.info('objectid: %d, roi: %s, score: %s, name: %s' %
                              (objectid, roi, score, name))
                 c.execute('SELECT * FROM polygons WHERE objectid=?',
@@ -184,13 +182,16 @@ def examineImages(c, args):
                 polygon_entries = c.fetchall()
                 if len(polygon_entries) > 0:
                     logging.info('showing object with a polygon.')
-                    polygon = [(int(polygonField(p, 'x')),
-                                int(polygonField(p, 'y')))
+                    polygon = [(int(backendDb.polygonField(p, 'x')),
+                                int(backendDb.polygonField(p, 'y')))
                                for p in polygon_entries]
-                    drawScoredPolygon(image, polygon, label=name, score=score)
+                    util.drawScoredPolygon(image,
+                                           polygon,
+                                           label=name,
+                                           score=score)
                 elif roi is not None:
                     logging.info('showing object with a bounding box.')
-                    drawScoredRoi(image, roi, label=name, score=score)
+                    util.drawScoredRoi(image, roi, label=name, score=score)
                 else:
                     logging.warning(
                         'Neither polygon, nor bbox is available for objectid %d'
@@ -201,12 +202,13 @@ def examineImages(c, args):
         scaled_image = cv2.resize(image, dsize=(0, 0), fx=scale, fy=scale)
         # Overlay imagefile.
         if args.with_imagefile:
-            drawTextOnImage(scaled_image,
-                            op.basename(normalizeSeparators(imagefile)))
+            util.drawTextOnImage(
+                scaled_image,
+                op.basename(backendMedia.normalizeSeparators(imagefile)))
         # Overlay score.
         # TODO: add y offset, if necessary
         if args.with_score:
-            drawTextOnImage(scaled_image, '%.3f' % imscore)
+            util.drawTextOnImage(scaled_image, '%.3f' % imscore)
         # Display
         cv2.imshow('examineImages', scaled_image[:, :, ::-1])
         action = key_reader.parse(cv2.waitKey(-1))
@@ -224,7 +226,7 @@ def examineImages(c, args):
                     'The user pressed a snapshot key, but snapshot_dir is not '
                     'specified. Will not write a snapshot.')
         elif action == 'delete':
-            deleteImage(c, imagefile)
+            backendDb.deleteImage(c, imagefile)
             del image_entries[index_image]
             if len(image_entries) == 0:
                 logging.warning('Deleted the last image.')
@@ -281,7 +283,7 @@ def examineObjects(c, args):
     if args.shuffle:
         np.random.shuffle(image_entries)
 
-    imreader = MediaReader(rootdir=args.rootdir)
+    imreader = backendMedia.MediaReader(rootdir=args.rootdir)
 
     # For parsing keys.
     key_reader = KeyReader(args.key_dict)
@@ -309,10 +311,10 @@ def examineObjects(c, args):
         if len(object_entries) > 0:
             assert index_object < len(object_entries)
             object_entry = object_entries[index_object]
-            objectid = objectField(object_entry, 'objectid')
-            roi = objectField(object_entry, 'roi')
-            score = objectField(object_entry, 'score')
-            name = objectField(object_entry, 'name')
+            objectid = backendDb.objectField(object_entry, 'objectid')
+            roi = backendDb.objectField(object_entry, 'roi')
+            score = backendDb.objectField(object_entry, 'score')
+            name = backendDb.objectField(object_entry, 'name')
             scaledroi = [int(scale * r)
                          for r in roi]  # For displaying the scaled image.
             logging.info('objectid: %d, roi: %s, score: %s, name: %s' %
@@ -321,16 +323,17 @@ def examineObjects(c, args):
             polygon_entries = c.fetchall()
             if len(polygon_entries) > 0:
                 logging.info('showing object with a polygon.')
-                polygon = [(polygonField(p, 'x'), polygonField(p, 'y'))
+                polygon = [(backendDb.polygonField(p, 'x'),
+                            backendDb.polygonField(p, 'y'))
                            for p in polygon_entries]
                 logging.debug('nonscaled polygon: %s' % pformat(polygon))
                 polygon = [(int(scale * x), int(scale * y))
                            for x, y in polygon]
                 logging.debug('scaled polygon: %s' % pformat(polygon))
-                drawScoredPolygon(image, polygon, label=None, score=score)
+                util.drawScoredPolygon(image, polygon, label=None, score=score)
             elif roi is not None:
                 logging.info('showing object with a bounding box.')
-                drawScoredRoi(image, scaledroi, label=None, score=score)
+                util.drawScoredRoi(image, scaledroi, label=None, score=score)
             else:
                 raise Exception(
                     'Neither polygon, nor bbox is available for objectid %d' %
@@ -344,13 +347,15 @@ def examineObjects(c, args):
                 properties.append(('score', score))
             for iproperty, (key, value) in enumerate(properties):
                 cv2.putText(image, '%s: %s' % (key, value),
-                            (scaledroi[3] + 10, scaledroi[0] - 10 + SCALE *
-                             (iproperty + 1)), FONT, FONT_SIZE, (0, 0, 0),
-                            THICKNESS)
+                            (scaledroi[3] + 10,
+                             scaledroi[0] - 10 + util.SCALE * (iproperty + 1)),
+                            util.FONT, util.FONT_SIZE, (0, 0, 0),
+                            util.THICKNESS)
                 cv2.putText(image, '%s: %s' % (key, value),
-                            (scaledroi[3] + 10, scaledroi[0] - 10 + SCALE *
-                             (iproperty + 1)), FONT, FONT_SIZE,
-                            (255, 255, 255), THICKNESS - 1)
+                            (scaledroi[3] + 10,
+                             scaledroi[0] - 10 + util.SCALE * (iproperty + 1)),
+                            util.FONT, util.FONT_SIZE, (255, 255, 255),
+                            util.THICKNESS - 1)
                 logging.info('objectid: %d. %s = %s.' % (objectid, key, value))
 
         # Display an image, wait for the key from user, and parse that key.
@@ -372,7 +377,7 @@ def examineObjects(c, args):
                 index_image += 1
                 index_object = 0
         elif action == 'delete' and len(object_entries) > 0:
-            deleteObject(c, objectid)
+            backendDb.deleteObject(c, objectid)
             del object_entries[index_object]
             if index_object >= len(object_entries):
                 index_image += 1
@@ -422,7 +427,7 @@ def labelObjects(c, args):
     if args.shuffle:
         np.random.shuffle(object_entries)
 
-    imreader = MediaReader(rootdir=args.rootdir)
+    imreader = backendMedia.MediaReader(rootdir=args.rootdir)
 
     # For parsing keys.
     key_reader = KeyReader(args.key_dict)
@@ -440,10 +445,10 @@ def labelObjects(c, args):
             logging.info('Object %d out of %d' %
                          (index_object, len(object_entries)))
             object_entry = object_entries[index_object]
-            objectid = objectField(object_entry, 'objectid')
-            bbox = objectField(object_entry, 'bbox')
-            roi = objectField(object_entry, 'roi')
-            imagefile = objectField(object_entry, 'imagefile')
+            objectid = backendDb.objectField(object_entry, 'objectid')
+            bbox = backendDb.objectField(object_entry, 'bbox')
+            roi = backendDb.objectField(object_entry, 'roi')
+            imagefile = backendDb.objectField(object_entry, 'imagefile')
             logging.info('imagefile: %s' % imagefile)
             image = imreader.imread(imagefile)
 
@@ -458,20 +463,21 @@ def labelObjects(c, args):
             polygon_entries = c.fetchall()
             if len(polygon_entries) > 0:
                 logging.info('showing object with a polygon.')
-                polygon = [(polygonField(p, 'x'), polygonField(p, 'y'))
+                polygon = [(backendDb.polygonField(p, 'x'),
+                            backendDb.polygonField(p, 'y'))
                            for p in polygon_entries]
                 logging.debug('nonscaled polygon: %s' % pformat(polygon))
                 polygon = [(int(scale * p[0]), int(scale * p[1]))
                            for p in polygon]
                 logging.debug('scaled polygon: %s' % pformat(polygon))
-                drawScoredPolygon(image, polygon, label=None, score=None)
+                util.drawScoredPolygon(image, polygon, label=None, score=None)
             elif roi is not None:
                 logging.info('showing object with a bounding box.')
                 logging.debug('nonscaled roi: %s' % pformat(roi))
                 roi = [int(scale * r)
                        for r in roi]  # For displaying the scaled image.
                 logging.debug('scaled roi: %s' % pformat(roi))
-                drawScoredRoi(image, roi, label=None, score=None)
+                util.drawScoredRoi(image, roi, label=None, score=None)
             else:
                 raise Exception(
                     'Neither polygon, nor bbox is available for objectid %d' %
@@ -492,11 +498,12 @@ def labelObjects(c, args):
 
             for iproperty, (key, value) in enumerate(properties):
                 cv2.putText(image, '%s: %s' % (key, value),
-                            (10, SCALE * (iproperty + 1)), FONT, FONT_SIZE,
-                            (0, 0, 0), THICKNESS)
+                            (10, util.SCALE * (iproperty + 1)), util.FONT,
+                            util.FONT_SIZE, (0, 0, 0), util.THICKNESS)
                 cv2.putText(image, '%s: %s' % (key, value),
-                            (10, SCALE * (iproperty + 1)), FONT, FONT_SIZE,
-                            (255, 255, 255), THICKNESS - 1)
+                            (10, util.SCALE * (iproperty + 1)), util.FONT,
+                            util.FONT_SIZE, (255, 255, 255),
+                            util.THICKNESS - 1)
                 logging.info('objectid: %d. %s = %s.' % (objectid, key, value))
 
         cv2.imshow('labelObjects', image[:, :, ::-1])
@@ -563,7 +570,7 @@ def examineMatches(c, args):
     if args.shuffle:
         np.random.shuffle(match_entries)
 
-    imreader = MediaReader(rootdir=args.rootdir)
+    imreader = backendMedia.MediaReader(rootdir=args.rootdir)
 
     # For parsing keys.
     key_reader = KeyReader(args.key_dict)
@@ -583,13 +590,13 @@ def examineMatches(c, args):
 
         images = []
         for object_entry in object_entries:
-            imagefile = objectField(object_entry, 'imagefile')
-            objectid = objectField(object_entry, 'objectid')
-            roi = objectField(object_entry, 'roi')
-            score = objectField(object_entry, 'score')
+            imagefile = backendDb.objectField(object_entry, 'imagefile')
+            objectid = backendDb.objectField(object_entry, 'objectid')
+            roi = backendDb.objectField(object_entry, 'roi')
+            score = backendDb.objectField(object_entry, 'score')
 
             image = imreader.imread(imagefile)
-            drawScoredRoi(image, roi, score=score)
+            util.drawScoredRoi(image, roi, score=score)
 
             scale = float(args.winsize) / max(image.shape[0:2])
             image = cv2.resize(image, dsize=(0, 0), fx=scale, fy=scale)
@@ -654,8 +661,8 @@ def _drawMatch(img, roi1, roi2, yoffset):
 
     roi2[0] += yoffset
     roi2[2] += yoffset
-    drawScoredRoi(img, roi1)
-    drawScoredRoi(img, roi2)
+    util.drawScoredRoi(img, roi1)
+    util.drawScoredRoi(img, roi2)
     center1 = _getCenter(roi1)
     center2 = _getCenter(roi2)
     cv2.line(img, center1, center2, [0, 0, 255], thickness=2)
@@ -663,7 +670,7 @@ def _drawMatch(img, roi1, roi2, yoffset):
 
 def _findPressedObject(x, y, cars):
     for i in range(len(cars)):
-        roi = objectField(cars[i], 'roi')
+        roi = backendDb.objectField(cars[i], 'roi')
         if x >= roi[1] and x < roi[3] and y >= roi[0] and y < roi[2]:
             return i
     return None
@@ -709,7 +716,7 @@ def labelMatches(c, args):
         logging.error('Found only %d images. Quit.' % len(image_entries))
         return
 
-    imreader = MediaReader(rootdir=args.rootdir)
+    imreader = backendMedia.MediaReader(rootdir=args.rootdir)
 
     # For parsing keys.
     key_reader = KeyReader(args.key_dict)
@@ -743,9 +750,9 @@ def labelMatches(c, args):
 
         # draw cars in both images
         for object_ in objects1:
-            drawScoredRoi(img1, objectField(object_, 'roi'))
+            util.drawScoredRoi(img1, backendDb.objectField(object_, 'roi'))
         for object_ in objects2:
-            drawScoredRoi(img2, objectField(object_, 'roi'))
+            util.drawScoredRoi(img2, backendDb.objectField(object_, 'roi'))
 
         i1 = i2 = None  # Matches selected with a mouse.
 
@@ -769,13 +776,13 @@ def labelMatches(c, args):
                         c.execute(
                             'SELECT match FROM matches WHERE objectid = ? INTERSECT '
                             'SELECT match FROM matches WHERE objectid = ?',
-                            (objectField(object1, 'objectid'),
-                             objectField(object2, 'objectid')))
+                            (backendDb.objectField(object1, 'objectid'),
+                             backendDb.objectField(object2, 'objectid')))
                         matches = c.fetchall()
                         if len(matches) > 0:
                             assert len(matches) == 1  # No duplicate matches.
-                            roi1 = objectField(object1, 'roi')
-                            roi2 = objectField(object2, 'roi')
+                            roi1 = backendDb.objectField(object1, 'roi')
+                            roi2 = backendDb.objectField(object2, 'roi')
                             _drawMatch(img_stack, roi1, roi2, yoffset)
                             matchesOf1[j1] = matches[0][0]
                             matchesOf2[j2] = matches[0][0]
@@ -823,8 +830,8 @@ def labelMatches(c, args):
 
                 else:
                     # Add the match to the list.
-                    objectid1 = objectField(objects1[i1], 'objectid')
-                    objectid2 = objectField(objects2[i2], 'objectid')
+                    objectid1 = backendDb.objectField(objects1[i1], 'objectid')
+                    objectid2 = backendDb.objectField(objects2[i2], 'objectid')
                     logging.debug('i1 = %d, i2 = %d' % (i1, i2))
 
                     # Check if this object already in the matches.
@@ -904,7 +911,7 @@ def labelMatches(c, args):
             # if any car was selected, and it is matched
             if i1 is not None and i1 in matchesOf1:
                 match = matchesOf1[i1]
-                objectid1 = objectField(objects1[i1], 'objectid')
+                objectid1 = backendDb.objectField(objects1[i1], 'objectid')
                 logging.info('deleting match %d' % match)
                 c.execute(
                     'DELETE FROM matches WHERE match = ? AND objectid = ?',
