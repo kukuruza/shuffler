@@ -58,7 +58,7 @@ def _evaluateDetectionForClassPascal(c, c_gt, name, args):
     already_detected = set()
 
     # go through each detection
-    for idet, entry_det in progressbar(enumerate(entries_det)):
+    for idet, entry_det in enumerate(entries_det):
 
         bbox_det = np.array(objectField(entry_det, 'bbox'), dtype=float)
         imagefile = objectField(entry_det, 'imagefile')
@@ -86,16 +86,18 @@ def _evaluateDetectionForClassPascal(c, c_gt, name, args):
                            bbox_det[1] + bbox_det[3])
         iw = np.maximum(ixmax - ixmin, 0.)
         ih = np.maximum(iymax - iymin, 0.)
-        inters = iw * ih
+        intersection = iw * ih
 
         # union between bbox_det and all bboxes_gt.
-        uni = (bbox_det[2] * bbox_det[3] + bboxes_gt[:, 2] * bboxes_gt[:, 3] -
-               inters)
+        union = (bbox_det[2] * bbox_det[3] +
+                 bboxes_gt[:, 2] * bboxes_gt[:, 3] - intersection)
 
-        # overlaps and get the best overlap.
-        overlaps = inters / uni
-        max_overlap = np.max(overlaps)
-        objectid_gt = objectids_gt[np.argmax(overlaps)]
+        # IoU and get the best IoU.
+        IoUs = intersection / union
+        max_IoU = np.max(IoUs)
+        objectid_gt = objectids_gt[np.argmax(IoUs)]
+        logging.debug('max_IoU=%.3f for idet %d with objectid_gt %d.', max_IoU,
+                      idet, objectid_gt)
 
         # find which objects count towards TP and FN (should be detected).
         c_gt.execute(
@@ -106,9 +108,9 @@ def _evaluateDetectionForClassPascal(c, c_gt, name, args):
             objectField(entry, 'objectid') for entry in entries_gt
         ]
 
-        # if 1) large enough overlap and
+        # if 1) large enough IoU and
         #    2) this GT box was not detected before
-        if max_overlap > args.overlap_thresh and not objectid_gt in already_detected:
+        if max_IoU > args.IoU_thresh and not objectid_gt in already_detected:
             if objectid_gt in objectids_gt_of_interest:
                 tp[idet] = 1.
             else:
@@ -164,7 +166,7 @@ def _evaluateDetectionForClassSklearn(c, c_gt, name, args, sklearn):
     already_detected = set()
 
     # Go through each detection.
-    for idet, entry_det in progressbar(enumerate(entries_det)):
+    for idet, entry_det in enumerate(entries_det):
 
         bbox_det = np.array(backendDb.objectField(entry_det, 'bbox'),
                             dtype=float)
@@ -206,10 +208,12 @@ def _evaluateDetectionForClassSklearn(c, c_gt, name, args, sklearn):
         union = (bbox_det[2] * bbox_det[3] +
                  bboxes_gt[:, 2] * bboxes_gt[:, 3] - intersection)
 
-        # Compute the best overlap between the bbox_det and all bboxes_gt.
-        overlaps = intersection / union
-        max_overlap = np.max(overlaps)
-        objectid_gt = objectids_gt[np.argmax(overlaps)]
+        # Compute the best IoU between the bbox_det and all bboxes_gt.
+        IoUs = intersection / union
+        max_IoU = np.max(IoUs)
+        objectid_gt = objectids_gt[np.argmax(IoUs)]
+        logging.debug('max_IoU=%.3f for idet %d with objectid_gt %d.', max_IoU,
+                      idet, objectid_gt)
 
         # Get all GT objects that are of interest.
         c_gt.execute(
@@ -221,9 +225,9 @@ def _evaluateDetectionForClassSklearn(c, c_gt, name, args, sklearn):
         ]
 
         # Compute TP and FP. An object is a TP if:
-        #   1) it has a large enough overlap with a GT object and
+        #   1) it has a large enough IoU with a GT object and
         #   2) this GT object was not detected before.
-        if max_overlap > args.overlap_thresh and not objectid_gt in already_detected:
+        if max_IoU > args.IoU_thresh and not objectid_gt in already_detected:
             if objectid_gt not in objectids_gt_of_interest:
                 y_ignored[idet] = True
             already_detected.add(objectid_gt)
@@ -299,7 +303,7 @@ def evaluateDetectionParser(subparsers):
         description='Evaluate detections given a ground truth database.')
     parser.set_defaults(func=evaluateDetection)
     parser.add_argument('--gt_db_file', required=True)
-    parser.add_argument('--overlap_thresh', type=float, default=0.5)
+    parser.add_argument('--IoU_thresh', type=float, default=0.5)
     parser.add_argument('--where_object_gt', default='TRUE')
     parser.add_argument(
         '--out_dir',
