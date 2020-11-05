@@ -13,6 +13,7 @@ from progressbar import progressbar
 from ast import literal_eval
 
 from lib.backend import backendDb
+from lib.backend import backendMedia
 from lib.utils import util
 from lib.utils import utilBoxes
 
