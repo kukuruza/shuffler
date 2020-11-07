@@ -413,8 +413,8 @@ def tileObjects(c, args):
         old_roi = utilBoxes.bbox2roi((old_x1, old_y1, old_width, old_height))
 
         # Record the collage when the previous collage is full or name changed.
-        if i_cell == num_cells_per_collage or (args.split_by_name
-                                               and previous_name != name):
+        if i_cell == num_cells_per_collage - 1 or (args.split_by_name
+                                                   and previous_name != name):
             namehint = '%09d' % i_collage
             if args.split_by_name:
                 namehint += '-%s' % previous_name
