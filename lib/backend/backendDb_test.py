@@ -5,6 +5,8 @@ import shutil
 import unittest
 import tempfile
 import numpy as np
+import progressbar
+import nose
 
 from lib.backend import backendDb
 from lib.utils import testUtils
@@ -222,5 +224,5 @@ class Test_updateObjectTransform_emptyDb(testUtils.Test_emptyDb):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.ERROR)
-    unittest.main()
+    progressbar.streams.wrap_stdout()
+    nose.runmodule()

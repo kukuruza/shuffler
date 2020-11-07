@@ -6,6 +6,8 @@ import numpy as np
 import shutil
 import unittest
 import tempfile
+import progressbar
+import nose
 
 from lib.backend import backendMedia
 
@@ -519,5 +521,5 @@ class TestMediaWriter(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.ERROR)
-    unittest.main()
+    progressbar.streams.wrap_stdout()
+    nose.runmodule()

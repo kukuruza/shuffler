@@ -7,6 +7,7 @@ import pprint
 import tempfile
 import numpy as np
 import cv2
+import nose
 
 from lib.utils import utilBoxes
 
@@ -365,6 +366,4 @@ class TestCropPatch(unittest.TestCase):
 
 if __name__ == '__main__':
     progressbar.streams.wrap_stdout()
-    logging.basicConfig(level=logging.INFO)
-
-    unittest.main()
+    nose.runmodule()

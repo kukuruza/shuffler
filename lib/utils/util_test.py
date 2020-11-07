@@ -5,8 +5,11 @@ import logging
 import numpy as np
 import unittest
 import tempfile
+import progressbar
+import nose
 
 from lib.utils import util
+from lib.utils import utilBoxes
 
 
 class TestCopyWithBackup(unittest.TestCase):
@@ -125,5 +128,5 @@ class TestRoi2Bbox(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.ERROR)
-    unittest.main()
+    progressbar.streams.wrap_stdout()
+    nose.runmodule()

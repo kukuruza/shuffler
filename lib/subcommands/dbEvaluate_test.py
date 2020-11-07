@@ -8,6 +8,7 @@ import tempfile
 import mock
 import numpy as np
 import sklearn.metrics
+import nose
 
 from lib.backend import backendDb
 from lib.subcommands import dbEvaluate
@@ -275,5 +276,5 @@ class Test_evaluateDetectionForClass_Ngt(Test_evaluateDetectionForClass_Base):
 
 
 if __name__ == '__main__':
-    import nose
+    progressbar.streams.wrap_stdout()
     nose.runmodule()

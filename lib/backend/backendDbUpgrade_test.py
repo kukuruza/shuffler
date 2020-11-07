@@ -5,15 +5,16 @@ import sqlite3
 import unittest
 import shutil
 import tempfile
+import nose
 
 from lib.backend import backendDbUpgrade
-from lib.utils.testUtils import TestEmptyDb
+from lib.utils import testUtils
 
 CARS_DB_V3_PATH = 'testdata/cars/micro1_v3.db'
 CARS_DB_V4_PATH = 'testdata/cars/micro1_v4.db'
 
 
-class TestUpgradeV3toV4Cars(TestEmptyDb):
+class TestUpgradeV3toV4Cars(testUtils.Test_emptyDb):
     def setUp(self):
         self.temp_db_v3_path = tempfile.NamedTemporaryFile().name
         self.temp_db_v4_path = tempfile.NamedTemporaryFile().name
@@ -56,5 +57,5 @@ class TestUpgradeV3toV4Cars(TestEmptyDb):
 
 
 if __name__ == '__main__':
-    logging.basicConfig(level=logging.INFO)
-    unittest.main()
+    progressbar.streams.wrap_stdout()
+    nose.runmodule()

@@ -9,6 +9,7 @@ import pprint
 import tempfile
 import mock
 import numpy as np
+import nose
 
 from lib.backend import backendDb
 from lib.subcommands import dbMedia
@@ -366,5 +367,5 @@ class Test_cropObjects_SyntheticDb(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    import nose
+    progressbar.streams.wrap_stdout()
     nose.runmodule()
