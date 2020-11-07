@@ -300,6 +300,11 @@ def exportLabelmeParser(subparsers):
                         default='LabelMe Webtool',
                         help='Optional field to fill in the annotation files.')
     parser.add_argument(
+        '--fix_invalid_image_names',
+        action='store_true',
+        help='Some symbols are invalid in image names for Labelme. '
+        'They will be replaced with "_".')
+    parser.add_argument(
         '--overwrite',
         action='store_true',
         help='overwrite image and/or annotation files if they exist.')
@@ -413,12 +418,19 @@ def exportLabelme(c, args):
                 logging.debug('Polygon %s has %d points.' %
                               (pol_name, len(xy_entries)))
 
-        logging.debug('Wrote imagefile %s as:\n%s',
-                      (imagefile, ET.tostring(
-                          el_root, pretty_print=True).decode("utf-8")))
+        # Get and maybe fix imagename.
+        imagename = op.basename(imagefile)
+        if args.fix_invalid_image_names:
+            imagename_fixed = re.sub(r'[^a-zA-Z0-9_.-]', '_', imagename)
+            if imagename_fixed != imagename:
+                imagename = imagename_fixed
+                logging.warning('Replaced invalid characters in image name %s',
+                                imagename)
+
+        logging.debug('Writing imagefile %s as:\n%s', imagefile,
+                      ET.tostring(el_root, pretty_print=True).decode("utf-8"))
 
         # Write annotation.
-        imagename = op.basename(imagefile)
         annotation_name = '%s.xml' % op.splitext(imagename)[0]
         annotation_path = op.join(args.annotations_dir, annotation_name)
         logging.debug('Will write annotation to "%s"' % annotation_path)
