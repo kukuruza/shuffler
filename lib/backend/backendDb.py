@@ -2,10 +2,10 @@ import os, os.path as op
 import logging
 import sqlite3
 from datetime import datetime
-from progressbar import progressbar
 import io
 import shutil
 import tempfile
+import numpy as np
 
 
 def _load_db_to_memory(in_db_path):
@@ -37,7 +37,7 @@ def connect(in_db_path, how):
     elif how == 'load_to_memory':
         conn = _load_db_to_memory(in_db_path)
     elif how == 'as_write':
-        conn = _sqlite3.connect(in_db_path)
+        conn = sqlite3.connect(in_db_path)
     return conn
 
 
@@ -223,7 +223,6 @@ def setObjectField(entry, field, value):
     return tuple(entry)
 
 
-
 def imageField(entry, field):
     ''' Convenience function to access by field name. '''
 
@@ -250,7 +249,6 @@ def setImageField(entry, field, value):
     elif field == 'score': entry[6] = value
     else: raise KeyError('No field "%s" in image entry %s' % (field, entry))
     return tuple(entry)
-    
 
 
 def polygonField(entry, field):
@@ -302,3 +300,81 @@ def deleteImage(cursor, imagefile):
         '(SELECT objectid FROM objects WHERE imagefile=?);', (imagefile, ))
     cursor.execute('DELETE FROM objects WHERE imagefile=?;', (imagefile, ))
     cursor.execute('DELETE FROM images WHERE imagefile=?;', (imagefile, ))
+
+
+def updateObjectTransform(c, objectid, transform):
+    '''
+    By convention the "properties" table stores the transformations that
+    the object underwent (such as crops, or bbox exansion.)
+    Currently only the scale+translation transform is supported.
+    The thansform can be used later to infer the original position of an object.
+    This function updates the recorded values after a new transform is applied.
+    Args:
+      c:             cursor
+      objectid:      field objectid from "objects" table.
+      transform:     a 3x3 float np array [[kx,0,bx], [0,ky,by], [0,0,1]].
+    '''
+    if transform.shape != (3, 3):
+        raise ValueError('Transform must be 3x3 not %s' % str(transform.shape))
+
+    # Get kx.
+    c.execute('SELECT id,value FROM properties WHERE objectid=? AND key="kx"',
+              (objectid, ))
+    entry = c.fetchone()
+    kx_id, kx = (entry[0], float(entry[1])) if entry is not None else (None, 1)
+    # Get ky.
+    c.execute('SELECT id,value FROM properties WHERE objectid=? AND key="ky"',
+              (objectid, ))
+    entry = c.fetchone()
+    ky_id, ky = (entry[0], float(entry[1])) if entry is not None else (None, 1)
+    # Get bx.
+    c.execute('SELECT id,value FROM properties WHERE objectid=? AND key="bx"',
+              (objectid, ))
+    entry = c.fetchone()
+    bx_id, bx = (entry[0], float(entry[1])) if entry is not None else (None, 0)
+    # Get by.
+    c.execute('SELECT id,value FROM properties WHERE objectid=? AND key="by"',
+              (objectid, ))
+    entry = c.fetchone()
+    by_id, by = (entry[0], float(entry[1])) if entry is not None else (None, 0)
+
+    transform0 = np.array([[kx, 0., bx], [0., ky, by], [0, 0, 1]])
+    logging.debug('Previous transform for objectid %d: \n%s', objectid,
+                  str(transform0))
+
+    transform = np.matmul(transform0, transform)
+    logging.debug('New transform for objectid %d: \n%s', objectid,
+                  str(transform))
+
+    # Update/insert kx.
+    if kx_id is not None:
+        c.execute('UPDATE properties SET value=? WHERE id=?',
+                  (str(transform[0, 0]), kx_id))
+    else:
+        c.execute(
+            'INSERT INTO properties(objectid,key,value) VALUES (?,"kx",?)',
+            (objectid, str(transform[0, 0])))
+    # Update/insert ky.
+    if ky_id is not None:
+        c.execute('UPDATE properties SET value=? WHERE id=?',
+                  (str(transform[1, 1]), ky_id))
+    else:
+        c.execute(
+            'INSERT INTO properties(objectid,key,value) VALUES (?,"ky",?)',
+            (objectid, str(transform[1, 1])))
+    # Update/insert bx.
+    if bx_id is not None:
+        c.execute('UPDATE properties SET value=? WHERE id=?',
+                  (str(transform[0, 2]), bx_id))
+    else:
+        c.execute(
+            'INSERT INTO properties(objectid,key,value) VALUES (?,"bx",?)',
+            (objectid, str(transform[0, 2])))
+    # Update/insert by.
+    if by_id is not None:
+        c.execute('UPDATE properties SET value=? WHERE id=?',
+                  (str(transform[1, 2]), by_id))
+    else:
+        c.execute(
+            'INSERT INTO properties(objectid,key,value) VALUES (?,"by",?)',
+            (objectid, str(transform[1, 2])))

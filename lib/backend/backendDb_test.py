@@ -4,48 +4,10 @@ import sqlite3
 import shutil
 import unittest
 import tempfile
+import numpy as np
 
 from lib.backend import backendDb
-
-
-# TODO: move it to lib/utils/testing.py. TestEmptyDb is imported by other files.
-class TestEmptyDb(unittest.TestCase):
-    def setUp(self):
-        self.conn = sqlite3.connect(':memory:')  # in RAM
-        backendDb.createDb(self.conn)
-
-    def tearDown(self):
-        self.conn.close()
-
-    def _test_table(self, cursor, table, cols_gt):
-
-        # Test table exists.
-        cursor.execute(
-            'SELECT count(*) FROM sqlite_master WHERE name=? AND type="table"',
-            (table, ))
-        assert cursor.fetchone()[0] == 1
-
-        # Test cols.
-        cursor.execute('PRAGMA table_info(%s)' % table)
-        cols_actual = [x[1] for x in cursor.fetchall()]
-        self.assertEqual(set(cols_actual), set(cols_gt))
-
-    def test_schema(self):
-        cursor = self.conn.cursor()
-
-        self._test_table(cursor, 'images', [
-            'imagefile', 'maskfile', 'width', 'height', 'timestamp', 'score',
-            'name'
-        ])
-        self._test_table(cursor, 'objects', [
-            'objectid', 'imagefile', 'x1', 'y1', 'width', 'height', 'score',
-            'name'
-        ])
-        self._test_table(cursor, 'matches', ['id', 'objectid', 'match'])
-        self._test_table(cursor, 'properties',
-                         ['id', 'objectid', 'key', 'value'])
-        self._test_table(cursor, 'polygons',
-                         ['id', 'objectid', 'x', 'y', 'name'])
+from lib.utils import testUtils
 
 
 class TestCars(unittest.TestCase):
@@ -205,6 +167,58 @@ class TestCars(unittest.TestCase):
 
         self.cursor.execute('SELECT DISTINCT(objectid) FROM polygons')
         self.assertEqual(self.cursor.fetchall(), [])
+
+
+class Test_updateObjectTransform_emptyDb(testUtils.Test_emptyDb):
+    def test_noPreviousTransform(self):
+        c = self.conn.cursor()
+
+        transform = np.array([[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]])
+        backendDb.updateObjectTransform(c, 0, transform)
+
+        c.execute('SELECT value FROM properties WHERE key="kx"')
+        kx = c.fetchall()
+        c.execute('SELECT value FROM properties WHERE key="ky"')
+        ky = c.fetchall()
+        c.execute('SELECT value FROM properties WHERE key="bx"')
+        bx = c.fetchall()
+        c.execute('SELECT value FROM properties WHERE key="by"')
+        by = c.fetchall()
+        self.assertEqual((len(kx), len(ky), len(bx), len(by)), (1, 1, 1, 1))
+        self.assertEqual(float(kx[0][0]), 1.)
+        self.assertEqual(float(ky[0][0]), 1.)
+        self.assertEqual(float(bx[0][0]), 0.)
+        self.assertEqual(float(by[0][0]), 0.)
+
+    def test_withPreviousTransform(self):
+        c = self.conn.cursor()
+
+        transform0 = np.array([[2., 0., 0.], [0., 1., 1.], [0., 0., 1.]])
+        c.execute(
+            'INSERT INTO properties(objectid,key,value) '
+            'VALUES(0,"kx",?), (0,"ky",?), (0,"bx",?), (0,"by",?)',
+            (transform0[0, 0], transform0[1, 1], transform0[0, 2],
+             transform0[1, 2]))
+
+        transform1 = np.array([[1., 0., 1.], [0., 2., 1.], [0., 0., 1.]])
+        backendDb.updateObjectTransform(c, 0, transform1)
+
+        c.execute('SELECT value FROM properties WHERE key="kx"')
+        kx = c.fetchall()
+        c.execute('SELECT value FROM properties WHERE key="ky"')
+        ky = c.fetchall()
+        c.execute('SELECT value FROM properties WHERE key="bx"')
+        bx = c.fetchall()
+        c.execute('SELECT value FROM properties WHERE key="by"')
+        by = c.fetchall()
+        self.assertEqual((len(kx), len(ky), len(bx), len(by)), (1, 1, 1, 1))
+        transform2 = np.array([[float(kx[0][0]), 0.,
+                                float(bx[0][0])],
+                               [0., float(ky[0][0]),
+                                float(by[0][0])], [0., 0., 1.]])
+
+        np.testing.assert_array_equal(np.matmul(transform0, transform1),
+                                      transform2)
 
 
 if __name__ == '__main__':

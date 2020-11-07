@@ -135,6 +135,36 @@ class Test_emptyDb(Test_DB):
     def tearDown(self):
         self.conn.close()
 
+    def _test_table(self, cursor, table, cols_gt):
+
+        # Test table exists.
+        cursor.execute(
+            'SELECT count(*) FROM sqlite_master WHERE name=? AND type="table"',
+            (table, ))
+        assert cursor.fetchone()[0] == 1
+
+        # Test cols.
+        cursor.execute('PRAGMA table_info(%s)' % table)
+        cols_actual = [x[1] for x in cursor.fetchall()]
+        self.assertEqual(set(cols_actual), set(cols_gt))
+
+    def test_schema(self):
+        cursor = self.conn.cursor()
+
+        self._test_table(cursor, 'images', [
+            'imagefile', 'maskfile', 'width', 'height', 'timestamp', 'score',
+            'name'
+        ])
+        self._test_table(cursor, 'objects', [
+            'objectid', 'imagefile', 'x1', 'y1', 'width', 'height', 'score',
+            'name'
+        ])
+        self._test_table(cursor, 'matches', ['id', 'objectid', 'match'])
+        self._test_table(cursor, 'properties',
+                         ['id', 'objectid', 'key', 'value'])
+        self._test_table(cursor, 'polygons',
+                         ['id', 'objectid', 'x', 'y', 'name'])
+
 
 class Test_carsDb(Test_DB):
     '''
