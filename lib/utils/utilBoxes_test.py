@@ -13,11 +13,11 @@ from lib.utils import utilBoxes
 
 class TestCropPatch(unittest.TestCase):
     @staticmethod
-    def transformRoi(affine_transform, roi):
-        if not affine_transform.shape == (2, 3):
-            raise RuntimeError(
-                'affine_transform must have shape (2, 3), not %s.' %
-                str(affine_transform.shape))
+    def transformRoi(transform, roi):
+        if not transform.shape == (3, 3):
+            raise RuntimeError('transform must have shape (3, 3), not %s.' %
+                               str(transform.shape))
+        affine_transform = transform[:2]
         p1_old = np.array([roi[0], roi[1], 1])[:, np.newaxis]
         p2_old = np.array([roi[2], roi[3], 1])[:, np.newaxis]
         p1_new = affine_transform.dot(p1_old)
@@ -85,6 +85,8 @@ class TestCropPatch(unittest.TestCase):
         actual_roi = TestCropPatch.transformRoi(transform, roi)
         expected_roi = roi
         self.assertEqual(actual_roi, expected_roi)
+        # Make sure transform matches.
+        np.testing.assert_array_equal(transform, np.eye(3, 3, dtype=float))
 
     def test_edgeOriginal_outOfBoundary1(self):
         roi = [-10, 30, 10, 70]

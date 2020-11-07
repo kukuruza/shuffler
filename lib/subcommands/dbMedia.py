@@ -263,6 +263,7 @@ def cropObjects(c, args):
                 'INSERT INTO properties(objectid,key,value) '
                 'SELECT ?,key,value FROM properties_old WHERE objectid=?',
                 (new_im_objectid, old_im_objectid))
+            backendDb.updateObjectTransform(c, new_im_objectid, transform)
             # Insert to polygons.
             c.execute(
                 'INSERT INTO polygons(objectid,x,y) '
@@ -468,6 +469,7 @@ def tileObjects(c, args):
                 'INSERT INTO properties(objectid,key,value) '
                 'SELECT ?,key,value FROM properties_old WHERE objectid=?',
                 (new_im_objectid, old_im_objectid))
+            backendDb.updateObjectTransform(c, new_im_objectid, transform)
             # Insert to polygons.
             c.execute(
                 'INSERT INTO polygons(objectid,x,y) '

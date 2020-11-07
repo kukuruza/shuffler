@@ -208,7 +208,7 @@ def cropPatch(image, roi, edge, target_height, target_width):
                   Target dimensions. Must be specified if edge != 'original'.
     Returns:
       patch:      The cropped patch. Color or grayscale depending on the image.
-      transform:  A numpy float array of shape (2,3) representing an affine
+      transform:  A numpy float array of shape (3,3) representing an affine
                   transform from a point in the original image to that point in
                   the cropped image.
     TODO: Perspective crops may be necessary in the future. In that case,
@@ -229,7 +229,7 @@ def cropPatch(image, roi, edge, target_height, target_width):
     height, width = roi[2] - roi[0], roi[3] - roi[1]
 
     # Start with identity transform.
-    transform = np.eye(2, 3, dtype=float)
+    transform = np.eye(3, 3, dtype=float)
     # Transform is set to match the bottom-left corner now.
     transform[0, 2] = -roi[0]
     transform[1, 2] = -roi[1]

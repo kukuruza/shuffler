@@ -84,9 +84,9 @@ class Test_cropObjects_carsDb(testUtils.Test_carsDb):
         self.assert_objects_count_by_imagefile(c, expected=[1, 1, 1])
         self.assert_polygons_count_by_object(c, expected=[0, 5, 0])
         self.assert_objects_count_by_match(c, expected=[2])
-        # +1 is for the new property "crop": "true" of the cropped object.
+        # +1 is for the new property "crop" and "kx","ky","bx","by".
         self.assert_properties_count_by_object(c,
-                                               expected=[3 + 1, 3 + 1, 1 + 1])
+                                               expected=[3 + 5, 3 + 5, 1 + 5])
         # Check that maskfiles were written
         c.execute(
             'SELECT COUNT(maskfile) FROM images WHERE maskfile IS NOT NULL')
@@ -174,8 +174,8 @@ class Test_cropObjects_carsDb(testUtils.Test_carsDb):
         self.assert_objects_count_by_imagefile(c, expected=[1])
         self.assert_polygons_count_by_object(c, expected=[0])
         self.assert_objects_count_by_match(c, expected=[])
-        # +1 is for the new property "crop": "true" of the cropped object.
-        self.assert_properties_count_by_object(c, expected=[1])
+        # +5 is for the new property "crop" and "kx, ky, bx, by".
+        self.assert_properties_count_by_object(c, expected=[5])
 
     def test_keep_all_other_objects(self):
         c = self.conn.cursor()
@@ -197,9 +197,6 @@ class Test_cropObjects_carsDb(testUtils.Test_carsDb):
         self.assert_objects_count_by_imagefile(c, expected=[1, 2, 2])
         self.assert_polygons_count_by_object(c, expected=[0, 0, 5, 5, 0])
         self.assert_objects_count_by_match(c, expected=[3])
-        # +1 is for the new property "crop": "true" of the cropped object.
-        self.assert_properties_count_by_object(
-            c, expected=[3 + 1, 3 + 1, 1, 1 + 1, 3])
 
     def test_keep_other_buses(self):
         c = self.conn.cursor()
@@ -221,9 +218,6 @@ class Test_cropObjects_carsDb(testUtils.Test_carsDb):
         self.assert_objects_count_by_imagefile(c, expected=[1, 2, 1])
         self.assert_polygons_count_by_object(c, expected=[0, 5, 0, 0])
         self.assert_objects_count_by_match(c, expected=[2])
-        # +1 is for the new property "crop": "true" of the cropped object.
-        self.assert_properties_count_by_object(
-            c, expected=[3 + 1, 3 + 1, 1, 1 + 1])
 
     @mock.patch('lib.subcommands.dbMedia.backendMedia.MediaWriter')
     def test_namehint(self, mock_imwriter):
@@ -326,7 +320,7 @@ class Test_cropObjects_SyntheticDb(unittest.TestCase):
     @mock.patch.object(dbMedia.backendMedia.MediaReader, 'imread')
     def test_xy(self, mocked_imread, mocked_crop_patch):
         mocked_imread.return_value = np.zeros((100, 100, 3), dtype=np.uint8)
-        transform = np.array([[2., 0., -5.], [0., 0.5, 5.]])
+        transform = np.array([[2., 0., -5.], [0., 0.5, 5.], [0., 0., 1.]])
         mocked_crop_patch.return_value = (np.zeros((100, 100, 3)), transform)
         c = self.conn.cursor()
         args = argparse.Namespace(rootdir='.',
@@ -349,9 +343,26 @@ class Test_cropObjects_SyntheticDb(unittest.TestCase):
         x, y = c.fetchone()
         self.assertEqual((x, y), (25, 35))
         # Check that all temporary tables are cleaned up.
-        c.execute('SELECT name FROM sqlite_master WHERE type="table";')
+        c.execute('SELECT name FROM sqlite_master WHERE type="table"')
         table_names = c.fetchall()
         self.assertEqual(len(table_names), 5, table_names)
+        # Check the object transform.
+        c.execute('SELECT value FROM properties WHERE key="kx"')
+        kx = c.fetchall()
+        c.execute('SELECT value FROM properties WHERE key="ky"')
+        ky = c.fetchall()
+        c.execute('SELECT value FROM properties WHERE key="bx"')
+        bx = c.fetchall()
+        c.execute('SELECT value FROM properties WHERE key="by"')
+        by = c.fetchall()
+        self.assertEqual((len(kx), len(ky), len(bx), len(by)), (1, 1, 1, 1))
+        transform_recorded = np.array([[float(kx[0][0]), 0.,
+                                        float(bx[0][0])],
+                                       [0.,
+                                        float(ky[0][0]),
+                                        float(by[0][0])], [0., 0., 1.]])
+
+        np.testing.assert_array_equal(transform, transform_recorded)
 
 
 if __name__ == '__main__':
