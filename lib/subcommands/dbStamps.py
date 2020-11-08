@@ -4,6 +4,9 @@ import regex as re  # Regex provides right-to-left parsing flag (?r)
 import logging
 from progressbar import progressbar
 import simplejson as json
+import pprint
+import tempfile
+import shutil
 
 from lib.backend import backendMedia
 from lib.backend import backendDb
@@ -15,6 +18,7 @@ def add_parsers(subparsers):
     extractNumberIntoPropertyParser(subparsers)
     moveToRajaFolderStructureParser(subparsers)
     importNameFromCsvParser(subparsers)
+    syncImagesWithDbParser(subparsers)
 
 
 def upgradeStampImagepathsParser(subparsers):
@@ -251,7 +255,6 @@ def importNameFromCsv(c, args):
         logging.debug('Names: %s, scores: %s', str(names), str(scores))
         if len(names) != len(scores):
             errors += 1
-            continue
             raise ValueError(
                 'Number of names "%s" and scores "%s" mismatches in row %d' %
                 (names, scores, irow))
@@ -278,5 +281,53 @@ def importNameFromCsv(c, args):
             num_names_per_object[len(names)] = 0
         num_names_per_object[len(names)] += 1
     logging.info('Number of names per object:\n%s',
-                 pformat(num_names_per_object))
+                 pprint.pformat(num_names_per_object))
     logging.info('Errors: %d', errors)
+
+
+def syncImagesWithDbParser(subparsers):
+    parser = subparsers.add_parser(
+        'syncImagesWithDb',
+        description='Populate "images" table with entries of ref_db. '
+        'Also match objects by "objectid", and replace "imagefile" field '
+        'for each object with its value from ref_db. '
+        'Used to move to the original db after using tileObjects subcommand.')
+    parser.set_defaults(func=importNameFromCsv)
+    parser.add_argument('--ref_db_file', required=True)
+
+
+def syncImagesWithDb(c, args):
+    # Check the ref_db.
+    logging.info("ref_db_file: \n\t%s", args.ref_db_file)
+    if not op.exists(args.ref_db_file):
+        raise FileNotFoundError('Ref db does not exist: %s', args.ref_db_file)
+
+    # Work around attached database getting locked by making its temp copy,
+    # and deleteing it instead of detaching it after the subcommand completes.
+    ref_db_file = tempfile.NamedTemporaryFile().name
+    shutil.copyfile(args.ref_db_file, ref_db_file)
+
+    c.execute('ATTACH ? AS "ref"', (ref_db_file, ))
+
+    # Check that all objectids have a correspondance in the ref_db_file.
+    c.execute('SELECT COUNT(1) FROM objects')
+    num_objects = c.fetchone()[0]
+    c.execute('SELECT COUNT(1) FROM objects o '
+              'INNER JOIN ref.objects ro ON o.objectid = ro.objectid')
+    num_objects_with_match = c.fetchone()[0]
+    if num_objects != num_objects_with_match:
+        raise ValueError(
+            'Out of %d objectids in the db, only %d have a match in ref_db_file'
+            % (num_objects, num_objects_with_match))
+
+    # Update "imagefile" field in the objects table.
+    c.execute('UPDATE objects SET imagefile = ('
+              'SELECT ro.imagefile FROM ref.objects ro '
+              'WHERE objectid = ro.objectid)')
+
+    # Replace "images" table.
+    c.execute("DELETE FROM images")
+    c.execute("INSERT INTO images SELECT * FROM ref.images")
+
+    # c.execute('DETACH DATABASE "ref"')  Does not work, gets locked.
+    os.remove(ref_db_file)
