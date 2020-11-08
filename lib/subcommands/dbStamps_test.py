@@ -12,18 +12,10 @@ import numpy as np
 
 from lib.backend import backendDb
 from lib.subcommands import dbStamps
+from lib.utils import testUtils
 
 
-class Test_emptyDb(unittest.TestCase):
-    def setUp(self):
-        self.conn = sqlite3.connect(':memory:')
-        backendDb.createDb(self.conn)
-
-    def tearDown(self):
-        self.conn.close()
-
-
-class Test_extractNumberIntoProperty(Test_emptyDb):
+class Test_extractNumberIntoProperty(testUtils.Test_emptyDb):
     def test_one_number_middle(self):
         c = self.conn.cursor()
         # Repeated twice.
@@ -102,6 +94,59 @@ class Test_extractNumberIntoProperty(Test_emptyDb):
         self.assertEqual(keys[1], "number")
         self.assertTrue(values[1] in ["123", "456"])
         self.assertNotEqual(values[0], values[1])
+
+
+class Test_syncImagesWithDb_synthetic(testUtils.Test_emptyDb):
+    def setUp(self):
+        # Make tested db.
+        self.conn = sqlite3.connect(':memory:')
+        backendDb.createDb(self.conn)
+        # Make ref db (should be on disk.)
+        self.ref_db_path = tempfile.NamedTemporaryFile().name
+        self.conn_ref = sqlite3.connect(self.ref_db_path, timeout=10000.0)
+        backendDb.createDb(self.conn_ref)
+        c_ref = self.conn_ref.cursor()
+        self.imagefiles_ref = ['ref_image0', 'ref_image1']
+        c_ref.execute("INSERT INTO images(imagefile) VALUES ('ref_image0')")
+        c_ref.execute("INSERT INTO images(imagefile) VALUES ('ref_image1')")
+        c_ref.execute("INSERT INTO objects(objectid,imagefile,name) "
+                      "VALUES (0,'ref_image0','new')")
+        c_ref.execute("INSERT INTO objects(objectid,imagefile,name) "
+                      "VALUES (1,'ref_image1','new')")
+        self.conn_ref.commit()
+        self.conn_ref.close()
+
+    def tearDown(self):
+        if op.exists(self.ref_db_path):
+            os.remove(self.ref_db_path)
+
+    def test_general(self):
+        c = self.conn.cursor()
+        # Insert an object and an image that is there in the ref_db_file.
+        c.execute("INSERT INTO images(imagefile) VALUES ('image0')")
+        c.execute("INSERT INTO objects(objectid,imagefile,name) "
+                  "VALUES (0,'image0','new')")
+        # Run the function.
+        args = argparse.Namespace(ref_db_file=self.ref_db_path)
+        dbStamps.syncImagesWithDb(c, args)
+        # Test images.
+        c.execute("SELECT imagefile FROM images")
+        imagefiles = [entry[0] for entry in c.fetchall()]
+        self.assertEqual(imagefiles, self.imagefiles_ref)
+        # Test objects.
+        c.execute("SELECT objectid,name FROM objects")
+        object_entries = c.fetchall()
+        self.assertEqual(object_entries, [(0, 'new')])
+
+    def test_objectNotFound(self):
+        c = self.conn.cursor()
+        c.execute("INSERT INTO images(imagefile) VALUES ('image0')")
+        c.execute("INSERT INTO objects(objectid,imagefile,name) "
+                  "VALUES (2,'image0','new')")
+        # objectid=2 is not in ref_db_file.
+        args = argparse.Namespace(ref_db_file=self.ref_db_path)
+        with self.assertRaises(ValueError):
+            dbStamps.syncImagesWithDb(c, args)
 
 
 if __name__ == '__main__':
