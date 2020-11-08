@@ -38,6 +38,7 @@ def add_parsers(subparsers):
     resizeAnnotationsParser(subparsers)
     propertyToNameParser(subparsers)
     syncObjectidsWithDbParser(subparsers)
+    revertObjectTransformsParser(subparsers)
 
 
 def bboxesToPolygonsParser(subparsers):
@@ -1223,3 +1224,58 @@ def propertyToName(c, args):
 
     if args.delete_property_after:
         c.execute('DELETE FROM properties WHERE key=?', (args.property, ))
+
+
+def revertObjectTransformsParser(subparsers):
+    parser = subparsers.add_parser(
+        'revertObjectTransforms',
+        description=
+        'Objects (i.e. bboxes and polygons) may have undergone transforms. '
+        'These transforms may have been logged into "properties" table. '
+        'Tranforms are individual for each object. This subcommand reverts '
+        'transforms and restores the original bboxes and polygons. '
+        'After that, transforms are cleared from the "properties" table.')
+    parser.set_defaults(func=revertObjectTransforms)
+
+
+def revertObjectTransforms(c, args):
+    c.execute('SELECT * FROM objects')
+    for object_entry in c.fetchall():
+        objectid = backendDb.objectField(object_entry, 'objectid')
+        # Get the transform.
+        c.execute('SELECT value FROM properties WHERE objectid=? AND key="kx"',
+                  (objectid, ))
+        kx = c.fetchone()
+        kx = float(kx[0]) if kx is not None else 1.
+        c.execute('SELECT value FROM properties WHERE objectid=? AND key="ky"',
+                  (objectid, ))
+        ky = c.fetchone()
+        ky = float(ky[0]) if ky is not None else 1.
+        c.execute('SELECT value FROM properties WHERE objectid=? AND key="bx"',
+                  (objectid, ))
+        bx = c.fetchone()
+        bx = float(bx[0]) if bx is not None else 0.
+        c.execute('SELECT value FROM properties WHERE objectid=? AND key="by"',
+                  (objectid, ))
+        by = c.fetchone()
+        by = float(by[0]) if by is not None else 0.
+        transform = np.array([[kx, 0., bx], [0., ky, by], [0., 0., 1.]])
+        # Get the inverse tranform.
+        transform_inv = np.linalg.inv(transform)
+        if np.allclose(transform, transform_inv):
+            logging.debug('Objectid %d had an identity transform.')
+            continue
+        # Apply the inverse transform to the bbox and polygon.
+        kx = transform_inv[0, 0]
+        ky = transform_inv[1, 1]
+        bx = transform_inv[0, 2]
+        by = transform_inv[1, 2]
+        c.execute(
+            'UPDATE objects SET x1 = x1 * ? + ?, y1 = y1 * ? + ?, '
+            'width = width * ?, height = height * ? WHERE objectid=?',
+            (kx, bx, ky, by, kx, ky, objectid))
+        c.execute(
+            'UPDATE polygons SET x = x * ? + ?, y = y * ? + ? WHERE objectid=?',
+            (kx, bx, ky, by, objectid))
+
+    c.execute('DELETE FROM properties WHERE key IN ("kx", "ky", "bx", "by")')
