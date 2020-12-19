@@ -73,7 +73,7 @@ To test the installation, run the following commands. The installation succeeded
 
 ```bash
 cd shuffler
-./shuffler.py -i 'test/cars/micro1_v4.db' --rootdir 'test' examineImages
+./shuffler.py -i 'testdata/cars/micro1_v4.db' --rootdir 'test' examineImages
 ```
 
 ### Only the interface to Keras, Pytorch, and DatasetWriter
@@ -121,14 +121,14 @@ The toolbox supports datasets consisting of 1) images and masks, 2) objects anno
 Sub-commands can be chained via the special symbol `'|'`. Here, the vertical bar is quoted with single quotes, which works in Windows, Linux and Mac. (Alternatively, in Unix, you can  use `\|`, that is, a vertical bar escaped by a backslash.)
 
 ```bash
-./shuffler.py --rootdir 'test' -i 'test/cars/micro1_v4.db' \
-  addVideo --image_video_path 'test/moon/images.avi' --mask_video_path 'test/moon/masks.avi' '|' \
+./shuffler.py --rootdir 'test' -i 'testdata/cars/micro1_v4.db' \
+  addVideo --image_video_path 'testdata/moon/images.avi' --mask_video_path 'testdata/moon/masks.avi' '|' \
   printInfo '|' \
-  moveMedia --image_path 'test/cars/images' --where_image 'imagefile LIKE "cars/images/%"' '|' \
+  moveMedia --image_path 'testdata/cars/images' --where_image 'imagefile LIKE "cars/images/%"' '|' \
   dumpDb --tables 'images' 'objects'
 
-./shuffler.py --rootdir 'test' -i 'test/cars/micro1_v4.db' \
-  addDb --db_file 'test/cars/micro1_v4_singleim.db' '|' \
+./shuffler.py --rootdir 'test' -i 'testdata/cars/micro1_v4.db' \
+  addDb --db_file 'testdata/cars/micro1_v4_singleim.db' '|' \
   mergeObjectDuplicates '|' \
   polygonsToMask --media='pictures' --mask_path 'cars/mask_polygons' --skip_empty_masks '|' \
   dumpDb --tables images '|' \
@@ -139,20 +139,20 @@ Sub-commands can be chained via the special symbol `'|'`. Here, the vertical bar
 
 The beauty of storing annotations in a relational SQLite3 database is that one can use standard SQL editors to explore them. For example, UNIX has a command line tool `sqlite3`.
 
-The commands below illustrate using `sqlite3` to get some statistics about the database `test/cars/micro1_v4.db` bundled into this repository.
+The commands below illustrate using `sqlite3` to get some statistics about the database `testdata/cars/micro1_v4.db` bundled into this repository.
 
 ```bash
 # Find the total number of images:
-sqlite3 test/cars/micro1_v4.db 'SELECT COUNT(imagefile) FROM images'
+sqlite3 testdata/cars/micro1_v4.db 'SELECT COUNT(imagefile) FROM images'
 
 # Find the total number of images with objects:
-sqlite3 test/cars/micro1_v4.db 'SELECT COUNT(DISTINCT(imagefile)) FROM objects'
+sqlite3 testdata/cars/micro1_v4.db 'SELECT COUNT(DISTINCT(imagefile)) FROM objects'
 
 # Print out names of objects and their count:
-sqlite3 test/cars/micro1_v4.db 'SELECT name, COUNT(1) FROM objects GROUP BY name'
+sqlite3 testdata/cars/micro1_v4.db 'SELECT name, COUNT(1) FROM objects GROUP BY name'
 
 # Print out dimensions of all objects of the class "car":
-sqlite3 test/cars/micro1_v4.db 'SELECT width, height FROM objects WHERE name="car"'
+sqlite3 testdata/cars/micro1_v4.db 'SELECT width, height FROM objects WHERE name="car"'
 ```
 
 
