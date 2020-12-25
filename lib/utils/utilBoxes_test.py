@@ -1,15 +1,92 @@
-import os, os.path as op
-import logging
-import sqlite3
 import progressbar
 import unittest
-import pprint
-import tempfile
 import numpy as np
-import cv2
 import nose
 
 from lib.utils import utilBoxes
+
+
+class Test_Bbox2roi(unittest.TestCase):
+    def test_normal(self):
+        self.assertEqual(utilBoxes.bbox2roi([1, 2, 3, 4]), [2, 1, 6, 4])
+        self.assertEqual(utilBoxes.bbox2roi((1, 2, 3, 4)), [2, 1, 6, 4])
+
+    def test_zeroDims(self):
+        self.assertEqual(utilBoxes.bbox2roi([1, 2, 0, 0]), [2, 1, 2, 1])
+
+    def test_notSequence(self):
+        with self.assertRaises(TypeError):
+            utilBoxes.bbox2roi(42)
+
+    def test_lessThanFourNumbers(self):
+        with self.assertRaises(ValueError):
+            utilBoxes.bbox2roi([42])
+
+    def test_moreThanFourNumbers(self):
+        with self.assertRaises(ValueError):
+            utilBoxes.bbox2roi([42, 42, 42, 42, 42])
+
+    def test_notNumbers(self):
+        with self.assertRaises(TypeError):
+            utilBoxes.bbox2roi(['a', 'b', 'c', 'd'])
+
+    def test_negativeDims(self):
+        with self.assertRaises(ValueError):
+            utilBoxes.bbox2roi([1, 2, 3, -1])
+
+
+class Test_Roi2Bbox(unittest.TestCase):
+    def test_normal(self):
+        self.assertEqual(utilBoxes.roi2bbox([2, 1, 6, 4]), [1, 2, 3, 4])
+        self.assertEqual(utilBoxes.roi2bbox((2, 1, 6, 4)), [1, 2, 3, 4])
+
+    def test_zeroDims(self):
+        self.assertEqual(utilBoxes.roi2bbox([2, 1, 2, 1]), [1, 2, 0, 0])
+
+    def test_notSequence(self):
+        with self.assertRaises(TypeError):
+            utilBoxes.roi2bbox(42)
+
+    def test_lessThanFourNumbers(self):
+        with self.assertRaises(ValueError):
+            utilBoxes.roi2bbox([42])
+
+    def test_moreThanFourNumbers(self):
+        with self.assertRaises(ValueError):
+            utilBoxes.roi2bbox([42, 42, 42, 42, 42])
+
+    def test_notNumbers(self):
+        with self.assertRaises(TypeError):
+            utilBoxes.roi2bbox(['a', 'b', 'c', 'd'])
+
+    def test_negativeDims(self):
+        with self.assertRaises(ValueError):
+            utilBoxes.roi2bbox([2, 1, 1, 2])
+
+
+class Test_getIoU(unittest.TestCase):
+    def test_identical(self):
+        # Integer input.
+        self.assertEqual(utilBoxes.getIoU([1, 2, 3, 4], [1, 2, 3, 4]), 1.)
+        # Float input.
+        self.assertEqual(
+            utilBoxes.getIoU([10., 20., 30., 40.], [10., 20., 30., 40.]), 1.)
+
+    def test_one_inside_the_other(self):
+        # One is 50% width of the other and is completely inside.
+        self.assertEqual(utilBoxes.getIoU([1, 2, 3, 4], [2, 2, 3, 4]), 0.50)
+
+    def test_partial_overlap(self):
+        # Overlap 33.3% perc on Y axis, identical area.
+        self.assertEqual(utilBoxes.getIoU([1, 2, 4, 4], [3, 2, 6, 4]), 0.20)
+        # Overlap 33.3% perc on X axis, identical area.
+        self.assertEqual(utilBoxes.getIoU([2, 1, 4, 4], [2, 3, 4, 6]), 0.20)
+
+    def test_no_overlap(self):
+        # No overlap on Y axis, identical area.
+        self.assertEqual(utilBoxes.getIoU([1, 2, 3, 4], [3, 2, 5, 4]), 0.0)
+        # No overlap on X axis, identical area.
+        self.assertEqual(utilBoxes.getIoU([2, 1, 4, 3], [2, 3, 4, 5]), 0.0)
 
 
 class TestCropPatch(unittest.TestCase):

@@ -1,18 +1,14 @@
-import os, sys, os.path as op
+import os.path as op
 import shutil
-import random
-import logging
-import numpy as np
 import unittest
 import tempfile
 import progressbar
 import nose
 
 from lib.utils import util
-from lib.utils import utilBoxes
 
 
-class TestCopyWithBackup(unittest.TestCase):
+class Test_CopyWithBackup(unittest.TestCase):
     def setUp(self):
         self.work_dir = tempfile.mkdtemp()
         with open(op.join(self.work_dir, 'from.txt'), 'w') as f:
@@ -69,62 +65,67 @@ class TestCopyWithBackup(unittest.TestCase):
             self.assertEqual(s, 'from')
 
 
-class TestBbox2roi(unittest.TestCase):
-    def test_normal(self):
-        self.assertEqual(utilBoxes.bbox2roi([1, 2, 3, 4]), [2, 1, 6, 4])
-        self.assertEqual(utilBoxes.bbox2roi((1, 2, 3, 4)), [2, 1, 6, 4])
+class Test_getIntersectingObjects(unittest.TestCase):
+    def test_empty(self):
+        pairs_to_merge = util.getIntersectingObjects([], [], 0.5)
+        self.assertEqual(pairs_to_merge, [])
 
-    def test_zeroDims(self):
-        self.assertEqual(utilBoxes.bbox2roi([1, 2, 0, 0]), [2, 1, 2, 1])
+    def test_firstEmpty(self):
+        objects2 = [(1, 'image', 10, 10, 30, 30, 'name2', 1.)]
+        pairs_to_merge = util.getIntersectingObjects([], objects2, 0.5)
+        self.assertEqual(pairs_to_merge, [])
 
-    def test_notSequence(self):
-        with self.assertRaises(TypeError):
-            utilBoxes.bbox2roi(42)
+    def test_identical(self):
+        objects1 = [(1, 'image', 10, 10, 30, 30, 'name1', 1.)]
+        objects2 = [(2, 'image', 10, 10, 30, 30, 'name2', 1.)]
+        pairs_to_merge = util.getIntersectingObjects(objects1, objects2, 0.5)
+        self.assertEqual(pairs_to_merge, [(1, 2)])
 
-    def test_LessThanFourNumbers(self):
-        with self.assertRaises(ValueError):
-            utilBoxes.bbox2roi([42])
+    def test_identical_sameId(self):
+        objects1 = [(1, 'image', 10, 10, 30, 30, 'name1', 1.)]
+        objects2 = [(1, 'image', 10, 10, 30, 30, 'name2', 1.)]
+        pairs_to_merge = util.getIntersectingObjects(objects1,
+                                                     objects2,
+                                                     0.5,
+                                                     same_id_ok=False)
+        self.assertEqual(pairs_to_merge, [])
 
-    def test_MoreThanFourNumbers(self):
-        with self.assertRaises(ValueError):
-            utilBoxes.bbox2roi([42, 42, 42, 42, 42])
+    def test_nonIntersecting(self):
+        objects1 = [(1, 'image', 10, 10, 30, 30, 'name1', 1.)]
+        objects2 = [(2, 'image', 20, 20, 40, 40, 'name2', 1.)]
+        pairs_to_merge = util.getIntersectingObjects(objects1, objects2, 0.5)
+        self.assertEqual(pairs_to_merge, [])
 
-    def test_NotNumbers(self):
-        with self.assertRaises(TypeError):
-            utilBoxes.bbox2roi(['a', 'b', 'c', 'd'])
+    def test_twoIntersecting(self):
+        objects1 = [(1, 'image', 10, 10, 30, 30, 'name1', 1.)]
+        objects2 = [(2, 'image', 20, 20, 30, 30, 'name2', 1.),
+                    (3, 'image', 10, 10, 30, 30, 'name3', 1.)]
+        pairs_to_merge = util.getIntersectingObjects(objects1, objects2, 0.1)
+        self.assertEqual(pairs_to_merge, [(1, 3)])
 
-    def test_negativeDims(self):
-        with self.assertRaises(ValueError):
-            utilBoxes.bbox2roi([1, 2, 3, -1])
-
-
-class TestRoi2Bbox(unittest.TestCase):
-    def test_normal(self):
-        self.assertEqual(utilBoxes.roi2bbox([2, 1, 6, 4]), [1, 2, 3, 4])
-        self.assertEqual(utilBoxes.roi2bbox((2, 1, 6, 4)), [1, 2, 3, 4])
-
-    def test_zeroDims(self):
-        self.assertEqual(utilBoxes.roi2bbox([2, 1, 2, 1]), [1, 2, 0, 0])
-
-    def test_notSequence(self):
-        with self.assertRaises(TypeError):
-            utilBoxes.roi2bbox(42)
-
-    def test_LessThanFourNumbers(self):
-        with self.assertRaises(ValueError):
-            utilBoxes.roi2bbox([42])
-
-    def test_MoreThanFourNumbers(self):
-        with self.assertRaises(ValueError):
-            utilBoxes.roi2bbox([42, 42, 42, 42, 42])
-
-    def test_NotNumbers(self):
-        with self.assertRaises(TypeError):
-            utilBoxes.roi2bbox(['a', 'b', 'c', 'd'])
-
-    def test_negativeDims(self):
-        with self.assertRaises(ValueError):
-            utilBoxes.roi2bbox([2, 1, 1, 2])
+    def test_twoAndTwoIntersecting(self):
+        # #1.
+        objects1 = [(1, 'image', 10, 10, 30, 30, 'name1', 1.),
+                    (2, 'image', 20, 20, 30, 30, 'name2', 1.)]
+        objects2 = [(3, 'image', 20, 20, 30, 30, 'name3', 1.),
+                    (4, 'image', 10, 10, 30, 30, 'name4', 1.)]
+        pairs_to_merge = util.getIntersectingObjects(objects1, objects2, 0.1)
+        self.assertEqual(set(pairs_to_merge), set([(1, 4), (2, 3)]))
+        # #2.
+        objects1 = [(1, 'image', 10, 10, 30, 30, 'name1', 1.),
+                    (2, 'image', 20, 20, 30, 30, 'name2', 1.)]
+        objects2 = [(3, 'image', 10, 10, 30, 30, 'name3', 1.),
+                    (4, 'image', 20, 20, 30, 30, 'name4', 1.)]
+        pairs_to_merge = util.getIntersectingObjects(objects1, objects2, 0.1)
+        self.assertEqual(set(pairs_to_merge), set([(1, 3), (2, 4)]))
+        # #3.
+        objects1 = [(1, 'image', 10, 10, 30, 30, 'name1', 1.),
+                    (2, 'image', 20, 20, 30, 30, 'name2', 1.)]
+        objects2 = [(3, 'image', 10, 10, 30, 30, 'name3', 1.),
+                    (4, 'image', 0, 0, 30, 30, 'name4', 1.),
+                    (5, 'image', 20, 20, 30, 30, 'name5', 1.)]
+        pairs_to_merge = util.getIntersectingObjects(objects1, objects2, 0.1)
+        self.assertEqual(set(pairs_to_merge), set([(1, 3), (2, 5)]))
 
 
 if __name__ == '__main__':

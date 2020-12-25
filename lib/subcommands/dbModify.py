@@ -920,8 +920,10 @@ def mergeIntersectingObjects(c, args):
         logging.debug('Image %s has %d and %d objects to match' %
                       (imagefile, len(objects1), len(objects2)))
 
-        pairs_to_merge = util.getIntersectingObjects(objects1, objects2,
-                                                     args.IoU_threshold)
+        pairs_to_merge = util.getIntersectingObjects(objects1,
+                                                     objects2,
+                                                     args.IoU_threshold,
+                                                     same_id_ok=False)
 
         if args.with_display and len(pairs_to_merge) > 0:
             image = imreader.imread(imagefile)
