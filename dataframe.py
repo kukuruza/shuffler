@@ -93,9 +93,11 @@ class Dataframe:
         else:
             self._load(in_db_path, rootdir=rootdir)
 
-    # def _update_subcommands(self):
     def _make_partial_subcommands(self):
-        ''' Assign all subcommands. '''
+        '''
+        Populate _partial_subcommands with Shuffler subcommand methods.
+        Called only in __init__ and put into a separate function for clarity.
+        '''
         subcommands_and_parser_names = get_subcommands_and_parser_names()
 
         parser = argparse.ArgumentParser()
@@ -110,6 +112,18 @@ class Dataframe:
             self._partial_subcommands.append((subcommand.__name__, func))
 
     def _update_subcommands(self):
+        '''
+        For every new / newly opened database, this method (re)creates a method
+        for each Shuffler subcommand. 
+
+        Methods are thin wrappers around Shuffler subcommands. 
+        The wrappers hide "cursor" and "rootdir" from the user.
+        Now user can just call "df.my_subcommand(wargs)" instead of
+        "my_subcommand(cursor, rootdir, wargs)".
+
+        Every time a dataframe is closed and (re)opened, wrappers need to be
+        recreated for the new value of cursor and rootdir.
+        '''
         for subcommand_name, func in self._partial_subcommands:
             setattr(Dataframe, subcommand_name,
                     func(cursor=self.cursor, rootdir=self.rootdir))
@@ -126,7 +140,7 @@ class Dataframe:
         self._update_subcommands()
 
     def _load(self, in_db_path, rootdir):
-        ''' Open an existing database with Shuffler schema. '''
+        ''' Open an existing database that has the Shuffler schema. '''
         if in_db_path == ':memory:':
             self.temp_db_path = None
             self.conn = sqlite3.connect(':memory:')
@@ -138,7 +152,6 @@ class Dataframe:
 
         self.rootdir = rootdir
         self.cursor = self.conn.cursor()
-        # TODO: verify the validity of the schema.
         self._update_subcommands()
 
     def _clean_up(self):
@@ -152,15 +165,29 @@ class Dataframe:
         self.rootdir = None
 
     def __len__(self):
-        '''
-        Return the number of images in the database.
-        '''
+        ''' Return the number of images in the database. '''
         if self.conn is None:
             raise RuntimeError("Dataframe is empty.")
         self.cursor.execute("SELECT COUNT(1) FROM images")
         return self.cursor.fetchone()[0]
 
     def __getitem__(self, index):
+        ''' 
+        Get the i-th image entry with all its objects.
+        Args:
+          index:  the index of the image entry in the database.
+        Returns:
+          dictionary with the following keys.
+          {
+            'image':    Numpy array.
+            'mask':     Numpy array.
+            'imagefile' String.
+            'maskfile'  String or None.
+            'name'      String (e.g. when predicted by a classification model).
+            'objects'   Dictionary with the same keys as field names
+                        in table "objects" of the Shuffler schema.
+          }
+        '''
         if index >= len(self):
             raise IndexError("Index %d is greater than the dataframe size %d" %
                              (index, len(self)))
@@ -168,7 +195,7 @@ class Dataframe:
         # TODO: figure out how to not load the whole database.
         image_entries = self.cursor.fetchall()
         imagefile, maskfile, name = image_entries[index]
-        self.cursor.execute("SELECT * FROM objects WHERE imagefile = ?",
+        self.cursor.execute("SELECT * FROM objects WHERE imagefile=?",
                             (imagefile, ))
         objects = self.cursor.fetchall()
         imreader = backendMedia.MediaReader(rootdir=self.rootdir)
@@ -199,4 +226,5 @@ class Dataframe:
         self.temp_db_path = None
 
     def close(self):
+        ''' Close an open database. '''
         self._clean_up()

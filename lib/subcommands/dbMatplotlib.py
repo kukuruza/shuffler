@@ -1,31 +1,33 @@
-import os, sys, os.path as op
+import os.path as op
 import numpy as np
-import cv2
 import logging
 from ast import literal_eval
 from pprint import pformat
 import matplotlib.cm as cm
-import matplotlib.colorbar as cbar
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.patheffects as path_effects
 
-from lib.utils.util import drawTextOnImage, drawMaskOnImage, drawMaskAside
-from lib.utils.util import bbox2roi, maybeDecode
-from lib.utils.util import FONT, SCALE, FONT_SIZE, THICKNESS
-from lib.backend.backendDb import deleteImage, deleteObject, imageField, objectField, polygonField
-from lib.backend.backendMedia import MediaReader, normalizeSeparators
+from lib.utils import util
+from lib.backend import backendDb
+from lib.backend import backendMedia
 
 
 def add_parsers(subparsers):
     displayImagesPltParser(subparsers)
 
 
-def getNumRows(total, ncols):
-    return int((total - 1) / ncols) + 1
-
-
 def drawScoredRoi(ax, roi, label=None, score=None):
+    '''
+    Draw a bounding box on top of Matplotlib axes.
+    Args:
+      ax:       Matplotlib axes.
+      roi:      List/tuple [y1, x1, y2, x2].
+      label:    String to print near the bounding box or None.
+      score:    A float in range [0, 1] or None.
+    Return:
+      Nothing, 'img' is changed in place.
+    '''
     if score is None:
         score = 1.
     cmap = cm.get_cmap('jet').reversed()
@@ -48,13 +50,14 @@ def drawScoredRoi(ax, roi, label=None, score=None):
 
 def drawScoredPolygon(ax, polygon, label=None, score=None):
     '''
+    Draw a polygon on top of Matplotlib axes.
     Args:
-      ax:             Axes on matplotlib figure.
-      polygon:        A list of tuples (x,y)
-      label:          string, name of object
-      score:          float, score of object in range [0, 1]
+      ax:       Matplotlib axes.
+      polygon:  List of tuples (x,y)
+      label:    String to print near the bounding box or None.
+      score:    A float in range [0, 1] or None.
     Returns:
-      Nothing, img is changed in-place
+      Nothing, 'img' is changed in place.
     '''
     if score is None:
         score = 1.
@@ -71,7 +74,7 @@ def drawScoredPolygon(ax, polygon, label=None, score=None):
     ymin = polygon[:, 1].min()
     if label is not None:
         # if isinstance(label, bytes):
-        label = maybeDecode(label)
+        label = util.maybeDecode(label)
         if label:
             text = ax.text(x=xmin, y=ymin - 5, s=label, c='white')
             text.set_path_effects([
@@ -115,16 +118,16 @@ def displayImagesPltParser(subparsers):
     parser.add_argument('--with_imagefile',
                         action='store_true',
                         help='draw imagefile on top of the image.')
-    group.add_argument('--ncols',
-                       type=int,
-                       default=2,
-                       help='Number of columns for matplotlib figure.')
+    parser.add_argument('--ncols',
+                        type=int,
+                        default=1,
+                        help='Number of columns for matplotlib figure.')
 
 
 def displayImagesPlt(c, args):
     c.execute('SELECT * FROM images WHERE (%s)' % args.where_image)
     image_entries = c.fetchall()
-    logging.info('%d images found.' % len(image_entries))
+    logging.info('%d images found.', len(image_entries))
     if len(image_entries) == 0:
         logging.error('There are no images. Exiting.')
         return
@@ -135,36 +138,43 @@ def displayImagesPlt(c, args):
     if len(image_entries) < args.limit:
         image_entries = image_entries[:args.limit]
 
-    nrows = getNumRows(min(args.limit, len(image_entries)), args.ncols)
+    def _getNumRows(total, ncols):
+        nrows = int((total - 1) / ncols) + 1
+        logging.info('Grid: %dx%d from the total of %d', nrows, ncols, total)
+        return nrows
 
-    imreader = MediaReader(rootdir=args.rootdir)
+    if args.limit < len(image_entries):
+        image_entries = image_entries[:args.limit]
+    nrows = _getNumRows(len(image_entries), args.ncols)
+
+    imreader = backendMedia.MediaReader(rootdir=args.rootdir)
 
     # For overlaying masks.
     labelmap = literal_eval(
         args.mask_mapping_dict) if args.mask_mapping_dict else None
-    logging.info('Parsed mask_mapping_dict to %s' % pformat(labelmap))
+    logging.info('Parsed mask_mapping_dict to %s', pformat(labelmap))
 
     for i_image, image_entry in enumerate(image_entries):
         ax = plt.subplot(nrows, args.ncols, i_image + 1)
 
-        imagefile = imageField(image_entry, 'imagefile')
-        maskfile = imageField(image_entry, 'maskfile')
-        imname = (imageField(image_entry, 'name'))
-        imscore = (imageField(image_entry, 'score'))
-        logging.info('Imagefile "%s"' % imagefile)
-        logging.debug('Image name="%s", score=%s' % (imname, imscore))
+        imagefile = backendDb.imageField(image_entry, 'imagefile')
+        maskfile = backendDb.imageField(image_entry, 'maskfile')
+        imname = backendDb.imageField(image_entry, 'name')
+        imscore = backendDb.imageField(image_entry, 'score')
+        logging.info('Imagefile "%s"', imagefile)
+        logging.debug('Image name="%s", score=%s', imname, imscore)
         image = imreader.imread(imagefile)
 
         # Overlay the mask.
         if maskfile is not None:
             mask = imreader.maskread(maskfile)
             if args.mask_aside:
-                image = drawMaskAside(image, mask, labelmap=labelmap)
+                image = util.drawMaskAside(image, mask, labelmap=labelmap)
             elif args.mask_alpha is not None:
-                image = drawMaskOnImage(image,
-                                        mask,
-                                        alpha=args.mask_alpha,
-                                        labelmap=labelmap)
+                image = util.drawMaskOnImage(image,
+                                             mask,
+                                             alpha=args.mask_alpha,
+                                             labelmap=labelmap)
         else:
             logging.info('No mask for this image.')
 
@@ -172,22 +182,22 @@ def displayImagesPlt(c, args):
         if args.with_objects:
             c.execute('SELECT * FROM objects WHERE imagefile=?', (imagefile, ))
             object_entries = c.fetchall()
-            logging.info('Found %d objects for image %s' %
-                         (len(object_entries), imagefile))
+            logging.info('Found %d objects for image %s', len(object_entries),
+                         imagefile)
             for object_entry in object_entries:
-                objectid = objectField(object_entry, 'objectid')
-                roi = objectField(object_entry, 'roi')
-                score = objectField(object_entry, 'score')
-                name = objectField(object_entry, 'name')
-                logging.info('objectid: %d, roi: %s, score: %s, name: %s' %
-                             (objectid, roi, score, name))
+                objectid = backendDb.objectField(object_entry, 'objectid')
+                roi = backendDb.objectField(object_entry, 'roi')
+                score = backendDb.objectField(object_entry, 'score')
+                name = backendDb.objectField(object_entry, 'name')
+                logging.info('objectid: %d, roi: %s, score: %s, name: %s',
+                             objectid, roi, score, name)
                 c.execute('SELECT * FROM polygons WHERE objectid=?',
                           (objectid, ))
                 polygon_entries = c.fetchall()
                 if len(polygon_entries) > 0:
                     logging.info('showing object with a polygon.')
-                    polygon = [(int(polygonField(p, 'x')),
-                                int(polygonField(p, 'y')))
+                    polygon = [(int(backendDb.polygonField(p, 'x')),
+                                int(backendDb.polygonField(p, 'y')))
                                for p in polygon_entries]
                     drawScoredPolygon(ax, polygon, label=name, score=score)
                 elif roi is not None:
@@ -195,16 +205,17 @@ def displayImagesPlt(c, args):
                     drawScoredRoi(ax, roi, label=name, score=score)
                 else:
                     logging.warning(
-                        'Neither polygon, nor bbox is available for objectid %d'
-                        % objectid)
+                        'Neither polygon, nor bbox is available for objectid %d',
+                        objectid)
 
         # Overlay imagefile.
         title = ""
         if args.with_imagefile:
-            title += '%s ' % op.basename(normalizeSeparators(imagefile))
+            title += '%s ' % op.basename(
+                backendMedia.normalizeSeparators(imagefile))
         # Overlay score.
         if args.with_score:
-            title += '%.3f ' % imscore
+            title += '%.3f ' % imscore if imscore is not None else ''
         ax.set_title(title)
 
         # Display
@@ -212,3 +223,4 @@ def displayImagesPlt(c, args):
         ax.axis('off')
 
     plt.tight_layout()
+    plt.show()
