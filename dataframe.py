@@ -1,4 +1,36 @@
+'''
+This is an interface between Shuffler subcommands and ipython notebook.
+
+It introduces Dataframe class, that is the only Shuffler interface class
+for an IPython notebook. Every Shuffler subcommand is a method in the Dataframe 
+class.
+
+The workflow is expected to be like below. Refer to "dataframe_demo.ipynb" file.
+
+# Init.
+df = Dataframe()
+df.load('testdata/cars/micro1_v4.db', rootdir='testdata/cars')
+
+# Shuffler subcommands.
+df.sql(sql='DELETE FROM properties')
+df.printInfo()
+df.displayImagesPlt(limit=4, with_objects=True, with_imagefile=True)
+plt.show()
+
+# Use objects / images outside of Shuffler.
+print(len(df))
+image = df[1]['image']
+objects = df[1]['objects']
+plt.imshow(image)
+
+# Closing.
+tmp_file_path = tempfile.NamedTemporaryFile().name
+df.save(tmp_file_path)
+df.close()
+'''
+
 import os
+import logging
 import argparse
 import inspect
 import sqlite3
@@ -10,15 +42,18 @@ from lib import subcommands
 from lib.backend import backendDb
 from lib.backend import backendMedia
 
+# All the files with subcommands start with this prefix, e.g. "dbModify.py".
+SUBCOMMAND_PREFIX = 'db'
 
-def get_subcommands_and_parser_names():
+
+def _collect_subcommands():
     '''
     Collect all subcommand functions and their parsers from subcommand modules.
     '''
     # Iterate modules (files) in subcommands package.
-    functions_and_parsers = []
+    all_functions = []
     for module_name in dir(subcommands):
-        if not module_name.startswith('db'):
+        if not module_name.startswith(SUBCOMMAND_PREFIX):
             continue
         module = getattr(subcommands, module_name)
 
@@ -32,19 +67,17 @@ def get_subcommands_and_parser_names():
                 continue
             subcommand_name = subparser_name[:-len('Parser')]
             if not subcommand_name in functions_dict:
-                print('Weird: have function %s, but not function %s' %
-                      (subparser_name, subcommand_name))
+                logging.error('Weird: have function %s, but not function %s',
+                              subparser_name, subcommand_name)
                 continue
             getattr(subcommands, module_name)
 
-            functions_and_parsers.append(
-                (functions_dict[subcommand_name], subparser_name))
+            all_functions.append(functions_dict[subcommand_name])
 
-    return functions_and_parsers
+    return all_functions
 
 
-def get_subcommand_method(cursor, subcommand, subparser_name, parser,
-                          **global_kwargs):
+def _make_subcommand_method(cursor, subcommand, parser, **global_kwargs):
     '''
     Given a subcommand method and its parser method, add a class method that
     would parse the input **kwargs and call the subcommand.
@@ -53,10 +86,8 @@ def get_subcommand_method(cursor, subcommand, subparser_name, parser,
     it is a interface between **kwargs arguments that the DataFrame takes and
     the parsed arguments that subcommands take.
     '''
-    def kwargs_to_argv(subparser_name, kwargs):
-        '''
-        Make sure all the keywords are valid and required arguments are given.
-        '''
+    def kwargs_to_argv(kwargs):
+        ''' Get arguments as a dictionary, and make an input for the parser. '''
         argv = [subcommand.__name__]
         for key, value in kwargs.items():
             if isinstance(value, list):
@@ -70,9 +101,9 @@ def get_subcommand_method(cursor, subcommand, subparser_name, parser,
                 argv.append(str(value))
         return argv
 
-    def func(self, **kwargs):
-        argv = kwargs_to_argv(subparser_name, kwargs)
-        print(argv)
+    def func(_, **kwargs):
+        argv = kwargs_to_argv(kwargs)
+        logging.info('Going to execute a command with command line: %s', argv)
         args = parser.parse_args(argv)
         # Additionally, assign values for global kwargs (such as rootdir).
         for key in global_kwargs:
@@ -83,9 +114,15 @@ def get_subcommand_method(cursor, subcommand, subparser_name, parser,
 
 
 class Dataframe:
+    ''' 
+    The Dataframe class incorporates all of the Shuffler's functionality. 
+    It manages open databases in Shuffler schema and it has a method for every
+    Shuffler subcommand.
+    '''
     def __init__(self, in_db_path=None, rootdir='.'):
         '''
-        Make a new dataframe, from scratch or by loading from Shuffler format.
+        Make a new dataframe by opening or creating a database with the 
+        Shuffler schema.
         '''
         self._make_partial_subcommands()
         if in_db_path is None:
@@ -98,16 +135,13 @@ class Dataframe:
         Populate _partial_subcommands with Shuffler subcommand methods.
         Called only in __init__ and put into a separate function for clarity.
         '''
-        subcommands_and_parser_names = get_subcommands_and_parser_names()
-
         parser = argparse.ArgumentParser()
         subcommands.add_subparsers(parser)
 
         self._partial_subcommands = []
-        for subcommand, subparser_name in subcommands_and_parser_names:
-            func = partial(get_subcommand_method,
+        for subcommand in _collect_subcommands():
+            func = partial(_make_subcommand_method,
                            subcommand=subcommand,
-                           subparser_name=subparser_name,
                            parser=parser)
             self._partial_subcommands.append((subcommand.__name__, func))
 
