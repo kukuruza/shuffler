@@ -11,15 +11,15 @@ import numpy as np
 def _load_db_to_memory(in_db_path):
     # Read database to tempfile
     conn = sqlite3.connect('file:%s?mode=ro' % in_db_path, uri=True)
-    tempfile = io.StringIO()
+    tempfile_ = io.StringIO()
     for line in conn.iterdump():
-        tempfile.write('%s\n' % line)
+        tempfile_.write('%s\n' % line)
     conn.close()
-    tempfile.seek(0)
+    tempfile_.seek(0)
 
     # Create a database in memory and import from tempfile
     conn = sqlite3.connect(":memory:")
-    conn.cursor().executescript(tempfile.read())
+    conn.cursor().executescript(tempfile_.read())
     return conn
 
 
