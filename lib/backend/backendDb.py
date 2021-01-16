@@ -312,7 +312,7 @@ def updateObjectTransform(c, objectid, transform):
     Args:
       c:             cursor
       objectid:      field objectid from "objects" table.
-      transform:     a 3x3 float np array [[kx,0,bx], [0,ky,by], [0,0,1]].
+      transform:     a 3x3 float np array [[ky,0,by], [0,kx,bx], [0,0,1]].
     '''
     if transform.shape != (3, 3):
         raise ValueError('Transform must be 3x3 not %s' % str(transform.shape))
@@ -338,43 +338,43 @@ def updateObjectTransform(c, objectid, transform):
     entry = c.fetchone()
     by_id, by = (entry[0], float(entry[1])) if entry is not None else (None, 0)
 
-    transform0 = np.array([[kx, 0., bx], [0., ky, by], [0, 0, 1]])
+    transform0 = np.array([[ky, 0., by], [0., kx, bx], [0, 0, 1]])
     logging.debug('Previous transform for objectid %d: \n%s', objectid,
                   str(transform0))
 
-    transform = np.matmul(transform0, transform)
+    transform = np.matmul(transform, transform0)
     logging.debug('New transform for objectid %d: \n%s', objectid,
                   str(transform))
 
-    # Update/insert kx.
-    if kx_id is not None:
-        c.execute('UPDATE properties SET value=? WHERE id=?',
-                  (str(transform[0, 0]), kx_id))
-    else:
-        c.execute(
-            'INSERT INTO properties(objectid,key,value) VALUES (?,"kx",?)',
-            (objectid, str(transform[0, 0])))
     # Update/insert ky.
     if ky_id is not None:
         c.execute('UPDATE properties SET value=? WHERE id=?',
-                  (str(transform[1, 1]), ky_id))
+                  (str(transform[0, 0]), ky_id))
     else:
         c.execute(
             'INSERT INTO properties(objectid,key,value) VALUES (?,"ky",?)',
-            (objectid, str(transform[1, 1])))
-    # Update/insert bx.
-    if bx_id is not None:
+            (objectid, str(transform[0, 0])))
+    # Update/insert kx.
+    if kx_id is not None:
         c.execute('UPDATE properties SET value=? WHERE id=?',
-                  (str(transform[0, 2]), bx_id))
+                  (str(transform[1, 1]), kx_id))
     else:
         c.execute(
-            'INSERT INTO properties(objectid,key,value) VALUES (?,"bx",?)',
-            (objectid, str(transform[0, 2])))
+            'INSERT INTO properties(objectid,key,value) VALUES (?,"kx",?)',
+            (objectid, str(transform[1, 1])))
     # Update/insert by.
     if by_id is not None:
         c.execute('UPDATE properties SET value=? WHERE id=?',
-                  (str(transform[1, 2]), by_id))
+                  (str(transform[0, 2]), by_id))
     else:
         c.execute(
             'INSERT INTO properties(objectid,key,value) VALUES (?,"by",?)',
+            (objectid, str(transform[0, 2])))
+    # Update/insert bx.
+    if bx_id is not None:
+        c.execute('UPDATE properties SET value=? WHERE id=?',
+                  (str(transform[1, 2]), bx_id))
+    else:
+        c.execute(
+            'INSERT INTO properties(objectid,key,value) VALUES (?,"bx",?)',
             (objectid, str(transform[1, 2])))

@@ -19,6 +19,7 @@ def add_parsers(subparsers):
     moveToRajaFolderStructureParser(subparsers)
     importNameFromCsvParser(subparsers)
     syncImagesWithDbParser(subparsers)
+    validateImageNamesParser(subparsers)
 
 
 def upgradeStampImagepathsParser(subparsers):
@@ -292,7 +293,7 @@ def syncImagesWithDbParser(subparsers):
         'Also match objects by "objectid", and replace "imagefile" field '
         'for each object with its value from ref_db. '
         'Used to move to the original db after using tileObjects subcommand.')
-    parser.set_defaults(func=importNameFromCsv)
+    parser.set_defaults(func=syncImagesWithDb)
     parser.add_argument('--ref_db_file', required=True)
 
 
@@ -331,3 +332,20 @@ def syncImagesWithDb(c, args):
 
     # c.execute('DETACH DATABASE "ref"')  Does not work, gets locked.
     os.remove(ref_db_file)
+
+
+def validateImageNamesParser(subparsers):
+    parser = subparsers.add_parser(
+        'validateImageNames',
+        description='Replace special characters in "imagefile" '
+        'with the provided "replacement" cmd argument.')
+    parser.set_defaults(func=validateImageNames)
+    parser.add_argument('--replacement', default="_")
+
+
+def validateImageNames(c, args):
+    for original in ['+', '*', '?', '/']:
+        c.execute('UPDATE images SET imagefile=REPLACE(imagefile, ?, ?)',
+                  (original, args.replacement))
+        c.execute('UPDATE objects SET imagefile=REPLACE(imagefile, ?, ?)',
+                  (original, args.replacement))

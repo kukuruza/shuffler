@@ -178,19 +178,19 @@ class Test_updateObjectTransform_emptyDb(testUtils.Test_emptyDb):
         transform = np.array([[1., 0., 0.], [0., 1., 0.], [0., 0., 1.]])
         backendDb.updateObjectTransform(c, 0, transform)
 
-        c.execute('SELECT value FROM properties WHERE key="kx"')
-        kx = c.fetchall()
         c.execute('SELECT value FROM properties WHERE key="ky"')
         ky = c.fetchall()
-        c.execute('SELECT value FROM properties WHERE key="bx"')
-        bx = c.fetchall()
+        c.execute('SELECT value FROM properties WHERE key="kx"')
+        kx = c.fetchall()
         c.execute('SELECT value FROM properties WHERE key="by"')
         by = c.fetchall()
-        self.assertEqual((len(kx), len(ky), len(bx), len(by)), (1, 1, 1, 1))
-        self.assertEqual(float(kx[0][0]), 1.)
+        c.execute('SELECT value FROM properties WHERE key="bx"')
+        bx = c.fetchall()
+        self.assertEqual((len(ky), len(kx), len(by), len(bx)), (1, 1, 1, 1))
         self.assertEqual(float(ky[0][0]), 1.)
-        self.assertEqual(float(bx[0][0]), 0.)
+        self.assertEqual(float(kx[0][0]), 1.)
         self.assertEqual(float(by[0][0]), 0.)
+        self.assertEqual(float(bx[0][0]), 0.)
 
     def test_withPreviousTransform(self):
         c = self.conn.cursor()
@@ -198,26 +198,26 @@ class Test_updateObjectTransform_emptyDb(testUtils.Test_emptyDb):
         transform0 = np.array([[2., 0., 0.], [0., 1., 1.], [0., 0., 1.]])
         c.execute(
             'INSERT INTO properties(objectid,key,value) '
-            'VALUES(0,"kx",?), (0,"ky",?), (0,"bx",?), (0,"by",?)',
+            'VALUES(0,"ky",?), (0,"kx",?), (0,"by",?), (0,"bx",?)',
             (transform0[0, 0], transform0[1, 1], transform0[0, 2],
              transform0[1, 2]))
 
         transform1 = np.array([[1., 0., 1.], [0., 2., 1.], [0., 0., 1.]])
         backendDb.updateObjectTransform(c, 0, transform1)
 
-        c.execute('SELECT value FROM properties WHERE key="kx"')
-        kx = c.fetchall()
         c.execute('SELECT value FROM properties WHERE key="ky"')
         ky = c.fetchall()
-        c.execute('SELECT value FROM properties WHERE key="bx"')
-        bx = c.fetchall()
+        c.execute('SELECT value FROM properties WHERE key="kx"')
+        kx = c.fetchall()
         c.execute('SELECT value FROM properties WHERE key="by"')
         by = c.fetchall()
-        self.assertEqual((len(kx), len(ky), len(bx), len(by)), (1, 1, 1, 1))
-        transform2 = np.array([[float(kx[0][0]), 0.,
-                                float(bx[0][0])],
-                               [0., float(ky[0][0]),
-                                float(by[0][0])], [0., 0., 1.]])
+        c.execute('SELECT value FROM properties WHERE key="bx"')
+        bx = c.fetchall()
+        self.assertEqual((len(ky), len(kx), len(by), len(bx)), (1, 1, 1, 1))
+        transform2 = np.array([[float(ky[0][0]), 0.,
+                                float(by[0][0])],
+                               [0., float(kx[0][0]),
+                                float(bx[0][0])], [0., 0., 1.]])
 
         np.testing.assert_array_equal(np.matmul(transform0, transform1),
                                       transform2)

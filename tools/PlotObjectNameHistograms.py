@@ -19,6 +19,9 @@ def get_parser():
     parser.add_argument('--fig_width', type=int, default=60)
     parser.add_argument('--fig_height', type=int, default=10)
     parser.add_argument('--show', action='store_true')
+    parser.add_argument('--at_least',
+                        type=int,
+                        help='Only keep objects with this total examples.')
     parser.add_argument(
         '--logging',
         default=20,
@@ -57,6 +60,13 @@ def plot_object_name_histograms(args):
         df['series'] = legend_entry
         dfs.append(df)
     df = pd.concat(dfs)
+    # print(df)
+
+    # Maybe keep only those classes with enough objects.
+    if args.at_least:
+        df = df.groupby(['name'
+                         ]).filter(lambda x: x['count'].sum() >= args.at_least)
+        # print(df)
 
     # Transform and plot.
     df = df.pivot_table(index='name',
