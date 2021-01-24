@@ -499,6 +499,7 @@ def filterImagesSQL(c, args):
     c.execute(args.sql)
 
     imagefiles = c.fetchall()
+    logging.info('Will filter %d images.', len(imagefiles))
     for imagefile, in progressbar(imagefiles):
         backendDb.deleteImage(c, imagefile)
 
