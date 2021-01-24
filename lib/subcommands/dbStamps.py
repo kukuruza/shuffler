@@ -19,6 +19,8 @@ def add_parsers(subparsers):
     moveToRajaFolderStructureParser(subparsers)
     importNameFromCsvParser(subparsers)
     syncImagesWithDbParser(subparsers)
+    validateImageNamesParser(subparsers)
+    recordPositionOnPageParser(subparsers)
 
 
 def upgradeStampImagepathsParser(subparsers):
@@ -331,3 +333,90 @@ def syncImagesWithDb(c, args):
 
     # c.execute('DETACH DATABASE "ref"')  Does not work, gets locked.
     os.remove(ref_db_file)
+
+
+def validateImageNamesParser(subparsers):
+    parser = subparsers.add_parser(
+        'validateImageNames',
+        description='Replace special characters in "imagefile" '
+        'with the provided "replacement" cmd argument.')
+    parser.set_defaults(func=validateImageNames)
+    parser.add_argument('--replacement', default="_")
+
+
+def validateImageNames(c, args):
+    for original in ['+', '*', '?', '/']:
+        c.execute('UPDATE images SET imagefile=REPLACE(imagefile, ?, ?)',
+                  (original, args.replacement))
+        c.execute('UPDATE objects SET imagefile=REPLACE(imagefile, ?, ?)',
+                  (original, args.replacement))
+
+
+def recordPositionOnPageParser(subparsers):
+    parser = subparsers.add_parser(
+        'recordPositionOnPage',
+        description='Add information about the position of a stamp '
+        'in its page to the properties table.')
+    parser.set_defaults(func=recordPositionOnPage)
+    parser.add_argument('--margin',
+                        type=float,
+                        default=20,
+                        help='If no page is found, repeat with this margin.')
+
+
+def recordPositionOnPage(c, args):
+    # Get all stamp objects.
+    c.execute('SELECT objectid,imagefile,x1+width/2,y1+height/2,width,height '
+              'FROM objects WHERE name NOT LIKE "%page%"')
+    for objectid, imagefile, x_stamp, y_stamp, width_stamp, height_stamp in (
+            c.fetchall()):
+        # Get pages in the same image with the stamp center inside their bbox.
+        c.execute(
+            'SELECT x1,y1,width,height FROM objects '
+            'WHERE imagefile=? AND name LIKE "%page%" AND '
+            'x1 < ? AND y1 < ? AND x1 + width > ? AND y1 + height > ?',
+            (imagefile, x_stamp, y_stamp, x_stamp, y_stamp))
+        pages = c.fetchall()
+
+        if len(pages) == 0:
+            # Try again with a margin.
+            c.execute(
+                'SELECT x1,y1,width,height FROM objects '
+                'WHERE imagefile=? AND name LIKE "%page%" AND '
+                'x1 - ? < ? AND x1 + width + ? > ? AND '
+                'y1 - ? < ? AND y1 + height + ? > ?',
+                (imagefile, args.margin, x_stamp, args.margin, x_stamp,
+                 args.margin, y_stamp, args.margin, y_stamp))
+            pages = c.fetchall()
+
+            if len(pages) == 0:
+                logging.error('Did not find a any page for stamp %d', objectid)
+                x_perc = None
+                y_perc = None
+                width_perc = None
+                height_perc = None
+
+            else:
+                logging.info('Found a page for stamp %d with margin', objectid)
+
+        else:
+            if len(pages) > 1:
+                logging.warning('Found several pages with stamp %d', objectid)
+            page = pages[0]
+
+            # Get position and dimensions of a stamp relative to its page.
+            x1_page, y1_page, width_page, height_page = page
+            x_perc = (x_stamp - x1_page) / float(width_page)
+            y_perc = (y_stamp - y1_page) / float(height_page)
+            width_perc = width_stamp / float(width_page)
+            height_perc = height_stamp / float(width_page)
+
+            assert 0 <= x_perc <= 1, x_perc
+            assert 0 <= y_perc <= 1, y_perc
+
+        c.execute(
+            'INSERT INTO properties(objectid, key, value) VALUES '
+            '(?, "x_on_page", ?), (?, "width_on_page", ?), '
+            '(?, "y_on_page", ?), (?, "height_on_page", ?)',
+            (objectid, str(x_perc), objectid, str(width_perc), objectid,
+             str(y_perc), objectid, str(height_perc)))
