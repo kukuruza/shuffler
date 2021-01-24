@@ -1,11 +1,7 @@
-import os, sys, os.path as op
-import argparse
-import numpy as np
+import os.path as op
 import logging
 from pprint import pprint
 from itertools import groupby
-from matplotlib import cm
-import pprint
 
 from lib.backend import backendDb
 
@@ -18,6 +14,14 @@ def add_parsers(subparsers):
     printInfoParser(subparsers)
     dumpDbParser(subparsers)
     diffDbParser(subparsers)
+
+
+def _updateFont(fontsize):
+    import matplotlib
+    matplotlib.rc('legend', fontsize=fontsize, handlelength=2)
+    matplotlib.rc('ytick', labelsize=fontsize)
+    matplotlib.rc('xtick', labelsize=fontsize)
+    matplotlib.rc('xlabel', labelsize=fontsize)
 
 
 def _maybeNumerizeProperty(values):
@@ -57,13 +61,16 @@ def plotHistogramParser(subparsers):
                         default=0.,
                         help='Rotate labels of x-axis ticks.')
     parser.add_argument('--categorical', action='store_true')
+    parser.add_argument('--fontsize', type=int, default=15)
     parser.add_argument('--display', action='store_true')
     parser.add_argument('--out_path')
 
 
 def plotHistogram(c, args):
     import matplotlib.pyplot as plt
+    from matplotlib import cm
     import pandas as pd
+    _updateFont(args.fontsize)
 
     c.execute(args.sql if args.sql else args.sql_stacked)
     entries = c.fetchall()
@@ -135,6 +142,7 @@ def plotStripParser(subparsers):
                         type=float,
                         default=0.,
                         help='Rotate labels of x-axis ticks.')
+    parser.add_argument('--fontsize', type=int, default=15)
     parser.add_argument('--display', action='store_true')
     parser.add_argument('--out_path')
 
@@ -143,6 +151,7 @@ def plotStrip(c, args):
     import matplotlib.pyplot as plt
     import pandas as pd
     import seaborn as sns
+    _updateFont(args.fontsize)
 
     c.execute(args.sql)
     entries = c.fetchall()
@@ -198,6 +207,7 @@ def plotViolinParser(subparsers):
                         type=float,
                         default=0.,
                         help='Rotate labels of x-axis ticks.')
+    parser.add_argument('--fontsize', type=int, default=15)
     parser.add_argument('--display', action='store_true')
     parser.add_argument('--out_path')
 
@@ -206,6 +216,7 @@ def plotViolin(c, args):
     import matplotlib.pyplot as plt
     import pandas as pd
     import seaborn as sns
+    _updateFont(args.fontsize)
 
     c.execute(args.sql)
     entries = c.fetchall()
@@ -259,12 +270,14 @@ def plotScatterParser(subparsers):
                         type=float,
                         default=0.,
                         help='Rotate labels of x-axis ticks.')
+    parser.add_argument('--fontsize', type=int, default=15)
     parser.add_argument('--display', action='store_true')
     parser.add_argument('--out_path')
 
 
 def plotScatter(c, args):
     import matplotlib.pyplot as plt
+    _updateFont(args.fontsize)
 
     c.execute(args.sql)
     entries = c.fetchall()
