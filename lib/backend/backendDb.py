@@ -11,15 +11,15 @@ import numpy as np
 def _load_db_to_memory(in_db_path):
     # Read database to tempfile
     conn = sqlite3.connect('file:%s?mode=ro' % in_db_path, uri=True)
-    tempfile_ = io.StringIO()
+    tempfile = io.StringIO()
     for line in conn.iterdump():
-        tempfile_.write('%s\n' % line)
+        tempfile.write('%s\n' % line)
     conn.close()
-    tempfile_.seek(0)
+    tempfile.seek(0)
 
     # Create a database in memory and import from tempfile
     conn = sqlite3.connect(":memory:")
-    conn.cursor().executescript(tempfile_.read())
+    conn.cursor().executescript(tempfile.read())
     return conn
 
 
@@ -176,36 +176,35 @@ def makeTimeString(time):
 
 def parseTimeString(timestring):
     ''' Parses the Shuffler format.
-    Args:      timestring -- a string object
-    Returns:   datetime.datetime object
-    '''
+  Args:      timestring -- a string object
+  Returns:   datetime.datetime object
+  '''
     return datetime.strptime(timestring, '%Y-%m-%d %H:%M:%S.%f')
-
-
-def objectAsDict(entry):
-    def bbox2roi(bbox):
-        return [bbox[1], bbox[0], bbox[3] + bbox[1], bbox[2] + bbox[0]]
-
-    return {
-        'objectid': entry[0],
-        'imagefile': entry[1],
-        'x1': entry[2],
-        'y1': entry[3],
-        'width': entry[4],
-        'height': entry[5],
-        'name': entry[6],
-        'score': entry[7],
-        'bbox': None if None in list(entry[2:6]) else list(entry[2:6]),
-        'roi': None if None in list(entry[2:6]) else bbox2roi(list(entry[2:6]))
-    }
 
 
 def objectField(entry, field):
     ''' Convenience function to access by field name. '''
-    objectDict = objectAsDict(entry)
-    if field not in objectDict:
-        raise KeyError('No field "%s" in object entry %s' % (field, entry))
-    return objectDict[field]
+
+    if field == 'objectid': return entry[0]
+    if field == 'imagefile': return entry[1]
+    if field == 'x1': return entry[2]
+    if field == 'y1': return entry[3]
+    if field == 'width': return entry[4]
+    if field == 'height': return entry[5]
+    if field == 'name': return entry[6]
+    if field == 'score': return entry[7]
+    if field == 'bbox':
+        if None in list(entry[2:6]):
+            return None
+        else:
+            return list(entry[2:6])
+    if field == 'roi':
+        if None in list(entry[2:6]):
+            return None
+        else:
+            bbox = list(entry[2:6])
+            return [bbox[1], bbox[0], bbox[3] + bbox[1], bbox[2] + bbox[0]]
+    raise KeyError('No field "%s" in object entry %s' % (field, entry))
 
 
 def setObjectField(entry, field, value):
@@ -313,7 +312,7 @@ def updateObjectTransform(c, objectid, transform):
     Args:
       c:             cursor
       objectid:      field objectid from "objects" table.
-      transform:     a 3x3 float np array [[kx,0,bx], [0,ky,by], [0,0,1]].
+      transform:     a 3x3 float np array [[ky,0,by], [0,kx,bx], [0,0,1]].
     '''
     if transform.shape != (3, 3):
         raise ValueError('Transform must be 3x3 not %s' % str(transform.shape))
@@ -339,43 +338,43 @@ def updateObjectTransform(c, objectid, transform):
     entry = c.fetchone()
     by_id, by = (entry[0], float(entry[1])) if entry is not None else (None, 0)
 
-    transform0 = np.array([[kx, 0., bx], [0., ky, by], [0, 0, 1]])
+    transform0 = np.array([[ky, 0., by], [0., kx, bx], [0, 0, 1]])
     logging.debug('Previous transform for objectid %d: \n%s', objectid,
                   str(transform0))
 
-    transform = np.matmul(transform0, transform)
+    transform = np.matmul(transform, transform0)
     logging.debug('New transform for objectid %d: \n%s', objectid,
                   str(transform))
 
-    # Update/insert kx.
-    if kx_id is not None:
-        c.execute('UPDATE properties SET value=? WHERE id=?',
-                  (str(transform[0, 0]), kx_id))
-    else:
-        c.execute(
-            'INSERT INTO properties(objectid,key,value) VALUES (?,"kx",?)',
-            (objectid, str(transform[0, 0])))
     # Update/insert ky.
     if ky_id is not None:
         c.execute('UPDATE properties SET value=? WHERE id=?',
-                  (str(transform[1, 1]), ky_id))
+                  (str(transform[0, 0]), ky_id))
     else:
         c.execute(
             'INSERT INTO properties(objectid,key,value) VALUES (?,"ky",?)',
-            (objectid, str(transform[1, 1])))
-    # Update/insert bx.
-    if bx_id is not None:
+            (objectid, str(transform[0, 0])))
+    # Update/insert kx.
+    if kx_id is not None:
         c.execute('UPDATE properties SET value=? WHERE id=?',
-                  (str(transform[0, 2]), bx_id))
+                  (str(transform[1, 1]), kx_id))
     else:
         c.execute(
-            'INSERT INTO properties(objectid,key,value) VALUES (?,"bx",?)',
-            (objectid, str(transform[0, 2])))
+            'INSERT INTO properties(objectid,key,value) VALUES (?,"kx",?)',
+            (objectid, str(transform[1, 1])))
     # Update/insert by.
     if by_id is not None:
         c.execute('UPDATE properties SET value=? WHERE id=?',
-                  (str(transform[1, 2]), by_id))
+                  (str(transform[0, 2]), by_id))
     else:
         c.execute(
             'INSERT INTO properties(objectid,key,value) VALUES (?,"by",?)',
+            (objectid, str(transform[0, 2])))
+    # Update/insert bx.
+    if bx_id is not None:
+        c.execute('UPDATE properties SET value=? WHERE id=?',
+                  (str(transform[1, 2]), bx_id))
+    else:
+        c.execute(
+            'INSERT INTO properties(objectid,key,value) VALUES (?,"bx",?)',
             (objectid, str(transform[1, 2])))

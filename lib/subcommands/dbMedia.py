@@ -343,6 +343,10 @@ def tileObjectsParser(subparsers):
     parser.add_argument('--split_by_name',
                         action='store_true',
                         help='Start a new collage with every new name.')
+    parser.add_argument('--dry_run_media',
+                        action='store_true',
+                        help='If specified, do not read or write images, '
+                        'only make changes to the database.')
 
 
 def tileObjects(c, args):
@@ -427,7 +431,13 @@ def tileObjects(c, args):
         previous_name = name
 
         # Crop object.
-        old_image = imreader.imread(old_imagefile)
+        if args.dry_run_media:
+            old_size = backendMedia.getPictureSize(
+                op.join(args.rootdir, old_imagefile))
+            assert len(old_size) == 2 and old_size[1] > old_size[0], old_size
+            old_image = np.zeros((old_size[0], old_size[1], 3), dtype=np.uint8)
+        else:
+            old_image = imreader.imread(old_imagefile)
         logging.debug('Cropping roi=%s from image of shape %s' %
                       (old_roi, old_image.shape))
         crop, transform = utilBoxes.cropPatch(old_image, old_roi, args.edges,
@@ -446,11 +456,14 @@ def tileObjects(c, args):
         collage[cell_y:cell_y + args.cell_height,
                 cell_x:cell_x + args.cell_width] = crop
 
+        transform[0, 2] += cell_y
+        transform[1, 2] += cell_x
+
         # Write transform as x_new = x_old * kx + bx, y_new = y_old * ky + by.
         ky = transform[0, 0]
         kx = transform[1, 1]
-        by = transform[0, 2] + cell_y
-        bx = transform[1, 2] + cell_x
+        by = transform[0, 2]
+        bx = transform[1, 2]
 
         # Select the cropped object and "where_other_objects" objects in this image.
         c.execute(
@@ -484,7 +497,10 @@ def tileObjects(c, args):
             if old_im_objectid == old_objectid:
                 c.execute(
                     'INSERT INTO properties(objectid,key,value) VALUES (?,?,?)',
-                    (old_objectid, 'cropped', 'true'))
+                    (new_im_objectid, 'cropped', 'true'))
+                c.execute(
+                    'INSERT INTO properties(objectid,key,value) VALUES (?,?,?)',
+                    (new_im_objectid, 'old_objectid', str(old_objectid)))
 
     # Record the last (partially filled) collage.
     namehint = '%09d' % i_collage
