@@ -53,11 +53,11 @@ Shuffler requires Python3. The installation instructions assume Conda package ma
 Install dependencies:
 
 ```bash
-conda create -n shuffler python=3
+conda create -n shuffler python=3.7
 conda activate shuffler
 
 conda install -y -c conda-forge ffmpeg=4.0
-conda install -y imageio matplotlib lxml simplejson progressbar2 pillow scipy opencv=3 pysqlite3
+conda install -y imageio matplotlib lxml simplejson progressbar2 pillow scipy opencv=3
 
 # If desired, add support for plotting commands
 conda install -y pandas seaborn
