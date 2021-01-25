@@ -16,7 +16,7 @@ SCALE = 28
 FONT_SIZE = 1.2
 THICKNESS = 2
 TEXT_COLOR = (0, 0, 0)
-TEXT_BACKCOLOR = (255, 255, 255)
+TEXT_BACKCOLOR = (0, 0, 0) # (255, 255, 255)
 
 
 def validateFileName(filename):
