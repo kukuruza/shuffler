@@ -112,6 +112,29 @@ def drawScoredPolygon(img, polygon, label=None, score=None):
                 THICKNESS - 1)
 
 
+def drawTextOnImage(img, text):
+    '''
+    Draw text on image in the corner of the image.
+    Returns:
+      Nothing. Input "img" is changed in place.
+    '''
+    imheight, _ = img.shape[0:2]
+    fontscale = float(imheight) / 500
+    thickness = max(imheight // 100, 1)
+    offsety = int(fontscale * 40)
+    logging.debug('Using offset=%s, fontscale=%s, thickness=%s', offsety,
+                  fontscale, thickness)
+    text_coords = (5, offsety)
+    if thickness == 1:
+        cv2.putText(img, text, text_coords, FONT, fontscale, (255, 255, 255),
+                    thickness)
+    else:
+        cv2.putText(img, text, text_coords, FONT, fontscale, (0, 0, 0),
+                    thickness)
+        cv2.putText(img, text, text_coords, FONT, fontscale, (255, 255, 255),
+                    thickness - 1)
+
+
 def applyLabelMappingToMask(mask, labelmap):
     '''
     Args:

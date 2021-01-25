@@ -1,13 +1,12 @@
-import os, sys, os.path as op
+import os.path as op
 import numpy as np
 import cv2
 import logging
-from progressbar import progressbar
-from pprint import pformat
-from ast import literal_eval
-from datetime import timedelta
-from math import sqrt
-import sqlite3
+import progressbar
+import pprint
+import ast
+import datetime
+import math
 
 from lib.backend import backendMedia
 from lib.backend import backendDb
@@ -67,7 +66,7 @@ def cropMedia(c, args):
     target_height = args.y2 - args.y1
 
     c.execute('SELECT * FROM images')
-    for image_entry in progressbar(c.fetchall()):
+    for image_entry in progressbar.progressbar(c.fetchall()):
         imagefile = backendDb.imageField(image_entry, 'imagefile')
         maskfile = backendDb.imageField(image_entry, 'maskfile')
 
@@ -192,22 +191,22 @@ def cropObjects(c, args):
         'INNER JOIN images_old AS images ON images.imagefile = objects.imagefile '
         'WHERE (%s) ORDER BY images.imagefile' % args.where_object)
     old_entries = c.fetchall()
-    logging.debug(pformat(old_entries))
+    logging.debug(pprint.pformat(old_entries))
 
     # Avoid unnecessary reloading the same image if imagefile = prev_imagefile.
     prev_old_imagefile = None
 
     for old_objectid, old_imagefile, old_x1, old_y1, old_width, old_height, \
-        name, score, old_maskfile, timestamp in progressbar(old_entries):
-        logging.debug('Processing object %d from imagefile %s.' %
-                      (old_objectid, old_imagefile))
+        name, score, old_maskfile, timestamp in progressbar.progressbar(old_entries):
+        logging.debug('Processing object %d from imagefile %s.', old_objectid,
+                      old_imagefile)
         old_roi = utilBoxes.bbox2roi((old_x1, old_y1, old_width, old_height))
 
         # Write image.
         if prev_old_imagefile != old_imagefile:
             old_image = imreader.imread(old_imagefile)
-        logging.debug('Cropping roi=%s from image of shape %s' %
-                      (old_roi, old_image.shape))
+        logging.debug('Cropping roi=%s from image of shape %s', old_roi,
+                      old_image.shape)
         new_image, transform = utilBoxes.cropPatch(old_image, old_roi,
                                                    args.edges,
                                                    args.target_height,
@@ -239,8 +238,8 @@ def cropObjects(c, args):
             new_maskfile = None
 
         # Insert image values.
-        logging.debug('Recording imagefile %s and maskfile %s.' %
-                      (new_imagefile, new_maskfile))
+        logging.debug('Recording imagefile %s and maskfile %s.', new_imagefile,
+                      new_maskfile)
         c.execute(
             'INSERT INTO images(imagefile, width, height, maskfile, timestamp, name, score) '
             'VALUES (?,?,?,?,?,?,?)', (new_imagefile, new_width, new_height,
@@ -279,8 +278,6 @@ def cropObjects(c, args):
                 c.execute(
                     'INSERT INTO properties(objectid,key,value) VALUES (?,?,?)',
                     (old_objectid, 'cropped', 'true'))
-
-        prev_old_imagefile = prev_old_imagefile
 
     backendDb.dropRetiredTables(c)
     imwriter.close()
@@ -370,7 +367,7 @@ def tileObjects(c, args):
         'INNER JOIN images_old AS images ON images.imagefile = objects.imagefile '
         'WHERE (%s) ORDER BY objects.name' % args.where_object)
     old_entries = c.fetchall()
-    logging.debug(pformat(old_entries))
+    logging.debug(pprint.pformat(old_entries))
 
     # Create collages and info about them.
     num_cells_per_collage = args.num_cells_Y * args.num_cells_X
@@ -399,7 +396,7 @@ def tileObjects(c, args):
     i_collage = 0
     collage = np.zeros((collage_Y, collage_X, 3), dtype=np.uint8)
 
-    for old_entry in progressbar(old_entries):
+    for old_entry in progressbar.progressbar(old_entries):
         # Extract all the info from 'old_entry'.
         (objectid, old_imagefile, old_x1, old_y1, old_width, old_height, name,
          score, _, timestamp) = old_entry
@@ -545,9 +542,9 @@ def writeMedia(c, args):
     imreader = backendMedia.MediaReader(rootdir=args.rootdir)
 
     # For overlaying masks.
-    labelmap = literal_eval(
+    labelmap = ast.literal_eval(
         args.mask_mapping_dict) if args.mask_mapping_dict else None
-    logging.info('Parsed mask_mapping_dict to %s' % pformat(labelmap))
+    logging.info('Parsed mask_mapping_dict to %s', pprint.pformat(labelmap))
 
     # Create a writer. Rootdir may be changed.
     out_rootdir = args.out_rootdir if args.out_rootdir is not None else args.rootdir
@@ -568,9 +565,9 @@ def writeMedia(c, args):
         backendDb.deleteImage(c, imagefile)
 
     logging.info('Writing imagery and updating the database.')
-    for imagefile, maskfile in progressbar(entries):
+    for imagefile, maskfile in progressbar.progressbar(entries):
 
-        logging.debug('Imagefile "%s"' % imagefile)
+        logging.debug('Imagefile "%s"', imagefile)
         if args.image_path is not None:
             image = imreader.imread(imagefile)
 
@@ -597,7 +594,7 @@ def writeMedia(c, args):
         if args.with_objects:
             c.execute('SELECT * FROM objects WHERE imagefile=?', (imagefile, ))
             object_entries = c.fetchall()
-            logging.debug('Found %d objects' % len(object_entries))
+            logging.debug('Found %d objects', len(object_entries))
             for object_entry in object_entries:
                 objectid = backendDb.objectField(object_entry, 'objectid')
                 roi = backendDb.objectField(object_entry, 'roi')
@@ -690,7 +687,7 @@ def polygonsToMask(c, args):
 
     # Iterate images.
     c.execute('SELECT imagefile,width,height FROM images')
-    for imagefile, width, height in progressbar(c.fetchall()):
+    for imagefile, width, height in progressbar.progressbar(c.fetchall()):
         mask_per_image = np.zeros((height, width), dtype=np.int32)
 
         # Iterate objects.
@@ -715,8 +712,8 @@ def polygonsToMask(c, args):
                         (objectid, polygon_name))
                 pts = [[pt[0], pt[1]] for pt in c.fetchall()]
                 logging.debug(
-                    'Polygon "%s" of object %d consists of points: %s' %
-                    (polygon_name, objectid, str(pts)))
+                    'Polygon "%s" of object %d consists of points: %s',
+                    polygon_name, objectid, str(pts))
                 mask_per_polygon = np.zeros((height, width), dtype=np.int32)
                 cv2.fillPoly(mask_per_polygon,
                              [np.asarray(pts, dtype=np.int32)], 255)
@@ -816,12 +813,12 @@ def writeMediaGridByTime(c, args):
     else:
         imagedirs = args.imagedirs
 
-    logging.info('Found %d distinct image directories/videos:\n%s' %
-                 (len(imagedirs), pformat(imagedirs)))
+    logging.info('Found %d distinct image directories/videos:\n%s',
+                 len(imagedirs), pprint.pformat(imagedirs))
     num_cells = len(imagedirs)
-    gridY = int(sqrt(num_cells)) if args.gridY is None else args.gridY
+    gridY = int(math.sqrt(num_cells)) if args.gridY is None else args.gridY
     gridX = num_cells // gridY
-    logging.info('Will use grid %d x %d' % (gridY, gridX))
+    logging.info('Will use grid %d x %d', gridY, gridX)
 
     # Will use the first image to find the target height from args.winwidth.
     # "width" and "height" are the target dimensions.
@@ -838,31 +835,32 @@ def writeMediaGridByTime(c, args):
 
     time_min = min(image_entries, key=lambda x: x[1])[1]
     time_max = max(image_entries, key=lambda x: x[1])[1]
-    logging.info('Min time: "%s", max time: "%s".' % (time_min, time_max))
+    logging.info('Min time: "%s", max time: "%s".', time_min, time_max)
     delta_seconds = (time_max - time_min).total_seconds()
     # User may limit the time to write.
     if args.num_seconds is not None:
         delta_seconds = min(delta_seconds, args.num_seconds)
 
+    grid = None
     ientry = 0
     seconds_offsets = np.arange(0, int(delta_seconds), 1.0 / args.fps).tolist()
 
-    for seconds_offset in progressbar(seconds_offsets):
+    for seconds_offset in progressbar.progressbar(seconds_offsets):
 
-        out_time = time_min + timedelta(seconds=seconds_offset)
-        logging.debug('Out-time=%s, in-time=%s' %
-                      (out_time, image_entries[ientry][1]))
+        out_time = time_min + datetime.timedelta(seconds=seconds_offset)
+        logging.debug('Out-time=%s, in-time=%s', out_time,
+                      image_entries[ientry][1])
 
         # For all the entries that happened before the frame.
         while image_entries[ientry][1] < out_time:
 
             imagefile, in_time = image_entries[ientry]
-            logging.debug('Image entry %d.' % ientry)
+            logging.debug('Image entry %d.', ientry)
             ientry += 1
             # Skip those of no interest.
             if op.dirname(imagefile) not in imagedirs:
-                logging.debug('Image dir %s not in %s' %
-                              (op.dirname(imagefile), imagedirs))
+                logging.debug('Image dir %s not in %s', op.dirname(imagefile),
+                              imagedirs)
                 continue
             gridid = imagedirs.index(op.dirname(imagefile))
 
@@ -874,11 +872,11 @@ def writeMediaGridByTime(c, args):
                 util.drawTextOnImage(image, backendDb.makeTimeString(in_time))
 
             # Lazy initialization.
-            if 'grid' not in locals():
+            if grid is None:
                 grid = np.zeros((height * gridY, width * gridX, 3),
                                 dtype=np.uint8)
 
-            logging.debug('Writing %s into gridid %d' % (imagefile, gridid))
+            logging.debug('Writing %s into gridid %d', imagefile, gridid)
             grid[height * (gridid // gridX):height * (gridid // gridX + 1),
                  width * (gridid % gridX):width *
                  (gridid % gridX + 1), :] = image.copy()
@@ -917,8 +915,8 @@ def repaintMaskParser(subparsers):
 
 
 def repaintMask(c, args):
-    labelmap = literal_eval(args.mask_mapping_dict)
-    logging.info('Parsed mask_mapping_dict to %s' % pformat(labelmap))
+    labelmap = ast.literal_eval(args.mask_mapping_dict)
+    logging.info('Parsed mask_mapping_dict to %s', pprint.pformat(labelmap))
 
     imreader = backendMedia.MediaReader(rootdir=args.rootdir)
 
@@ -939,7 +937,7 @@ def repaintMask(c, args):
     maskdirs = set([op.dirname(maskfile) for maskfile in maskfiles])
     use_namehint = len(maskdirs) == 1
 
-    for maskfile, in progressbar(maskfiles):
+    for maskfile, in progressbar.progressbar(maskfiles):
         if maskfile is not None:
             # Read mask.
             mask = imreader.maskread(maskfile)
