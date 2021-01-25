@@ -38,6 +38,7 @@ def add_parsers(subparsers):
     resizeAnnotationsParser(subparsers)
     propertyToNameParser(subparsers)
     syncObjectidsWithDbParser(subparsers)
+    syncObjectsDataWithDbParser(subparsers)
     revertObjectTransformsParser(subparsers)
 
 
@@ -303,88 +304,55 @@ def expandObjectsParser(subparsers):
         type=float,
         help='If specified, expand to match this height/width ratio, '
         'and if that is less than "expand_perc", then expand more.')
-    parser.add_argument(
-        '--with_display',
-        action='store_true',
-        help=
-        'Until <Esc> key, display old and new bounding box for each object.')
 
 
 def expandObjects(c, args):
-    if args.with_display:
-        imreader = backendMedia.MediaReader(rootdir=args.rootdir)
+    c.execute('SELECT * FROM objects')
+    object_entries = c.fetchall()
+    logging.info('Found %d objects', len(object_entries))
 
-    c.execute('SELECT imagefile FROM images')
-    for (imagefile, ) in progressbar(c.fetchall()):
+    for object_entry in progressbar(object_entries):
+        objectid = backendDb.objectField(object_entry, 'objectid')
+        old_roi = backendDb.objectField(object_entry, 'roi')
+        c.execute('SELECT * FROM polygons WHERE objectid=?', (objectid, ))
+        old_polygon = c.fetchall()
 
-        c.execute('SELECT * FROM objects WHERE imagefile=?', (imagefile, ))
-        object_entries = c.fetchall()
-        logging.debug('Found %d objects for %s', len(object_entries),
-                      imagefile)
-
-        if args.with_display:
-            image = imreader.imread(imagefile)
-
-        for object_entry in object_entries:
-            objectid = backendDb.objectField(object_entry, 'objectid')
-            old_roi = backendDb.objectField(object_entry, 'roi')
-            c.execute('SELECT * FROM polygons WHERE objectid=?', (objectid, ))
-            old_polygon = c.fetchall()
-
-            # Scale.
-            if args.target_ratio:
-                if old_roi is not None:
-                    roi = utilBoxes.expandRoiToRatio(old_roi, args.expand_perc,
-                                                     args.target_ratio)
-                    logging.debug('Roi changed from %s to %s for object %d',
-                                  str(old_roi), str(roi), objectid)
-                if len(old_polygon):
-                    raise NotImplementedError(
-                        'Cant scale polygons to target ratio. It is a TODO.')
-            else:
-                if old_roi is not None:
-                    roi = utilBoxes.expandRoi(
-                        old_roi, (args.expand_perc, args.expand_perc))
-                    logging.debug('Roi changed from %s to %s for object %d',
-                                  str(old_roi), str(roi), objectid)
-                if len(old_polygon):
-                    ids = [
-                        backendDb.polygonField(p, 'id') for p in old_polygon
-                    ]
-                    old_xs = [
-                        backendDb.polygonField(p, 'x') for p in old_polygon
-                    ]
-                    old_ys = [
-                        backendDb.polygonField(p, 'y') for p in old_polygon
-                    ]
-                    xs, ys = utilBoxes.expandPolygon(
-                        old_xs, old_ys, (args.expand_perc, args.expand_perc))
-                    polygon = zip(ids, xs, ys)
-                    logging.debug(
-                        'Polygon changed from %s to %s for object %d',
-                        str(list(zip(old_xs, old_ys))), str(list(zip(xs, ys))),
-                        objectid)
-
-            # Update the database.
+        # Scale.
+        if args.target_ratio:
             if old_roi is not None:
-                c.execute(
-                    'UPDATE objects SET x1=?, y1=?,width=?,height=? WHERE objectid=?',
-                    tuple(utilBoxes.roi2bbox(roi) + [objectid]))
+                roi = utilBoxes.expandRoiToRatio(old_roi, args.expand_perc,
+                                                 args.target_ratio)
+                logging.debug('Roi changed from %s to %s for object %d',
+                              str(old_roi), str(roi), objectid)
             if len(old_polygon):
-                for id_, x, y in polygon:
-                    c.execute('UPDATE polygons SET x=?, y=? WHERE id=?',
-                              (x, y, id_))
+                raise NotImplementedError(
+                    'Cant scale polygons to target ratio. It is a TODO.')
+        else:
+            if old_roi is not None:
+                roi = utilBoxes.expandRoi(old_roi,
+                                          (args.expand_perc, args.expand_perc))
+                logging.debug('Roi changed from %s to %s for object %d',
+                              str(old_roi), str(roi), objectid)
+            if len(old_polygon):
+                ids = [backendDb.polygonField(p, 'id') for p in old_polygon]
+                old_xs = [backendDb.polygonField(p, 'x') for p in old_polygon]
+                old_ys = [backendDb.polygonField(p, 'y') for p in old_polygon]
+                xs, ys = utilBoxes.expandPolygon(
+                    old_xs, old_ys, (args.expand_perc, args.expand_perc))
+                polygon = zip(ids, xs, ys)
+                logging.debug('Polygon changed from %s to %s for object %d',
+                              str(list(zip(old_xs, old_ys))),
+                              str(list(zip(xs, ys))), objectid)
 
-            if args.with_display:
-                util.drawScoredRoi(image, old_roi, score=0)
-                util.drawScoredRoi(image, roi, score=1)
-
-        if args.with_display:
-            cv2.imshow('expandBoxes', image[:, :, ::-1])
-            key = cv2.waitKey()
-            if key == 27:
-                cv2.destroyWindow('expandBoxes')
-                args.with_display = False
+        # Update the database.
+        if old_roi is not None:
+            c.execute(
+                'UPDATE objects SET x1=?, y1=?,width=?,height=? WHERE objectid=?',
+                tuple(utilBoxes.roi2bbox(roi) + [objectid]))
+        if len(old_polygon):
+            for id, x, y in polygon:
+                c.execute('UPDATE polygons SET x=?, y=? WHERE id=?',
+                          (x, y, id))
 
 
 def moveMediaParser(subparsers):
@@ -1009,6 +977,19 @@ def syncObjectidsWithDb(c, args):
         raise ValueError('No matching imagefiles in between the open db with '
                          '%d images and the reference db with %d images.' %
                          (len(imagefiles_this), len(imagefiles_ref)))
+    # Some debug logging.
+    imagefiles_this_not_ref = list(set(imagefiles_this) - set(imagefiles_ref))
+    if imagefiles_this_not_ref:
+        logging.warning(
+            'Imagefiles that are in the current db, '
+            'but not in the ref db: \n\t%s',
+            '\t\n'.join([x for x, in imagefiles_this_not_ref]))
+    imagefiles_ref_not_this = list(set(imagefiles_ref) - set(imagefiles_this))
+    if imagefiles_ref_not_this:
+        logging.warning(
+            'Imagefiles that are in the ref db, but not in the '
+            'current db: \n\t%s',
+            '\t\n'.join([x for x, in imagefiles_ref_not_this]))
 
     # ASSUME: all objects in the open and the ref db have bboxes values.
 
@@ -1056,6 +1037,63 @@ def syncObjectidsWithDb(c, args):
     c.execute('DROP TABLE objects_old;')
 
     conn_ref.close()
+
+
+def syncObjectsDataWithDbParser(subparsers):
+    parser = subparsers.add_parser(
+        'syncObjectsDataWithDb',
+        description='Copy all the data except "imagefile" from "objects" table'
+        ' from objects in ref_db_file with matching objectid.')
+    parser.set_defaults(func=syncObjectsDataWithDb)
+    parser.add_argument('--ref_db_file', required=True)
+    parser.add_argument('--cols', nargs='+', help='Columns to update.')
+
+
+def syncObjectsDataWithDb(c, args):
+    if not op.exists(args.ref_db_file):
+        raise FileNotFoundError('Ref db does not exist: %s', args.ref_db_file)
+    conn_ref = sqlite3.connect('file:%s?mode=ro' % args.ref_db_file, uri=True)
+    c_ref = conn_ref.cursor()
+
+    # TODO: Rewrite with joins. Should not need a loop.
+
+    # For logging.
+    c.execute('SELECT COUNT(1) FROM objects')
+    num_objects = c.fetchone()[0]
+
+    # Get ref objects to copy from.
+    c_ref.execute('SELECT * FROM objects ORDER BY objectid')
+    objects_ref = c_ref.fetchall()
+
+    count = 0
+    count_different_by_col = {col: 0 for col in args.cols}
+    for object_ref in objects_ref:
+        objectid = backendDb.objectField(object_ref, 'objectid')
+        logging.debug('Ref objectid: %d', objectid)
+        c.execute('SELECT COUNT(1) FROM objects WHERE objectid=?',
+                  (objectid, ))
+        does_exist = c.fetchone()[0]
+        if not does_exist:
+            logging.debug('Object does not exist in the current db.')
+            continue
+        count += 1
+        for col in args.cols:
+            value = backendDb.objectField(object_ref, col)
+            c.execute('SELECT %s FROM objects WHERE objectid=?' % col,
+                      (objectid, ))
+            if c.fetchone()[0] != value:
+                count_different_by_col[col] += 1
+            c.execute('UPDATE objects SET %s=? WHERE objectid=?' % col,
+                      (value, objectid))
+
+    # TODO: update polygons, properties, and matches too.
+
+    logging.info('Updated %d objects out of %d. Ref_db had %d more objects.',
+                 count, num_objects,
+                 len(objects_ref) - count)
+
+    conn_ref.close()
+    logging.info(pformat(count_different_by_col))
 
 
 def renameObjectsParser(subparsers):
@@ -1241,37 +1279,42 @@ def revertObjectTransformsParser(subparsers):
 
 
 def revertObjectTransforms(c, args):
+    count = 0
     c.execute('SELECT * FROM objects')
-    for object_entry in c.fetchall():
+    object_entries = c.fetchall()
+
+    for object_entry in progressbar(object_entries):
         objectid = backendDb.objectField(object_entry, 'objectid')
         # Get the transform.
-        c.execute('SELECT value FROM properties WHERE objectid=? AND key="kx"',
-                  (objectid, ))
-        kx = c.fetchone()
-        kx = float(kx[0]) if kx is not None else 1.
         c.execute('SELECT value FROM properties WHERE objectid=? AND key="ky"',
                   (objectid, ))
         ky = c.fetchone()
         ky = float(ky[0]) if ky is not None else 1.
-        c.execute('SELECT value FROM properties WHERE objectid=? AND key="bx"',
+        c.execute('SELECT value FROM properties WHERE objectid=? AND key="kx"',
                   (objectid, ))
-        bx = c.fetchone()
-        bx = float(bx[0]) if bx is not None else 0.
+        kx = c.fetchone()
+        kx = float(kx[0]) if kx is not None else 1.
         c.execute('SELECT value FROM properties WHERE objectid=? AND key="by"',
                   (objectid, ))
         by = c.fetchone()
         by = float(by[0]) if by is not None else 0.
-        transform = np.array([[kx, 0., bx], [0., ky, by], [0., 0., 1.]])
+        c.execute('SELECT value FROM properties WHERE objectid=? AND key="bx"',
+                  (objectid, ))
+        bx = c.fetchone()
+        bx = float(bx[0]) if bx is not None else 0.
+        transform = np.array([[ky, 0., by], [0., kx, bx], [0., 0., 1.]])
         # Get the inverse tranform.
         transform_inv = np.linalg.inv(transform)
         if np.allclose(transform, transform_inv):
             logging.debug('Objectid %d had an identity transform.')
             continue
+
+        count += 1
         # Apply the inverse transform to the bbox and polygon.
-        kx = transform_inv[0, 0]
-        ky = transform_inv[1, 1]
-        bx = transform_inv[0, 2]
-        by = transform_inv[1, 2]
+        ky = transform_inv[0, 0]
+        kx = transform_inv[1, 1]
+        by = transform_inv[0, 2]
+        bx = transform_inv[1, 2]
         c.execute(
             'UPDATE objects SET x1 = x1 * ? + ?, y1 = y1 * ? + ?, '
             'width = width * ?, height = height * ? WHERE objectid=?',
@@ -1280,4 +1323,8 @@ def revertObjectTransforms(c, args):
             'UPDATE polygons SET x = x * ? + ?, y = y * ? + ? WHERE objectid=?',
             (kx, bx, ky, by, objectid))
 
-    c.execute('DELETE FROM properties WHERE key IN ("kx", "ky", "bx", "by")')
+    c.execute(
+        'DELETE FROM properties WHERE key IN ("kx", "ky", "bx", "by", "old_objectid")'
+    )
+    logging.info('%d objects out of %d were reverted.', count,
+                 len(object_entries))
