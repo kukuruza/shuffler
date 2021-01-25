@@ -307,6 +307,13 @@ def tileObjectsParser(subparsers):
         default='TRUE',
         help='SQL "where" clause that specifies which objects to crop. '
         'Queries table "objects". Example: \'objects.name == "car"\'')
+    parser.add_argument(
+        '--where_other_objects',
+        default='FALSE',
+        help='SQL "where" clause that specifies which other objects from '
+        'a frame to write for each crop. '
+        'By default, only the cropped object is recorded.'
+        'Queries table "objects". Example: \'objects.name == "bus"\'')
     parser.add_argument('--num_cells_Y',
                         type=int,
                         default=5,
@@ -398,13 +405,13 @@ def tileObjects(c, args):
 
     for old_entry in progressbar.progressbar(old_entries):
         # Extract all the info from 'old_entry'.
-        (objectid, old_imagefile, old_x1, old_y1, old_width, old_height, name,
-         score, _, timestamp) = old_entry
-        logging.debug('Processing object %d from imagefile %s.', objectid,
+        (old_objectid, old_imagefile, old_x1, old_y1, old_width, old_height,
+         name, score, _, timestamp) = old_entry
+        logging.debug('Processing object %d from imagefile %s.', old_objectid,
                       old_imagefile)
         if old_width * old_height == 0:
             raise ValueError('objectid %d is degenerate with size: %dx%d' %
-                             (objectid, old_width, old_height))
+                             (old_objectid, old_width, old_height))
         old_roi = utilBoxes.bbox2roi((old_x1, old_y1, old_width, old_height))
 
         # Record the collage when the previous collage is full or name changed.
@@ -455,28 +462,42 @@ def tileObjects(c, args):
         by = transform[0, 2]
         bx = transform[1, 2]
 
-        # Insert to objects.
+        # Select the cropped object and "where_other_objects" objects in this image.
         c.execute(
-            'INSERT INTO objects(objectid,imagefile,x1,y1,width,height,name,score) '
-            'SELECT ?, x1 * ? + ?, y1 * ? + ?, width * ?, height * ?, name, score '
-            'FROM objects_old WHERE objectid=?',
-            (objectid, TEMP_IMAGEFILE, kx, bx, ky, by, kx, ky, objectid))
-        # Insert to properties.
-        c.execute(
-            'INSERT INTO properties(objectid,key,value) '
-            'SELECT ?,key,value FROM properties_old WHERE objectid=?',
-            (objectid, objectid))
-        backendDb.updateObjectTransform(c, objectid, transform)
-        # Insert to polygons.
-        c.execute(
-            'INSERT INTO polygons(objectid,x,y) '
-            'SELECT ?, x * ? + ?, y * ? + ? FROM polygons_old WHERE objectid=?',
-            (objectid, kx, bx, ky, by, objectid))
-        # Insert to matches.
-        c.execute(
-            'INSERT INTO matches(match,objectid) '
-            'SELECT match,? FROM matches_old WHERE objectid=?',
-            (objectid, objectid))
+            'SELECT objectid FROM objects_old WHERE objectid=? OR (imagefile=? AND (%s))'
+            % args.where_other_objects, (old_objectid, old_imagefile))
+        for old_im_objectid, in c.fetchall():
+            # Insert to objects.
+            c.execute(
+                'INSERT INTO objects(imagefile,x1,y1,width,height,name,score) '
+                'SELECT ?, x1 * ? + ?, y1 * ? + ?, width * ?, height * ?, name, score '
+                'FROM objects_old WHERE objectid=?',
+                (TEMP_IMAGEFILE, kx, bx, ky, by, kx, ky, old_im_objectid))
+            new_im_objectid = c.lastrowid
+            # Insert to properties.
+            c.execute(
+                'INSERT INTO properties(objectid,key,value) '
+                'SELECT ?,key,value FROM properties_old WHERE objectid=?',
+                (new_im_objectid, old_im_objectid))
+            backendDb.updateObjectTransform(c, new_im_objectid, transform)
+            # Insert to polygons.
+            c.execute(
+                'INSERT INTO polygons(objectid,x,y) '
+                'SELECT ?, x * ? + ?, y * ? + ? FROM polygons_old WHERE objectid=?',
+                (new_im_objectid, kx, bx, ky, by, old_im_objectid))
+            # Insert to matches.
+            c.execute(
+                'INSERT INTO matches(match,objectid) '
+                'SELECT match,? FROM matches_old WHERE objectid=?',
+                (new_im_objectid, old_im_objectid))
+            # Add a property to the actual cropped object that says it is cropped.
+            if old_im_objectid == old_objectid:
+                c.execute(
+                    'INSERT INTO properties(objectid,key,value) VALUES (?,?,?)',
+                    (new_im_objectid, 'cropped', 'true'))
+                c.execute(
+                    'INSERT INTO properties(objectid,key,value) VALUES (?,?,?)',
+                    (new_im_objectid, 'old_objectid', str(old_objectid)))
 
     # Record the last (partially filled) collage.
     namehint = '%09d' % i_collage

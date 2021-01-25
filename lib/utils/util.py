@@ -10,9 +10,9 @@ from lib.backend import backendDb
 from lib.utils import utilBoxes
 
 FONT = cv2.FONT_HERSHEY_SIMPLEX
-SCALE = 28
-FONT_SIZE = 1.2
-THICKNESS = 2
+SCALE = 100  # 28
+FONT_SIZE = 3  #0.7
+THICKNESS = 3
 TEXT_COLOR = (0, 0, 0)
 TEXT_BACKCOLOR = (0, 0, 0) # (255, 255, 255)
 

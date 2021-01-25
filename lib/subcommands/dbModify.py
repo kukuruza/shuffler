@@ -82,9 +82,9 @@ def sqlParser(subparsers):
 
 
 def sql(c, args):
-    for command in args.sql:
-        logging.info('Executing SQL command: %s', command)
-        c.execute(command)
+    for sql in args.sql:
+        logging.info('Executing SQL command: %s' % sql)
+        c.execute(sql)
 
 
 def addVideoParser(subparsers):
@@ -113,7 +113,7 @@ def addVideo(c, args):
     image_length = image_video.get_length()
     image = image_video.get_data(0)
     image_video.close()
-    logging.info('Video has %d frames', image_length)
+    logging.info('Video has %d frames' % image_length)
     if image_length == 0:
         raise ValueError('The image video is empty.')
 
@@ -129,8 +129,8 @@ def addVideo(c, args):
         if image.shape[0:2] != mask.shape[0:2]:
             # The mismatch may happen if a mask is a CNN predicted image
             # of almost the same shape.
-            logging.warning('Image size %s and mask size %s mismatch.',
-                            image.shape[1], mask.shape[1])
+            logging.warning('Image size %s and mask size %s mismatch.' %
+                            (image.shape[1], mask.shape[1]))
 
     # Get the paths.
     image_video_rel_path = op.relpath(op.abspath(args.image_video_path),
@@ -184,13 +184,13 @@ def addPictures(c, args):
 
     # Collect a list of paths.
     image_paths = sorted(glob(args.image_pattern))
-    logging.debug('image_paths:\n%s', pformat(image_paths, indent=2))
+    logging.debug('image_paths:\n%s' % pformat(image_paths, indent=2))
     if not image_paths:
         logging.error('Image files do not exist for the frame pattern: %s',
                       args.image_pattern)
         return
     mask_paths = sorted(glob(args.mask_pattern))
-    logging.debug('mask_paths:\n%s', pformat(mask_paths, indent=2))
+    logging.debug('mask_paths:\n%s' % pformat(mask_paths, indent=2))
 
     def _nameWithoutExtension(x):
         '''
@@ -208,9 +208,9 @@ def addPictures(c, args):
 
     # Find correspondences between images and masks.
     pairs = _matchPaths(image_paths, mask_paths)
-    logging.debug('Pairs:\n%s', pformat(pairs, indent=2))
-    logging.info('Found %d images, %d of them have masks.', len(pairs),
-                 len([x for x in pairs if x[1] is not None]))
+    logging.debug('Pairs:\n%s' % pformat(pairs, indent=2))
+    logging.info('Found %d images, %d of them have masks.' %
+                 (len(pairs), len([x for x in pairs if x[1] is not None])))
 
     # Write to database.
     for image_path, mask_path in progressbar(pairs):
@@ -242,7 +242,7 @@ def headImages(c, args):
     imagefiles = c.fetchall()
 
     if len(imagefiles) < args.n:
-        logging.info('Nothing to delete. Number of images is %d',
+        logging.info('Nothing to delete. Number of images is %d' %
                      len(imagefiles))
         return
 
@@ -262,7 +262,7 @@ def tailImages(c, args):
     imagefiles = c.fetchall()
 
     if len(imagefiles) < args.n:
-        logging.info('Nothing to delete. Number of images is %d',
+        logging.info('Nothing to delete. Number of images is %d' %
                      len(imagefiles))
         return
 
@@ -285,7 +285,7 @@ def randomNImages(c, args):
     random.shuffle(imagefiles)
 
     if len(imagefiles) < args.n:
-        logging.info('Nothing to delete. Number of images is %d',
+        logging.info('Nothing to delete. Number of images is %d' %
                      len(imagefiles))
         return
 
@@ -411,7 +411,7 @@ def moveMedia(c, args):
         return result
 
     if args.image_path:
-        logging.debug('Moving image dir to: %s', args.image_path)
+        logging.debug('Moving image dir to: %s' % args.image_path)
         c.execute('SELECT imagefile FROM images WHERE (%s)' % args.where_image)
         imagefiles = c.fetchall()
 
@@ -428,10 +428,10 @@ def moveMedia(c, args):
 
             # TODO: this only works on images. Make for video.
             newpath = op.join(args.rootdir, newfile)
-            if not op.exists(newpath):
-                raise IOError('New file "%s" does not exist (rootdir "%s"), '
-                              '(created from "%s")' %
-                              (newpath, args.rootdir, oldfile))
+            #if not op.exists(newpath):
+            #    raise IOError('New file "%s" does not exist (rootdir "%s"), '
+            #                  '(created from "%s")' %
+            #                  (newpath, args.rootdir, oldfile))
             if args.adjust_size:
                 c.execute('SELECT height, width FROM images WHERE imagefile=?',
                           (newfile, ))
@@ -445,7 +445,7 @@ def moveMedia(c, args):
                                             newwidth, newheight)
 
     if args.mask_path:
-        logging.debug('Moving mask dir to: %s', args.mask_path)
+        logging.debug('Moving mask dir to: %s' % args.mask_path)
         c.execute('SELECT maskfile FROM images WHERE (%s)' % args.where_image)
         maskfiles = c.fetchall()
 
@@ -468,8 +468,8 @@ def moveRootdirParser(subparsers):
 
 
 def _moveRootDir(c, oldrootdir, newrootdir):
-    logging.info('Moving from rootdir %s to new rootdir %s', oldrootdir,
-                 newrootdir)
+    logging.info('Moving from rootdir %s to new rootdir %s' %
+                 (oldrootdir, newrootdir))
     relpath = op.relpath(oldrootdir, newrootdir)
     logging.info('The path of oldroot relative to newrootdir is %s', relpath)
 
@@ -1283,6 +1283,9 @@ def revertObjectTransforms(c, args):
     c.execute('SELECT * FROM objects')
     object_entries = c.fetchall()
 
+    # HOTFIX. Need to recover object names, because I fucked them up.
+    object_entries.sort(key=lambda x: x[0], reverse=True)
+
     for object_entry in progressbar(object_entries):
         objectid = backendDb.objectField(object_entry, 'objectid')
         # Get the transform.
@@ -1322,6 +1325,24 @@ def revertObjectTransforms(c, args):
         c.execute(
             'UPDATE polygons SET x = x * ? + ?, y = y * ? + ? WHERE objectid=?',
             (kx, bx, ky, by, objectid))
+
+        # HOTFIX continues.
+        OFFSET = 10000
+        c.execute(
+            'SELECT value FROM properties WHERE objectid=? AND key="old_objectid"',
+            (objectid, ))
+        new_objectid = int(c.fetchone()[0])
+        logging.debug('Going to change objectid from %d to %d.', objectid,
+                      new_objectid)
+        c.execute('UPDATE objects SET objectid=? WHERE objectid=?',
+                  (new_objectid + OFFSET, objectid))
+        c.execute('UPDATE properties SET objectid=? WHERE objectid=?',
+                  (new_objectid + OFFSET, objectid))
+        c.execute('UPDATE polygons SET objectid=? WHERE objectid=?',
+                  (new_objectid + OFFSET, objectid))
+    c.execute('UPDATE objects    SET objectid = objectid - ?', (OFFSET, ))
+    c.execute('UPDATE properties SET objectid = objectid - ?', (OFFSET, ))
+    c.execute('UPDATE polygons   SET objectid = objectid - ?', (OFFSET, ))
 
     c.execute(
         'DELETE FROM properties WHERE key IN ("kx", "ky", "bx", "by", "old_objectid")'
