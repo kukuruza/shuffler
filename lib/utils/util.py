@@ -13,8 +13,10 @@ from lib.utils import utilBoxes
 
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 SCALE = 28
-FONT_SIZE = 0.7
-THICKNESS = 3
+FONT_SIZE = 1.2
+THICKNESS = 2
+TEXT_COLOR = (0, 0, 0)
+TEXT_BACKCOLOR = (255, 255, 255)
 
 
 def validateFileName(filename):
@@ -76,12 +78,12 @@ def drawScoredRoi(img, roi, label=None, score=None):
     if score is None:
         score = 1
     color = tuple([int(x * 255)
-                   for x in plt.cm.get_cmap('jet')(float(score))][0:3][::-1])
+                   for x in plt.cm.afmhot_r(float(score))][0:3])[::-1]
     roi = [int(a) for a in roi]  # In case some function did not cast them.
     cv2.rectangle(img, (roi[1], roi[0]), (roi[3], roi[2]), color, THICKNESS)
     text_coords = (roi[1], roi[0] - SCALE)
-    cv2.putText(img, label, text_coords, FONT, FONT_SIZE, (0, 0, 0), THICKNESS)
-    cv2.putText(img, label, text_coords, FONT, FONT_SIZE, (255, 255, 255),
+    cv2.putText(img, label, text_coords, FONT, FONT_SIZE, TEXT_COLOR, THICKNESS)
+    cv2.putText(img, label, text_coords, FONT, FONT_SIZE, TEXT_BACKCOLOR,
                 THICKNESS - 1)
 
 
@@ -99,12 +101,11 @@ def drawScoredPolygon(img, polygon, label=None, score=None):
         'Image must be color, but is grayscale: %s' % str(img.shape))
     if label is None:
         label = ''
-    if isinstance(label, bytes):
-        label = label.decode('UTF-8')
+    label = maybeDecode(label)
     if score is None:
         score = 1
     color = tuple([int(x * 255)
-                   for x in plt.cm.get_cmap('jet')(float(score))][0:3][::-1])
+                   for x in plt.cm.afmhot_r(float(score))][0:3])[::-1]
     # In case some function did not cast them.
     polygon = [(int(x), int(y)) for x, y in polygon]
     for i1 in range(len(polygon)):
@@ -117,8 +118,8 @@ def drawScoredPolygon(img, polygon, label=None, score=None):
         xmin = min(xmin, polygon[i][0])
         ymin = min(ymin, polygon[i][1])
     text_coords = (xmin, ymin - SCALE)
-    cv2.putText(img, label, text_coords, FONT, FONT_SIZE, (0, 0, 0), THICKNESS)
-    cv2.putText(img, label, text_coords, FONT, FONT_SIZE, (255, 255, 255),
+    cv2.putText(img, label, text_coords, FONT, FONT_SIZE, TEXT_COLOR, THICKNESS)
+    cv2.putText(img, label, text_coords, FONT, FONT_SIZE, TEXT_BACKCOLOR,
                 THICKNESS - 1)
 
 
@@ -136,12 +137,12 @@ def drawTextOnImage(img, text):
                   fontscale, thickness)
     text_coords = (5, offsety)
     if thickness == 1:
-        cv2.putText(img, text, text_coords, FONT, fontscale, (255, 255, 255),
+        cv2.putText(img, text, text_coords, FONT, fontscale, TEXT_BACKCOLOR,
                     thickness)
     else:
-        cv2.putText(img, text, text_coords, FONT, fontscale, (0, 0, 0),
+        cv2.putText(img, text, text_coords, FONT, fontscale, TEXT_COLOR,
                     thickness)
-        cv2.putText(img, text, text_coords, FONT, fontscale, (255, 255, 255),
+        cv2.putText(img, text, text_coords, FONT, fontscale, TEXT_BACKCOLOR,
                     thickness - 1)
 
 
