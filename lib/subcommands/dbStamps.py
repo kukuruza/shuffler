@@ -2,7 +2,7 @@ import os, os.path as op
 import numpy as np
 import regex as re  # Regex provides right-to-left parsing flag (?r)
 import logging
-from progressbar import progressbar
+import progressbar
 import simplejson as json
 import pprint
 import tempfile
@@ -56,7 +56,7 @@ def upgradeStampImagepaths(c, args):
     logging.info('Found %d pairs in the json file.', len(old_to_new_path_dict))
 
     c.execute('SELECT imagefile FROM images')
-    for old_imagefile, in progressbar(c.fetchall()):
+    for old_imagefile, in progressbar.progressbar(c.fetchall()):
         old_name = op.basename(old_imagefile)
         if old_name not in old_to_new_path_dict:
             logging.debug('Old name %s does NOT have a match. Deleting.',
@@ -176,7 +176,7 @@ def moveToRajaFolderStructure(c, args):
         target_dir[-1] += '/'
 
     if not op.exists(args.subfolder_list_path):
-        raise FileNotFoundError('File at subfolder_list_path not found: "%s"',
+        raise FileNotFoundError('File at subfolder_list_path not found: "%s"' %
                                 args.subfolder_list_path)
 
     with open(args.subfolder_list_path) as f:
@@ -193,8 +193,8 @@ def moveToRajaFolderStructure(c, args):
             subfolder = next(
                 filter(lambda x: x[:2] == subfolder_num, subfolder_list))
         except StopIteration:
-            logging.error('No subfolder starts with "%s"', subfolder_num)
-            raise ValueError()
+            raise ValueError('No subfolder starts with "%s"' %
+                             subfolder_num) from None
         new_imagefile = op.join(target_dir, subfolder, imagename)
         logging.debug('Changing "%s" to "%s".', imagefile, new_imagefile)
 
@@ -250,7 +250,7 @@ def importNameFromCsv(c, args):
     num_names_per_object = {}
     logging.info('Found %d rows', len(rows))
     errors = 0
-    for irow, row in progressbar(enumerate(rows)):
+    for irow, row in progressbar.progressbar(enumerate(rows)):
         objectid = int(row[args.col_objectid])
         names = util.maybeDecode(row[args.col_name]).split(',')
         scores = [float(score) for score in row[args.col_score].split(',')]
@@ -294,7 +294,7 @@ def syncImagesWithDbParser(subparsers):
         'Also match objects by "objectid", and replace "imagefile" field '
         'for each object with its value from ref_db. '
         'Used to move to the original db after using tileObjects subcommand.')
-    parser.set_defaults(func=importNameFromCsv)
+    parser.set_defaults(func=syncImagesWithDb)
     parser.add_argument('--ref_db_file', required=True)
 
 
@@ -302,7 +302,7 @@ def syncImagesWithDb(c, args):
     # Check the ref_db.
     logging.info("ref_db_file: \n\t%s", args.ref_db_file)
     if not op.exists(args.ref_db_file):
-        raise FileNotFoundError('Ref db does not exist: %s', args.ref_db_file)
+        raise FileNotFoundError('Ref db does not exist: %s' % args.ref_db_file)
 
     # Work around attached database getting locked by making its temp copy,
     # and deleteing it instead of detaching it after the subcommand completes.
