@@ -1,13 +1,8 @@
-import os, os.path as op
-import logging
 import sqlite3
-import unittest
 import argparse
-import pprint
-import tempfile
-import mock
 import numpy as np
 import sklearn.metrics
+import progressbar
 import nose
 
 from lib.backend import backendDb

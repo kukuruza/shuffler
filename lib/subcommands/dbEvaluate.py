@@ -1,14 +1,12 @@
 import os, os.path as op
-import sys
 import logging
-import sqlite3
 import numpy as np
 import cv2
 from progressbar import progressbar
-import simplejson as json
 from ast import literal_eval
 from matplotlib import pyplot as plt
 from pprint import pformat
+import PIL
 
 from lib.backend import backendDb
 from lib.backend import backendMedia
@@ -25,38 +23,38 @@ def _evaluateDetectionForClassPascal(c, c_gt, name, args):
     def _voc_ap(rec, prec):
         """ Compute VOC AP given precision and recall. """
 
-        # first append sentinel values at the end
+        # First append sentinel values at the end.
         mrec = np.concatenate(([0.], rec, [1.]))
         mpre = np.concatenate(([0.], prec, [0.]))
 
-        # compute the precision envelope
+        # Compute the precision envelope.
         for i in range(mpre.size - 1, 0, -1):
             mpre[i - 1] = np.maximum(mpre[i - 1], mpre[i])
 
-        # to calculate area under PR curve, look for points
-        # where X axis (recall) changes value
+        # To calculate area under PR curve, look for points
+        # where X axis (recall) changes value.
         i = np.where(mrec[1:] != mrec[:-1])[0]
 
-        # and sum (\Delta recall) * prec
+        # Sum (\Delta recall) * prec.
         ap = np.sum((mrec[i + 1] - mrec[i]) * mpre[i + 1])
         return ap
 
     c.execute('SELECT * FROM objects WHERE name=? ORDER BY score DESC',
               (name, ))
     entries_det = c.fetchall()
-    logging.info('Total %d detected objects for class "%s"' %
-                 (len(entries_det), name))
+    logging.info('Total %d detected objects for class "%s"', len(entries_det),
+                 name)
 
-    # go down dets and mark TPs and FPs
+    # Go down dets and mark TPs and FPs.
     tp = np.zeros(len(entries_det), dtype=float)
     fp = np.zeros(len(entries_det), dtype=float)
-    # detected of no interest.
+    # Detected of no interest.
     ignored = np.zeros(len(entries_det), dtype=bool)
 
-    # 'already_detected' used to penalize multiple detections of same GT box
+    # 'already_detected' used to penalize multiple detections of same GT box.
     already_detected = set()
 
-    # go through each detection
+    # Go through each detection.
     for idet, entry_det in enumerate(entries_det):
 
         bbox_det = np.array(backendDb.objectField(entry_det, 'bbox'),
@@ -64,7 +62,7 @@ def _evaluateDetectionForClassPascal(c, c_gt, name, args):
         imagefile = backendDb.objectField(entry_det, 'imagefile')
         name = backendDb.objectField(entry_det, 'name')
 
-        # get all GT boxes from the same imagefile [of the same class]
+        # Get all GT boxes from the same imagefile [of the same class].
         c_gt.execute('SELECT * FROM objects WHERE imagefile=? AND name=?',
                      (imagefile, name))
         entries_gt = c_gt.fetchall()
@@ -75,12 +73,12 @@ def _evaluateDetectionForClassPascal(c, c_gt, name, args):
             [backendDb.objectField(entry, 'bbox') for entry in entries_gt],
             dtype=float)
 
-        # separately manage no GT boxes
+        # Separately manage no GT boxes.
         if bboxes_gt.size == 0:
             fp[idet] = 1.
             continue
 
-        # intersection between bbox_det and all bboxes_gt.
+        # Intersection between bbox_det and all bboxes_gt.
         ixmin = np.maximum(bboxes_gt[:, 0], bbox_det[0])
         iymin = np.maximum(bboxes_gt[:, 1], bbox_det[1])
         ixmax = np.minimum(bboxes_gt[:, 0] + bboxes_gt[:, 2],
@@ -91,7 +89,7 @@ def _evaluateDetectionForClassPascal(c, c_gt, name, args):
         ih = np.maximum(iymax - iymin, 0.)
         intersection = iw * ih
 
-        # union between bbox_det and all bboxes_gt.
+        # Union between bbox_det and all bboxes_gt.
         union = (bbox_det[2] * bbox_det[3] +
                  bboxes_gt[:, 2] * bboxes_gt[:, 3] - intersection)
 
@@ -102,7 +100,7 @@ def _evaluateDetectionForClassPascal(c, c_gt, name, args):
         logging.debug('max_IoU=%.3f for idet %d with objectid_gt %d.', max_IoU,
                       idet, objectid_gt)
 
-        # find which objects count towards TP and FN (should be detected).
+        # Find which objects count towards TP and FN (should be detected).
         c_gt.execute(
             'SELECT * FROM objects WHERE imagefile=? AND name=? AND %s' %
             args.where_object_gt, (imagefile, name))
@@ -111,8 +109,8 @@ def _evaluateDetectionForClassPascal(c, c_gt, name, args):
             backendDb.objectField(entry, 'objectid') for entry in entries_gt
         ]
 
-        # if 1) large enough IoU and
-        #    2) this GT box was not detected before
+        # If 1) large enough IoU and
+        #    2) this GT box was not detected before.
         if max_IoU > args.IoU_thresh and not objectid_gt in already_detected:
             if objectid_gt in objectids_gt_of_interest:
                 tp[idet] = 1.
@@ -122,28 +120,28 @@ def _evaluateDetectionForClassPascal(c, c_gt, name, args):
         else:
             fp[idet] = 1.
 
-    # find the number of GT of interest
+    # Find the number of GT of interest.
     c_gt.execute(
         'SELECT COUNT(1) FROM objects WHERE %s AND name=?' %
         args.where_object_gt, (name, ))
     n_gt = c_gt.fetchone()[0]
-    logging.info('Total objects of interest: %d' % n_gt)
+    logging.info('Total objects of interest: %d', n_gt)
 
-    # remove dets, neither TP or FP
+    # Remove dets, neither TP or FP.
     tp = tp[np.bitwise_not(ignored)]
     fp = fp[np.bitwise_not(ignored)]
 
-    logging.info('ignored: %d, tp: %d, fp: %d, gt: %d' %
-                 (np.count_nonzero(ignored), np.count_nonzero(tp),
-                  np.count_nonzero(fp), n_gt))
+    logging.info('ignored: %d, tp: %d, fp: %d, gt: %d',
+                 np.count_nonzero(ignored), np.count_nonzero(tp),
+                 np.count_nonzero(fp), n_gt)
     assert np.count_nonzero(tp) + np.count_nonzero(fp) + np.count_nonzero(
         ignored) == len(entries_det)
 
     fp = np.cumsum(fp)
     tp = np.cumsum(tp)
     rec = tp / float(n_gt)
-    # avoid divide by zero in case the first detection matches a difficult
-    # ground truth
+    # Avoid divide by zero in case the first detection matches a difficult
+    # ground truth.
     prec = tp / np.maximum(tp + fp, np.finfo(np.float64).eps)
     aps = _voc_ap(rec, prec)
     print('Average precision for class "%s": %.4f' % (name, aps))
@@ -270,9 +268,9 @@ def _evaluateDetectionForClassSklearn(c, c_gt, name, args, sklearn):
 
     if 'precision_recall_curve' in args.extra_metrics:
         precision, recall, _ = sklearn.metrics.precision_recall_curve(
-            y_true=y_true, y_score=y_score)
+            y_true=y_true, probas_pred=y_score)
         if args.out_dir:
-            plt.reset()
+            plt.clf()
             plt.plot(recall, precision)
             plt.xlim([0, 1])
             plt.ylim([0, 1])
@@ -282,10 +280,11 @@ def _evaluateDetectionForClassSklearn(c, c_gt, name, args, sklearn):
                               'precision-recall', 'recall precision')
 
     if 'roc_curve' in args.extra_metrics:
-        fpr, tpr, _ = sklearn.metrics.roc_curve(y_true=y_true, y_score=y_score)
+        fpr, tpr, _ = sklearn.metrics.roc_curve(y_true=y_true,
+                                                probas_pred=y_score)
         sklearn.metrics.auc(x=fpr, y=tpr)
         if args.out_dir:
-            plt.reset()
+            plt.clf()
             plt.plot(fpr, tpr)
             plt.xlim([0, 1])
             plt.ylim([0, 1])
@@ -395,26 +394,22 @@ def calc_mean_accuracy(hist):
 
 
 def save_colorful_images(prediction, filename, palette, postfix='_color.png'):
-    im = Image.fromarray(palette[prediction.squeeze()])
+    im = PIL.Image.fromarray(palette[prediction.squeeze()])
     im.save(filename[:-4] + postfix)
 
 
-def label_mapping(input, mapping):
-    output = np.copy(input)
+def label_mapping(input_, mapping):
+    output = np.copy(input_)
     for ind in range(len(mapping)):
-        output[input == mapping[ind][0]] = mapping[ind][1]
+        output[input_ == mapping[ind][0]] = mapping[ind][1]
     return np.array(output, dtype=np.int64)
 
 
-def plot_confusion_matrix(cm,
-                          classes,
-                          normalize=False,
-                          title='Confusion matrix',
-                          cmap=None):
+def plot_confusion_matrix(cm, classes, normalize=False, cmap=None):
     """
-  This function prints and plots the confusion matrix.
-  Normalization can be applied by setting `normalize=True`.
-  """
+    This function prints and plots the confusion matrix.
+    Normalization can be applied by setting `normalize=True`.
+    """
     if cmap is None:
         cmap = plt.cm.Blues
 
@@ -431,8 +426,6 @@ def plot_confusion_matrix(cm,
     plt.xticks(tick_marks, classes, rotation=90)
     plt.yticks(tick_marks, classes)
 
-    fmt = '.2f' if normalize else 'd'
-    thresh = cm.max() / 2.
     plt.tight_layout()
     plt.ylabel('Ground truth')
     plt.xlabel('Predicted label')
@@ -502,9 +495,10 @@ def evaluateSegmentationIoUParser(subparsers):
 
 def evaluateSegmentationIoU(c, args):
     import pandas as pd
+    import matplotlib.pyplot as plt
 
     # Get corresponding maskfiles from predictions and ground truth.
-    logging.info('Opening ground truth dataset: %s' % args.gt_db_file)
+    logging.info('Opening ground truth dataset: %s', args.gt_db_file)
     c.execute('ATTACH ? AS "attached"', (args.gt_db_file, ))
     c.execute('SELECT pr.imagefile,pr.maskfile,gt.maskfile '
               'FROM images pr INNER JOIN attached.images gt '
@@ -514,7 +508,7 @@ def evaluateSegmentationIoU(c, args):
               'ORDER BY pr.imagefile ASC' % args.where_image)
     entries = c.fetchall()
     logging.info(
-        'Total %d images in both the open and the ground truth databases.' %
+        'Total %d images in both the open and the ground truth databases.',
         len(entries))
     logging.debug(pformat(entries))
 
@@ -591,7 +585,7 @@ def evaluateSegmentationIoU(c, args):
             os.makedirs(args.out_dir)
 
         out_summary_path = op.join(args.out_dir, args.out_summary_file)
-        logging.info('Will add summary to: %s' % out_summary_path)
+        logging.info('Will add summary to: %s', out_summary_path)
         with open(out_summary_path, 'a') as f:
             f.write(args.out_prefix + '\t' +
                     '\t'.join(['%.2f' % x for x in result_df['IoU']]) + '\n')
@@ -601,9 +595,7 @@ def evaluateSegmentationIoU(c, args):
         normalized_hist = (hist.astype("float") /
                            hist.sum(axis=1)[:, np.newaxis])
 
-        plot_confusion_matrix(normalized_hist,
-                              classes=class_names,
-                              title='Confusion matrix')
+        plot_confusion_matrix(normalized_hist, classes=class_names)
         outfigfn = op.join(args.out_dir, "%sconf_mat.pdf" % args.out_prefix)
         fig.savefig(outfigfn,
                     transparent=True,
@@ -622,7 +614,7 @@ def evaluateSegmentationIoU(c, args):
         print('Total result is saved at %s !' % outserfn)
 
 
-def getPrecRecall(tp, fp, tn, fn):
+def getPrecRecall(tp, fp, fn):
     ''' Accumulate into Precision-Recall curve. '''
     ROC = np.zeros((256, 2), dtype=float)
     for val in range(256):
@@ -688,7 +680,6 @@ def evaluateBinarySegmentation(c, args):
     imreader = backendMedia.MediaReader(rootdir=args.rootdir)
 
     TPs = np.zeros((256, ), dtype=int)
-    TNs = np.zeros((256, ), dtype=int)
     FPs = np.zeros((256, ), dtype=int)
     FNs = np.zeros((256, ), dtype=int)
 
@@ -711,8 +702,8 @@ def evaluateBinarySegmentation(c, args):
         gt_pos = np.count_nonzero(mask_gt == 255)
         gt_neg = np.count_nonzero(mask_gt == 0)
         gt_other = mask_gt.size - gt_pos - gt_neg
-        logging.debug('GT: positive: %d, negative: %d, others: %d.' %
-                      (gt_pos, gt_neg, gt_other))
+        logging.debug('GT: positive: %d, negative: %d, others: %d.', gt_pos,
+                      gt_neg, gt_other)
 
         # If there is torch.
         try:
@@ -730,7 +721,6 @@ def evaluateBinarySegmentation(c, args):
                 pass
 
             TP = np.zeros((256, ), dtype=int)
-            TN = np.zeros((256, ), dtype=int)
             FP = np.zeros((256, ), dtype=int)
             FN = np.zeros((256, ), dtype=int)
             for val in range(256):
@@ -744,13 +734,11 @@ def evaluateBinarySegmentation(c, args):
                                              mask_gt != 255)).size()[0]
                 TP[val] = tp
                 FP[val] = fp
-                TN[val] = tn
                 FN[val] = fn
                 TPs[val] += tp
                 FPs[val] += fp
-                TNs[val] += tn
                 FNs[val] += fn
-            ROC, area = getPrecRecall(TP, FP, TN, FN)
+            ROC, area = getPrecRecall(TP, FP, FN)
             logging.info('%s\t%.2f' % (op.basename(imagefile), area * 100.))
 
         except ImportError:
@@ -764,7 +752,7 @@ def evaluateBinarySegmentation(c, args):
             fig.show()
 
     # Accumulate into Precision-Recall curve.
-    ROC, area = getPrecRecall(TPs, FPs, TNs, FNs)
+    ROC, area = getPrecRecall(TPs, FPs, FNs)
     print(
         "Average across image area under the Precision-Recall curve, perc: %.2f"
         % (area * 100.))
