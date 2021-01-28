@@ -357,11 +357,11 @@ class Test_cropObjects_SyntheticDb(unittest.TestCase):
         c.execute('SELECT value FROM properties WHERE key="by"')
         by = c.fetchall()
         self.assertEqual((len(kx), len(ky), len(bx), len(by)), (1, 1, 1, 1))
-        transform_recorded = np.array([[float(kx[0][0]), 0.,
-                                        float(bx[0][0])],
+        transform_recorded = np.array([[float(ky[0][0]), 0.,
+                                        float(by[0][0])],
                                        [0.,
-                                        float(ky[0][0]),
-                                        float(by[0][0])], [0., 0., 1.]])
+                                        float(kx[0][0]),
+                                        float(bx[0][0])], [0., 0., 1.]])
 
         np.testing.assert_array_equal(transform, transform_recorded)
 

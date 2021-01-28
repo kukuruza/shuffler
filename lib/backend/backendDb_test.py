@@ -219,7 +219,7 @@ class Test_updateObjectTransform_emptyDb(testUtils.Test_emptyDb):
                                [0., float(kx[0][0]),
                                 float(bx[0][0])], [0., 0., 1.]])
 
-        np.testing.assert_array_equal(np.matmul(transform0, transform1),
+        np.testing.assert_array_equal(np.matmul(transform1, transform0),
                                       transform2)
 
 
