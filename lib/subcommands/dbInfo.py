@@ -1,6 +1,6 @@
 import os.path as op
 import logging
-from pprint import pprint
+import pprint
 from itertools import groupby
 
 from lib.backend import backendDb
@@ -21,7 +21,6 @@ def _updateFont(fontsize):
     matplotlib.rc('legend', fontsize=fontsize, handlelength=2)
     matplotlib.rc('ytick', labelsize=fontsize)
     matplotlib.rc('xtick', labelsize=fontsize)
-    matplotlib.rc('xlabel', labelsize=fontsize)
 
 
 def _maybeNumerizeProperty(values):
@@ -115,10 +114,11 @@ def plotHistogram(c, args):
     if args.ylog:
         plt.yscale('log', nonposy='clip')
     if args.xlabel:
-        plt.xlabel(args.xlabel)
+        plt.xlabel(args.xlabel, fontsize=args.fontsize)
     plt.ylabel('')
+    plt.tight_layout()
     if args.out_path:
-        logging.info('Saving to %s' % args.out_path)
+        logging.info('Saving to %s', args.out_path)
         plt.savefig(args.out_path)
     if args.display:
         plt.show()
@@ -163,15 +163,15 @@ def plotStrip(c, args):
     if len(entries[0]) != 2:
         raise ValueError('Must query for 2 fields, not %d.' % len(entries[0]))
     xylist = [(x, y) for (x, y) in entries if x is not None and y is not None]
-    logging.info('%d entries have both fields non-None.' % len(xylist))
+    logging.info('%d entries have both fields non-None.', len(xylist))
 
     # From a list of tuples to two lists.
     xlist, ylist = tuple(map(list, zip(*xylist)))
     xlist = _maybeNumerizeProperty(xlist)
     ylist = _maybeNumerizeProperty(ylist)
-    logging.debug('%s\n%s' % (str(xlist), str(ylist)))
+    logging.debug('%s\n%s', str(xlist), str(ylist))
 
-    fig, ax = plt.subplots()
+    _, ax = plt.subplots()
     data = pd.DataFrame({args.xlabel: xlist, args.ylabel: ylist})
     ax = sns.stripplot(x=args.xlabel,
                        y=args.ylabel,
@@ -181,10 +181,10 @@ def plotStrip(c, args):
 
     if args.ylog:
         ax.set_yscale('log', nonposy='clip')
-    plt.xlabel(args.xlabel)
+    plt.xlabel(args.xlabel, fontsize=args.fontsize)
     plt.ylabel(args.ylabel)
     if args.out_path:
-        logging.info('Saving to %s' % args.out_path)
+        logging.info('Saving to %s', args.out_path)
         plt.savefig(args.out_path)
     if args.display:
         plt.show()
@@ -228,27 +228,27 @@ def plotViolin(c, args):
     if len(entries[0]) != 2:
         raise ValueError('Must query for 2 fields, not %d.' % len(entries[0]))
     xylist = [(x, y) for (x, y) in entries if x is not None and y is not None]
-    logging.info('%d entries have both fields non-None.' % len(xylist))
+    logging.info('%d entries have both fields non-None.', len(xylist))
 
     # From a list of tuples to two lists.
     xlist, ylist = tuple(map(list, zip(*xylist)))
     xlist = _maybeNumerizeProperty(xlist)
     ylist = _maybeNumerizeProperty(ylist)
-    logging.debug('%s\n%s' % (str(xlist), str(ylist)))
+    logging.debug('%s\n%s', str(xlist), str(ylist))
 
     data = pd.DataFrame({args.xlabel: xlist, args.ylabel: ylist})
-    g = sns.catplot(x=args.xlabel,
-                    y=args.ylabel,
-                    kind="violin",
-                    inner="quartiles",
-                    split=True,
-                    data=data)
+    sns.catplot(x=args.xlabel,
+                y=args.ylabel,
+                kind="violin",
+                inner="quartiles",
+                split=True,
+                data=data)
     plt.xticks(rotation=args.rotate_xlabels)
 
-    plt.xlabel(args.xlabel)
-    plt.ylabel(args.ylabel)
+    plt.xlabel(args.xlabel, fontsize=args.fontsize)
+    plt.ylabel(args.ylabel, fontsize=args.fontsize)
     if args.out_path:
-        logging.info('Saving to %s' % args.out_path)
+        logging.info('Saving to %s', args.out_path)
         plt.savefig(args.out_path)
     if args.display:
         plt.show()
@@ -271,12 +271,17 @@ def plotScatterParser(subparsers):
                         default=0.,
                         help='Rotate labels of x-axis ticks.')
     parser.add_argument('--fontsize', type=int, default=15)
+    parser.add_argument('--tick_base',
+                        type=int,
+                        help='Sets the distance between ticks. '
+                        'The aspect ratio of X and Y axes is set to 1.')
     parser.add_argument('--display', action='store_true')
     parser.add_argument('--out_path')
 
 
 def plotScatter(c, args):
     import matplotlib.pyplot as plt
+    import matplotlib.ticker as ticker
     _updateFont(args.fontsize)
 
     c.execute(args.sql)
@@ -289,26 +294,30 @@ def plotScatter(c, args):
     if len(entries[0]) != 2:
         raise ValueError('Must query for 2 fields, not %d.' % len(entries[0]))
     xylist = [(x, y) for (x, y) in entries if x is not None and y is not None]
-    logging.info('%d entries have both fields non-None.' % len(xylist))
+    logging.info('%d entries have both fields non-None.', len(xylist))
 
     # From a list of tuples to two lists.
     xlist, ylist = tuple(map(list, zip(*xylist)))
     xlist = _maybeNumerizeProperty(xlist)
     ylist = _maybeNumerizeProperty(ylist)
-    logging.debug('%s\n%s' % (str(xlist), str(ylist)))
+    logging.debug('%s\n%s', str(xlist), str(ylist))
 
-    plt.gcf().set_size_inches(4.5, 2.4)
+    #    plt.gcf().set_size_inches(4.5, 2.4)
     plt.scatter(xlist, ylist, s=10, alpha=0.5)
-    plt.xlabel(args.xlabel)
-    plt.ylabel(args.ylabel)
+    plt.xlabel(args.xlabel, fontsize=args.fontsize)
+    plt.ylabel(args.ylabel, fontsize=args.fontsize)
+    plt.gca().set_aspect('equal', adjustable='box')
     plt.tight_layout()
     plt.xticks(rotation=args.rotate_xlabels)
-    #fig.subplots_adjust(bottom=0.25)
+    if args.tick_base:
+        loc = ticker.MultipleLocator(base=args.tick_base)
+        plt.gca().xaxis.set_major_locator(loc)
+        plt.gca().yaxis.set_major_locator(loc)
 
     if args.display:
         plt.show()
     if args.out_path:
-        logging.info('Saving to %s' % args.out_path)
+        logging.info('Saving to %s', args.out_path)
         plt.savefig(args.out_path)
 
 
