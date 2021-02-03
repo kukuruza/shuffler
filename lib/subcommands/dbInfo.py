@@ -486,18 +486,19 @@ def diffDb(c, args):
     num_moved = c.fetchone()[0]
     c.execute(
         'SELECT COUNT(1) FROM objects obj INNER JOIN ref.objects ref_obj '
-        'ON obj.objectid=ref_obj.objectid WHERE (obj.name != ref_obj.name) AND (%s)'
+        'ON obj.objectid=ref_obj.objectid WHERE (obj.name == ref_obj.name) AND (%s)'
         % args.where_object)
-    num_renamed = c.fetchone()[0]
+    num_not_renamed = c.fetchone()[0]
     results['objects'] = {
         'remaining': num_remaining,
         'new': num_new,
         'old': num_old,
         'remaining_moved': num_moved,
-        'remaining_renamed': num_renamed,
+        'remaining_not_renamed': num_not_renamed,
     }
 
     pprint.pprint(results)
 
-    c.execute('DETACH DATABASE "ref"')
+    # FIXME: This always throws an exception that the database is locked.
+    #c.execute('DETACH DATABASE "ref"')
     return results
