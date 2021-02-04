@@ -21,6 +21,7 @@ def add_parsers(subparsers):
     syncImagesWithDbParser(subparsers)
     validateImageNamesParser(subparsers)
     recordPositionOnPageParser(subparsers)
+    getTop1NameParser(subparsers)
 
 
 def upgradeStampImagepathsParser(subparsers):
@@ -420,3 +421,17 @@ def recordPositionOnPage(c, args):
             '(?, "y_on_page", ?), (?, "height_on_page", ?)',
             (objectid, str(x_perc), objectid, str(width_perc), objectid,
              str(y_perc), objectid, str(height_perc)))
+
+
+def getTop1NameParser(subparsers):
+    parser = subparsers.add_parser(
+        'getTop1Name',
+        description='Replace all names like "cat / dog / sheep" with "cat". '
+        'The first guess is assumed to be first. Guesses are assumed to be '
+        'separated by " / ".')
+    parser.set_defaults(func=getTop1Name)
+
+
+def getTop1Name(c, args):
+    c.execute("UPDATE objects SET name = substr(name, 0, instr(name, ' / ')) "
+              "WHERE name LIKE '% / %'")

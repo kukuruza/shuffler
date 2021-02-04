@@ -149,6 +149,21 @@ class Test_syncImagesWithDb_synthetic(testUtils.Test_emptyDb):
             dbStamps.syncImagesWithDb(c, args)
 
 
+class Test_getTop1Name(testUtils.Test_emptyDb):
+    def test_general(self):
+        c = self.conn.cursor()
+        #c.execute("INSERT INTO images(imagefile) VALUES ('image0')")
+        c.execute("INSERT INTO objects(objectid,imagefile,name) VALUES "
+                  "(0, 'image0', 'okay'), "
+                  "(1, 'image0', 'wood / stone'), "
+                  "(2, 'image0', 'cat / dog / sheep')")
+        # Run the function.
+        dbStamps.getTop1Name(c, argparse.Namespace())
+        c.execute("SELECT name FROM objects")
+        names = [name[0] for name in c.fetchall()]
+        self.assertEqual(names, ['okay', 'wood', 'cat'])
+
+
 if __name__ == '__main__':
     import nose
     nose.runmodule()
