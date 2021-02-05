@@ -149,14 +149,43 @@ def _evaluateDetectionForClassPascal(c, c_gt, name, args):
     return aps
 
 
-def _evaluateDetectionForClassSklearn(c, c_gt, name, args, sklearn):
+def _writeCurveValues(out_dir, X, Y, metrics_name, name, header):
+    if name is not None:
+        name = util.replaceSpecialCharactersInFileName(name)
+        stem = '%s-%s' % (metrics_name, name)
+    else:
+        stem = metrics_name
+    plt.savefig(op.join(out_dir, '%s.png' % stem))
+    plt.savefig(op.join(out_dir, '%s.eps' % stem))
+    with open(op.join(out_dir, '%s.txt' % stem), 'w') as f:
+        f.write('%s\n' % header)
+        for x, y in zip(X, Y):
+            f.write('%f %f\n' % (x, y))
+
+
+def _beautifyPlot(ax):
+    ax.grid(which='major', linewidth='0.5')
+    ax.grid(which='minor', linewidth='0.2')
+    loc = ticker.MultipleLocator(0.2)
+    ax.xaxis.set_major_locator(loc)
+    ax.yaxis.set_major_locator(loc)
+    loc = ticker.MultipleLocator(0.1)
+    ax.xaxis.set_minor_locator(loc)
+    ax.yaxis.set_minor_locator(loc)
+    ax.set_aspect('equal', adjustable='box')
+
+
+def _evaluateDetectionForClassSklearn(c, c_gt, class_name, args, sklearn):
     ''' Helper function for evaluateDetection. '''
 
     # Detected objects sorted by descending score (confidence).
-    c.execute('SELECT * FROM objects WHERE name=? ORDER BY score DESC',
-              (name, ))
+    if class_name is None:
+        c.execute('SELECT * FROM objects ORDER BY score DESC')
+    else:
+        c.execute('SELECT * FROM objects WHERE name=? ORDER BY score DESC',
+                  (class_name, ))
     entries_det = c.fetchall()
-    logging.info('Num of positive "%s": %d', name, len(entries_det))
+    logging.info('Num of positive "%s": %d', class_name, len(entries_det))
 
     # Create arrays 'y_score' with predicted scores, binary 'y_true' for GT,
     # and a binary 'y_ignored' for detected objects that are neither TP nor FP.
@@ -179,7 +208,6 @@ def _evaluateDetectionForClassSklearn(c, c_gt, name, args, sklearn):
         y_score[idet] = score
 
         # Get all GT boxes from the same imagefile and of the same class.
-        # TODO: Precompute this, when the time becomes a problem.
         c_gt.execute('SELECT * FROM objects WHERE imagefile=? AND name=?',
                      (imagefile, name))
         entries_gt = c_gt.fetchall()
@@ -242,15 +270,19 @@ def _evaluateDetectionForClassSklearn(c, c_gt, name, args, sklearn):
     y_true = y_true[np.bitwise_not(y_ignored)]
 
     # Find the number of GT of interest.
-    c_gt.execute(
-        'SELECT COUNT(1) FROM objects WHERE %s AND name=?' %
-        args.where_object_gt, (name, ))
+    if class_name is None:
+        c_gt.execute('SELECT COUNT(1) FROM objects WHERE %s' %
+                     args.where_object_gt)
+    else:
+        c_gt.execute(
+            'SELECT COUNT(1) FROM objects WHERE %s AND name=?' %
+            args.where_object_gt, (class_name, ))
     num_gt = c_gt.fetchone()[0]
-    logging.info('Number of ground truth "%s": %d', name, num_gt)
+    logging.info('Number of ground truth "%s": %d', class_name, num_gt)
 
     # Add FN to y_score and y_true.
     num_fn = num_gt - np.count_nonzero(y_true)
-    logging.info('Number of false negative "%s": %d', name, num_fn)
+    logging.info('Number of false negative "%s": %d', class_name, num_fn)
     y_score = np.pad(y_score, [0, num_fn], constant_values=0.)
     y_true = np.pad(y_true, [0, num_fn], constant_values=True)
 
@@ -258,25 +290,6 @@ def _evaluateDetectionForClassSklearn(c, c_gt, name, args, sklearn):
     # TODO: figure out how to do it properly.
     y_score = np.pad(y_score, [0, 1000000], constant_values=0.0001)
     y_true = np.pad(y_true, [0, 1000000], constant_values=False)
-
-    def _writeCurveValues(out_dir, X, Y, metrics_name, header):
-        plt.savefig(op.join(out_dir, '%s.png' % metrics_name))
-        plt.savefig(op.join(out_dir, '%s.eps' % metrics_name))
-        with open(op.join(out_dir, '%s.txt' % metrics_name), 'w') as f:
-            f.write('%s\n' % header)
-            for x, y in zip(X, Y):
-                f.write('%f %f\n' % (x, y))
-
-    def _beautifyPlot(ax):
-        ax.grid(which='major', linewidth='0.5')
-        ax.grid(which='minor', linewidth='0.2')
-        loc = ticker.MultipleLocator(0.2)
-        ax.xaxis.set_major_locator(loc)
-        ax.yaxis.set_major_locator(loc)
-        loc = ticker.MultipleLocator(0.1)
-        ax.xaxis.set_minor_locator(loc)
-        ax.yaxis.set_minor_locator(loc)
-        ax.set_aspect('equal', adjustable='box')
 
     if 'precision_recall_curve' in args.extra_metrics:
         precision, recall, _ = sklearn.metrics.precision_recall_curve(
@@ -290,7 +303,8 @@ def _evaluateDetectionForClassSklearn(c, c_gt, name, args, sklearn):
             plt.ylabel('Precision')
             _beautifyPlot(plt.gca())
             _writeCurveValues(args.out_dir, recall, precision,
-                              'precision-recall', 'recall precision')
+                              'precision-recall', class_name,
+                              'recall precision')
 
     if 'roc_curve' in args.extra_metrics:
         fpr, tpr, _ = sklearn.metrics.roc_curve(y_true=y_true,
@@ -304,12 +318,16 @@ def _evaluateDetectionForClassSklearn(c, c_gt, name, args, sklearn):
             plt.xlabel('FPR')
             plt.ylabel('TPR')
             _beautifyPlot(plt.gca())
-            _writeCurveValues(args.out_dir, fpr, tpr, 'roc', 'fpr tpr')
+            _writeCurveValues(args.out_dir, fpr, tpr, 'roc', class_name,
+                              'fpr tpr')
 
     # Compute all metrics for this class.
     aps = sklearn.metrics.average_precision_score(y_true=y_true,
                                                   y_score=y_score)
-    print('Average precision for class "%s": %.4f' % (name, aps))
+    if class_name is None:
+        print('Average precision: %.4f' % aps)
+    else:
+        print('Average precision for class "%s": %.4f' % (class_name, aps))
     return aps
 
 
@@ -339,16 +357,17 @@ def evaluateDetectionParser(subparsers):
     )
     parser.add_argument(
         '--evaluation_backend',
-        choices=['sklearn', 'pascal-voc'],
+        choices=['sklearn', 'pascal-voc', 'sklearn-all-classes'],
         default='sklearn',
         help='Detection evaluation is different across papers and methods. '
         'PASCAL VOC produces average-precision score a bit different '
         'than the sklearn package. A good overview on metrics: '
-        'https://github.com/rafaelpadilla/Object-Detection-Metrics')
+        'https://github.com/rafaelpadilla/Object-Detection-Metrics. '
+        '"sklearn-all-classes" reports only one accuracy.')
 
 
 def evaluateDetection(c, args):
-    if args.evaluation_backend == 'sklearn':
+    if 'sklearn' in args.evaluation_backend:
         import sklearn.metrics
 
     # Load the ground truth database.
@@ -366,15 +385,20 @@ def evaluateDetection(c, args):
                  c_gt.fetchone()[0])
 
     c_gt.execute('SELECT DISTINCT(name) FROM objects')
-    for name, in c_gt.fetchall():
-        if args.evaluation_backend == 'sklearn':
+    names = c_gt.fetchall()
+    if args.evaluation_backend == 'sklearn':
+        for name, in names:
             _evaluateDetectionForClassSklearn(c, c_gt, name, args, sklearn)
-        elif args.evaluation_backend == 'pascal-voc':
+    elif args.evaluation_backend == 'pascal-voc':
+        for name, in names:
             if args.metrics is not None:
                 logging.warning('extra_metrics not supported for pascal-voc.')
             _evaluateDetectionForClassPascal(c, c_gt, name, args)
-        else:
-            assert False
+    elif args.evaluation_backend == 'sklearn-all-classes':
+        # This method does not separate results by classes.
+        _evaluateDetectionForClassSklearn(c, c_gt, None, args, sklearn)
+    else:
+        assert False
     conn_gt.close()
 
 

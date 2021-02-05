@@ -15,6 +15,13 @@ FONT_SIZE = 0.7
 THICKNESS = 3
 
 
+def replaceSpecialCharactersInFileName(filename):
+    invalid = '<>:"/\\|?* '
+    for char in invalid:
+        filename = filename.replace(char, '_')
+    return filename
+
+
 def maybeDecode(string):
     '''
     Db entries may not be in Unicode. Call this function to use db entries
@@ -322,7 +329,7 @@ def bboxes2polygons(cursor, objectid):
 
 
 def polygons2bboxes(cursor, objectid):
-    ''' 
+    '''
     A bounding box is created around objects that don't have it
     via enclosing the polygon. The polygon is assumed to be present.
     '''
@@ -388,11 +395,11 @@ def getIntersectingObjects(objects1, objects2, IoU_threshold, same_id_ok=True):
     Objects are assumed to be in the same image.
 
     Args:
-      objects1, objects2:  A list of object entries. 
+      objects1, objects2:  A list of object entries.
                            Each entry is the whole row in the 'objects' table.
       IoU_threshold:       A float in range [0, 1].
     Returns:
-      A list of tuples. Each tuple has objectid of an entry in 'objects1' and 
+      A list of tuples. Each tuple has objectid of an entry in 'objects1' and
                            objectid of an entry in 'objects2'.
     '''
 
