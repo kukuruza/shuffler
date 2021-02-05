@@ -2,10 +2,11 @@ import os, os.path as op
 import logging
 import numpy as np
 import cv2
-from progressbar import progressbar
-from ast import literal_eval
-from matplotlib import pyplot as plt
-from pprint import pformat
+import progressbar
+import ast
+import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+import pprint
 import PIL
 
 from lib.backend import backendDb
@@ -266,6 +267,17 @@ def _evaluateDetectionForClassSklearn(c, c_gt, name, args, sklearn):
             for x, y in zip(X, Y):
                 f.write('%f %f\n' % (x, y))
 
+    def _beautifyPlot(ax):
+        ax.grid(which='major', linewidth='0.5')
+        ax.grid(which='minor', linewidth='0.2')
+        loc = ticker.MultipleLocator(0.2)
+        ax.xaxis.set_major_locator(loc)
+        ax.yaxis.set_major_locator(loc)
+        loc = ticker.MultipleLocator(0.1)
+        ax.xaxis.set_minor_locator(loc)
+        ax.yaxis.set_minor_locator(loc)
+        ax.set_aspect('equal', adjustable='box')
+
     if 'precision_recall_curve' in args.extra_metrics:
         precision, recall, _ = sklearn.metrics.precision_recall_curve(
             y_true=y_true, probas_pred=y_score)
@@ -276,6 +288,7 @@ def _evaluateDetectionForClassSklearn(c, c_gt, name, args, sklearn):
             plt.ylim([0, 1])
             plt.xlabel('Recall')
             plt.ylabel('Precision')
+            _beautifyPlot(plt.gca())
             _writeCurveValues(args.out_dir, recall, precision,
                               'precision-recall', 'recall precision')
 
@@ -290,6 +303,7 @@ def _evaluateDetectionForClassSklearn(c, c_gt, name, args, sklearn):
             plt.ylim([0, 1])
             plt.xlabel('FPR')
             plt.ylabel('TPR')
+            _beautifyPlot(plt.gca())
             _writeCurveValues(args.out_dir, fpr, tpr, 'roc', 'fpr tpr')
 
     # Compute all metrics for this class.
@@ -435,8 +449,8 @@ def _label2classMapping(gt_mapping_dict, pred_mapping_dict):
     ''' Parse user-defined label mapping dictionaries. '''
 
     # "gt_mapping_dict" maps mask pixel-values to classes.
-    labelmap_gt = literal_eval(gt_mapping_dict)
-    labelmap_pr = literal_eval(
+    labelmap_gt = ast.literal_eval(gt_mapping_dict)
+    labelmap_pr = ast.literal_eval(
         pred_mapping_dict) if pred_mapping_dict else labelmap_gt
     # Create a list of classes.
     class_names = list(labelmap_gt.values())
@@ -510,7 +524,7 @@ def evaluateSegmentationIoU(c, args):
     logging.info(
         'Total %d images in both the open and the ground truth databases.',
         len(entries))
-    logging.debug(pformat(entries))
+    logging.debug(pprint.pformat(entries))
 
     imreader = backendMedia.MediaReader(rootdir=args.rootdir)
 
@@ -524,7 +538,8 @@ def evaluateSegmentationIoU(c, args):
 
     hist_all = np.zeros((len(class_names), len(class_names)))
 
-    for imagefile, maskfile_pr, maskfile_gt in progressbar(entries):
+    for imagefile, maskfile_pr, maskfile_gt in progressbar.progressbar(
+            entries):
 
         # Load masks and bring them to comparable form.
         mask_gt = util.applyLabelMappingToMask(imreader.maskread(maskfile_gt),
@@ -675,7 +690,7 @@ def evaluateBinarySegmentation(c, args):
     logging.info(
         'Total %d images in both the open and the ground truth databases.' %
         len(entries))
-    logging.debug(pformat(entries))
+    logging.debug(pprint.pformat(entries))
 
     imreader = backendMedia.MediaReader(rootdir=args.rootdir)
 
@@ -690,7 +705,8 @@ def evaluateBinarySegmentation(c, args):
         plt.xlim(0, 1)
         plt.ylim(0, 1)
 
-    for imagefile, maskfile_pr, maskfile_gt in progressbar(entries):
+    for imagefile, maskfile_pr, maskfile_gt in progressbar.progressbar(
+            entries):
 
         # Load masks and bring them to comparable form.
         mask_gt = imreader.maskread(maskfile_gt)
