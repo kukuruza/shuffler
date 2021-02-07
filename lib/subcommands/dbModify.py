@@ -1323,8 +1323,18 @@ def revertObjectTransforms(c, args):
             'UPDATE polygons SET x = x * ? + ?, y = y * ? + ? WHERE objectid=?',
             (kx, bx, ky, by, objectid))
 
+        # If imagefile was written to properties, update it too.
+        c.execute(
+            'SELECT value FROM properties WHERE objectid=? AND key="old_imagefile"',
+            (objectid, ))
+        old_imagefile = c.fetchone()
+        if old_imagefile is not None:
+            c.execute('UPDATE objects SET imagefile=? WHERE objectid=?',
+                      (old_imagefile[0], objectid))
+
     c.execute(
         'DELETE FROM properties WHERE key IN ("kx", "ky", "bx", "by", "old_objectid")'
     )
+    c.execute('DELETE FROM properties WHERE key="old_imagefile"')
     logging.info('%d objects out of %d were reverted.', count,
                  len(object_entries))

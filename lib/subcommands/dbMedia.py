@@ -333,10 +333,11 @@ def tileObjectsParser(subparsers):
     parser.add_argument('--split_by_name',
                         action='store_true',
                         help='Start a new collage with every new name.')
-    parser.add_argument('--dry_run_media',
-                        action='store_true',
-                        help='If specified, do not read or write images, '
-                        'only make changes to the database.')
+    parser.add_argument(
+        '--image_icon',
+        action='store_true',
+        help='If specified, adds an icon of the whole image with object white.'
+    )
 
 
 def tileObjects(c, args):
@@ -370,17 +371,18 @@ def tileObjects(c, args):
     logging.debug(pprint.pformat(old_entries))
 
     # Create collages and info about them.
+    cell_width = args.cell_width * 2 if args.image_icon else args.cell_width
     num_cells_per_collage = args.num_cells_Y * args.num_cells_X
     if num_cells_per_collage == 0:
         raise ValueError('Need num_cells_Y > 0 and num_cells_X > 0.')
     gap = args.inter_cell_gap  # Convenience alias.
-    collage_X = args.num_cells_X * (args.cell_width + gap) - gap
+    collage_X = args.num_cells_X * (cell_width + gap) - gap
     collage_Y = args.num_cells_Y * (args.cell_height + gap) - gap
 
     def _recordCollage(c, collage, namehint):
         new_imagefile = imwriter.imwrite(collage, namehint=namehint)
         # Insert image values.
-        logging.debug('Recording imagefile at: %d', namehint)
+        logging.debug('Recording imagefile with namehint: %s', namehint)
         logging.info('Recording imagefile %s', new_imagefile)
         c.execute(
             'INSERT INTO images(imagefile, width, height, timestamp, name, score) '
@@ -421,30 +423,34 @@ def tileObjects(c, args):
         previous_name = name
 
         # Crop object.
-        if args.dry_run_media:
-            old_size = backendMedia.getPictureSize(
-                op.join(args.rootdir, old_imagefile))
-            assert len(old_size) == 2 and old_size[1] > old_size[0], old_size
-            old_image = np.zeros((old_size[0], old_size[1], 3), dtype=np.uint8)
-        else:
-            old_image = imreader.imread(old_imagefile)
+        old_image = imreader.imread(old_imagefile)
         logging.debug('Cropping roi=%s from image of shape %s', old_roi,
                       old_image.shape)
         crop, transform = utilBoxes.cropPatch(old_image, old_roi, args.edges,
                                               args.cell_height,
                                               args.cell_width)
 
+        # A small copy of the image.
+        if args.image_icon:
+            old_image[
+                max(old_roi[0], 0):min(old_roi[2], old_image.shape[0]),
+                max(old_roi[1], 0):min(old_roi[3], old_image.shape[1])] = 255
+            image_icon, _ = utilBoxes.cropPatch(
+                old_image, [0, 0, old_image.shape[0], old_image.shape[1]],
+                'constant', args.cell_height, args.cell_width)
+            crop = np.hstack([crop, image_icon])
+
         # Get the cell coordinates. Cells are populated row by row.
-        cell_x = (i_cell % args.num_cells_X) * (args.cell_width + gap)
+        cell_x = (i_cell % args.num_cells_X) * (cell_width + gap)
         cell_y = (i_cell % num_cells_per_collage //
                   args.num_cells_X) * (args.cell_height + gap)
         logging.debug('i_cell: %d, cell_x: %d, cell_y: %d', i_cell, cell_x,
                       cell_y)
 
         assert cell_y + args.cell_height <= collage_Y, i_cell
-        assert cell_x + args.cell_width <= collage_X, i_cell
+        assert cell_x + cell_width <= collage_X, i_cell
         collage[cell_y:cell_y + args.cell_height,
-                cell_x:cell_x + args.cell_width] = crop
+                cell_x:cell_x + cell_width] = crop
 
         transform[0, 2] += cell_y
         transform[1, 2] += cell_x
@@ -458,10 +464,13 @@ def tileObjects(c, args):
         # Insert to objects.
         c.execute(
             'INSERT INTO objects(objectid,imagefile,x1,y1,width,height,name,score) '
-            'SELECT ?, x1 * ? + ?, y1 * ? + ?, width * ?, height * ?, name, score '
+            'SELECT ?, ?, x1 * ? + ?, y1 * ? + ?, width * ?, height * ?, name, score '
             'FROM objects_old WHERE objectid=?',
             (objectid, TEMP_IMAGEFILE, kx, bx, ky, by, kx, ky, objectid))
         # Insert to properties.
+        c.execute(
+            'INSERT INTO properties(objectid,key,value) SELECT ?,"old_imagefile",?',
+            (objectid, old_imagefile))
         c.execute(
             'INSERT INTO properties(objectid,key,value) '
             'SELECT ?,key,value FROM properties_old WHERE objectid=?',

@@ -286,8 +286,8 @@ def cropPatch(image, roi, edge, target_height, target_width):
                 pads = ((pad1, pad2), (0, 0), (0, 0))
 
         logging.debug(
-            'Padding as "constant" (target_ratio: %.3f) with pad1: %d, pad2: %d'
-            ' to shape %s.', target_ratio, pad1, pad2, str(patch.shape))
+            'Padding as "constant" (target_ratio: %.3f) with pad %s'
+            ' to shape %s.', target_ratio, str(pads), str(patch.shape))
         patch = np.pad(patch, pad_width=pads, mode='constant')
         # Transform is offset to match the bottom-left corner now.
         transform[0, 2] += pads[0][0]

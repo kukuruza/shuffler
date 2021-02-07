@@ -275,6 +275,31 @@ class TestCropPatch(unittest.TestCase):
         expected_roi = [10, 0, 30, 40]
         self.assertEqual(actual_roi, expected_roi)
 
+    def test_edgeConstant_allImage_noPad(self):
+        HEIGHT = 4
+        WIDTH = 10
+        roi = [0, 0, HEIGHT, WIDTH]
+        actual_patch, transform = utilBoxes.cropPatch(self.image[0:HEIGHT,
+                                                                 0:WIDTH],
+                                                      roi,
+                                                      'constant',
+                                                      target_height=HEIGHT * 2,
+                                                      target_width=WIDTH)
+        expected_patch = TestCropPatch.makeGradientImage(height=HEIGHT,
+                                                         width=WIDTH,
+                                                         min_y=0,
+                                                         min_x=0)
+        expected_patch = np.pad(expected_patch,
+                                pad_width=((HEIGHT // 2, HEIGHT // 2), (0, 0),
+                                           (0, 0)),
+                                mode='constant')
+        self.assertEqual(actual_patch.shape, expected_patch.shape)
+        np.testing.assert_array_equal(actual_patch, expected_patch)
+        # Compare roi.
+        actual_roi = TestCropPatch.transformRoi(transform, roi)
+        expected_roi = [HEIGHT // 2, 0, HEIGHT * 3 // 2, WIDTH]
+        self.assertEqual(actual_roi, expected_roi)
+
     def test_edgeDistortY(self):
         roi = [45, 40, 55, 60]
         # Compare patches.

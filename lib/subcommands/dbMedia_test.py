@@ -13,6 +13,7 @@ import nose
 
 from lib.backend import backendDb
 from lib.subcommands import dbMedia
+from lib.subcommands import dbModify
 from lib.utils import testUtils
 
 
@@ -364,6 +365,93 @@ class Test_cropObjects_SyntheticDb(unittest.TestCase):
                                         float(bx[0][0])], [0., 0., 1.]])
 
         np.testing.assert_array_equal(transform, transform_recorded)
+
+
+class Test_tileObjects_carsDb(testUtils.Test_carsDb):
+    def _test_consistency(self, num_cells_Y, num_cells_X, split_by_name,
+                          image_icon):
+        '''
+        Test that running tileObjects and undoing that transformation gives
+        identify.
+        '''
+        # Copy all tables ("matches" are not supported).
+        c = self.conn.cursor()
+        c.execute("CREATE TABLE objects_ref AS SELECT * FROM objects")
+        c.execute("CREATE TABLE properties_ref AS SELECT * FROM properties")
+        c.execute("CREATE TABLE polygons_ref AS SELECT * FROM polygons")
+        # Run tiling.
+        args = argparse.Namespace(
+            rootdir=testUtils.Test_carsDb.CARS_DB_ROOTDIR,
+            media='mock',
+            image_path='mock_media',
+            mask_path='mock_mask_media',
+            where_object='TRUE',
+            num_cells_Y=num_cells_Y,
+            num_cells_X=num_cells_X,
+            inter_cell_gap=10,
+            cell_width=50,
+            cell_height=50,
+            edges='constant',
+            overwrite=False,
+            split_by_name=split_by_name,
+            image_icon=image_icon)
+        dbMedia.tileObjects(c, args)
+        # Run reverting.
+        dbModify.revertObjectTransforms(c, argparse.Namespace())
+
+        # Compare the result with the reference for "objects".
+        c.execute("SELECT objectid FROM objects_ref")
+        objects_ref = c.fetchall()
+        c.execute(
+            "SELECT objects.objectid FROM objects INNER JOIN objects_ref "
+            "ON objects.objectid = objects_ref.objectid WHERE "
+            "objects.imagefile IS objects_ref.imagefile AND "
+            "ABS(objects.width - objects_ref.width) < 2 AND "
+            "ABS(objects.height - objects_ref.height) < 2 AND "
+            "ABS(objects.x1 - objects_ref.x1) < 2 AND "
+            "ABS(objects.y1 - objects_ref.y1) < 2 AND "
+            "objects.name IS objects_ref.name AND "
+            "objects.score IS objects_ref.score")
+        same_objects = c.fetchall()
+        self.assertEqual(set(objects_ref), set(same_objects))
+
+        # Compare the result with the reference for "polygons".
+        c.execute("SELECT objectid FROM polygons_ref")
+        polygons_ref = c.fetchall()
+        c.execute(
+            "SELECT polygons.objectid FROM polygons INNER JOIN polygons_ref "
+            "ON polygons.objectid = polygons_ref.objectid WHERE "
+            "polygons.x IS polygons_ref.x AND "
+            "polygons.y IS polygons_ref.y")
+        same_polygons = c.fetchall()
+        self.assertEqual(set(polygons_ref), set(same_polygons))
+
+        # Compare the result with the reference for "properties".
+        c.execute("SELECT objectid FROM properties_ref")
+        properties_ref = c.fetchall()
+        c.execute(
+            "SELECT properties.objectid FROM properties INNER JOIN properties_ref "
+            "ON properties.objectid = properties_ref.objectid WHERE "
+            "properties.key IS properties_ref.key AND "
+            "properties.value IS properties_ref.value")
+        same_properties = c.fetchall()
+        self.assertEqual(set(properties_ref), set(same_properties))
+
+    def test_consistency1(self):
+        self._test_consistency(2, 1, False, False)
+
+    def test_consistency2(self):
+        self._test_consistency(1, 1, False, False)
+
+    def test_consistency3(self):
+        self._test_consistency(2, 1, False, False)
+
+    def test_consistency4(self):
+        self._test_consistency(1, 1, True, False)
+
+    def test_consistency5(self):
+        self._test_consistency(1, 1, False, True)
+
 
 
 if __name__ == '__main__':
