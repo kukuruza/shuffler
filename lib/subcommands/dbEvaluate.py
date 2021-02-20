@@ -151,7 +151,7 @@ def _evaluateDetectionForClassPascal(c, c_gt, name, args):
 
 def _writeCurveValues(out_dir, X, Y, metrics_name, name, header):
     if name is not None:
-        name = util.replaceSpecialCharactersInFileName(name)
+        name = util.validateFileName(name)
         stem = '%s-%s' % (metrics_name, name)
     else:
         stem = metrics_name
