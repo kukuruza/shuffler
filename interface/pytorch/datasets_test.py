@@ -6,26 +6,26 @@ import unittest
 import numpy as np
 
 from lib.utils import testUtils
-from interface import interfacePytorch
+from interface.pytorch import datasets
 
 
 class TestHelperFunctions(testUtils.Test_carsDb):
     def test_used_keys(self):
         sample = {'image': np.zeros(3), 'objectid': 1}
-        sample = interfacePytorch._filter_keys(['image'], sample)
+        sample = datasets._filter_keys(['image'], sample)
         self.assertEqual(len(sample), 1)  # only "image" key is left.
         self.assertTrue('image' in sample)
 
     def test_apply_transform_callable(self):
         transform_group = lambda x: x['image']
         sample = {'image': np.zeros(3), 'objectid': 1}
-        sample = interfacePytorch._apply_transform(transform_group, sample)
+        sample = datasets._apply_transform(transform_group, sample)
         self.assertTrue(isinstance(sample, (np.ndarray, np.generic)))
 
     def test_apply_transform_list(self):
         transform_group = [lambda x: x['image'], lambda x: x['objectid']]
         sample = {'image': np.zeros(3), 'objectid': 1, 'name': 'car'}
-        sample = interfacePytorch._apply_transform(transform_group, sample)
+        sample = datasets._apply_transform(transform_group, sample)
         self.assertTrue(isinstance(sample, list))
         self.assertEqual(len(sample), 2)  # only "image" and 'objectid' left.
         self.assertTrue(isinstance(sample[0], (np.ndarray, np.generic)))
@@ -37,7 +37,7 @@ class TestHelperFunctions(testUtils.Test_carsDb):
             'name': lambda _: 'hi'
         }
         sample = {'image': np.zeros((10, 10, 3)), 'objectid': 1, 'name': 'car'}
-        sample = interfacePytorch._apply_transform(transform_group, sample)
+        sample = datasets._apply_transform(transform_group, sample)
         self.assertEqual(len(sample['image'].shape), 2)  # Grayscale image.
         self.assertEqual(sample['name'], 'hi')  # All names replaced to "hi".
 
@@ -51,7 +51,7 @@ class TestImageDataset(testUtils.Test_carsDb):
         os.remove(self.tmp_in_db_file)
 
     def test_general(self):
-        dataset = interfacePytorch.ImageDataset(
+        dataset = datasets.ImageDataset(
             testUtils.Test_carsDb.CARS_DB_PATH,
             rootdir=testUtils.Test_carsDb.CARS_DB_ROOTDIR)
         self.assertEqual(len(dataset), 3)  # 3 images.
@@ -77,7 +77,7 @@ class TestImageDataset(testUtils.Test_carsDb):
         self.assertTrue('score' in object_sample)
 
     def test_where_image(self):
-        dataset = interfacePytorch.ImageDataset(
+        dataset = datasets.ImageDataset(
             testUtils.Test_carsDb.CARS_DB_PATH,
             rootdir=testUtils.Test_carsDb.CARS_DB_ROOTDIR,
             where_image='imagefile == "images/000000.jpg"')
@@ -85,7 +85,7 @@ class TestImageDataset(testUtils.Test_carsDb):
 
     def test_where_object(self):
         # All objects should be "cars".
-        dataset = interfacePytorch.ImageDataset(
+        dataset = datasets.ImageDataset(
             testUtils.Test_carsDb.CARS_DB_PATH,
             rootdir=testUtils.Test_carsDb.CARS_DB_ROOTDIR,
             where_object='name == "car"')
@@ -93,7 +93,7 @@ class TestImageDataset(testUtils.Test_carsDb):
         self.assertEqual(len(sample['objects']), 1)  # 1 car in the 1st image.
 
         # All objects should be "bus".
-        dataset = interfacePytorch.ImageDataset(
+        dataset = datasets.ImageDataset(
             testUtils.Test_carsDb.CARS_DB_PATH,
             rootdir=testUtils.Test_carsDb.CARS_DB_ROOTDIR,
             where_object='name == "bus"')
@@ -111,7 +111,7 @@ class TestObjectDataset(testUtils.Test_carsDb):
         os.remove(self.tmp_in_db_file)
 
     def test_general(self):
-        dataset = interfacePytorch.ObjectDataset(
+        dataset = datasets.ObjectDataset(
             self.tmp_in_db_file,
             rootdir=testUtils.Test_carsDb.CARS_DB_ROOTDIR,
             mode='w')
@@ -135,7 +135,7 @@ class TestObjectDataset(testUtils.Test_carsDb):
 
     def test_where_object(self):
         # All objects should be "cars".
-        dataset = interfacePytorch.ObjectDataset(
+        dataset = datasets.ObjectDataset(
             testUtils.Test_carsDb.CARS_DB_PATH,
             rootdir=testUtils.Test_carsDb.CARS_DB_ROOTDIR,
             where_object='name == "car"')

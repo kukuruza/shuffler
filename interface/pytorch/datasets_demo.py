@@ -5,11 +5,11 @@ A demo for running inference on a database, and recording some results.
 import os
 import shutil
 import tempfile
+import torch
+import torchvision.transforms
 
 from lib.utils import testUtils
-from interface import interfacePytorch
-import torch.utils.data
-import torchvision.transforms
+from interface.pytorch import datasets
 
 
 def dummyPredict(batch):
@@ -41,12 +41,11 @@ def main():
 
     # Make a dataset of OBJECTS. Every returned item is an object in the db.
     # We specify mode='w' because we want to record some values.
-    dataset = interfacePytorch.ObjectDataset(
-        tmp_in_db_file,
-        rootdir=rootdir,
-        mode='w',
-        used_keys=['image', 'objectid', 'name'],
-        transform_group={'image': transform})
+    dataset = datasets.ObjectDataset(tmp_in_db_file,
+                                     rootdir=rootdir,
+                                     mode='w',
+                                     used_keys=['image', 'objectid', 'name'],
+                                     transform_group={'image': transform})
 
     data_loader = torch.utils.data.DataLoader(dataset,
                                               batch_size=2,
