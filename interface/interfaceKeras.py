@@ -1,23 +1,23 @@
-import os, sys, os.path as op
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import sys, os.path as op
+sys.path.append(op.dirname(op.dirname(op.abspath(__file__))))
 import numpy as np
 import argparse
 import logging
-import sqlite3
-from pprint import pformat
-from keras.utils import Sequence
+import pprint
+import keras.utils
 
-from interface.utils import openConnection
-from lib.backend.backendDb import imageField, objectField
-from lib.backend.backendMedia import MediaReader
+from interface import utils
+from lib.backend import backendDb
+from lib.backend import backendMedia
 
 
-class BareImageGenerator(Sequence):
+class BareImageGenerator(keras.utils.Sequence):
     ''' Generates only images for Keras. '''
     def __init__(self,
                  db_file,
                  rootdir='.',
                  where_image='TRUE',
+                 mode='r',
                  copy_to_memory=True,
                  batch_size=1,
                  shuffle=True):
@@ -27,13 +27,13 @@ class BareImageGenerator(Sequence):
         if not op.exists(db_file):
             raise ValueError('db_file does not exist: %s' % db_file)
 
-        self.conn = openConnection(db_file, copy_to_memory=copy_to_memory)
+        self.conn = utils.openConnection(db_file, mode, copy_to_memory)
         self.c = self.conn.cursor()
         self.c.execute('SELECT * FROM images WHERE %s ORDER BY imagefile' %
                        where_image)
         self.image_entries = self.c.fetchall()
 
-        self.imreader = MediaReader(rootdir=rootdir)
+        self.imreader = backendMedia.MediaReader(rootdir=rootdir)
 
         self.on_epoch_end()
 
@@ -46,14 +46,15 @@ class BareImageGenerator(Sequence):
 
     def _load_image(self, image_entry):
         logging.debug('Reading image "%s"' %
-                      imageField(image_entry, 'imagefile'))
-        img = self.imreader.imread(imageField(image_entry, 'imagefile'))
+                      backendDb.imageField(image_entry, 'imagefile'))
+        img = self.imreader.imread(
+            backendDb.imageField(image_entry, 'imagefile'))
         return img
 
     def _loadEntry(self, index):
         image_entry = self.image_entries[index]
         img = self._load_image(image_entry)
-        imagefile = imageField(image_entry, 'imagefile')
+        imagefile = backendDb.imageField(image_entry, 'imagefile')
         return {'image': img, 'imagefile': imagefile}
 
     def __getitem__(self, index):
@@ -79,13 +80,14 @@ class BareImageGenerator(Sequence):
             np.random.shuffle(self.indexes)
 
 
-class ImageGenerator(Sequence):
+class ImageGenerator(keras.utils.Sequence):
     ''' Generates images with all the objects for Keras. '''
     def __init__(self,
                  db_file,
                  rootdir='.',
                  where_image='TRUE',
                  where_object='TRUE',
+                 mode='r',
                  copy_to_memory=True,
                  batch_size=32,
                  shuffle=True):
@@ -95,13 +97,13 @@ class ImageGenerator(Sequence):
         if not op.exists(db_file):
             raise ValueError('db_file does not exist: %s' % db_file)
 
-        self.conn = openConnection(db_file, copy_to_memory=copy_to_memory)
+        self.conn = utils.openConnection(db_file, mode, copy_to_memory)
         self.c = self.conn.cursor()
         self.c.execute('SELECT * FROM images WHERE %s ORDER BY imagefile' %
                        where_image)
         self.image_entries = self.c.fetchall()
 
-        self.imreader = MediaReader(rootdir=rootdir)
+        self.imreader = backendMedia.MediaReader(rootdir=rootdir)
         self.where_object = where_object
 
         self.on_epoch_end()
@@ -115,20 +117,22 @@ class ImageGenerator(Sequence):
 
     def _load_image(self, image_entry):
         logging.debug('Reading image "%s"' %
-                      imageField(image_entry, 'imagefile'))
-        img = self.imreader.imread(imageField(image_entry, 'imagefile'))
-        if imageField(image_entry, 'maskfile') is None:
+                      backendDb.imageField(image_entry, 'imagefile'))
+        img = self.imreader.imread(
+            backendDb.imageField(image_entry, 'imagefile'))
+        if backendDb.imageField(image_entry, 'maskfile') is None:
             mask = None
         else:
-            mask = self.imreader.maskread(imageField(image_entry, 'maskfile'))
+            mask = self.imreader.maskread(
+                backendDb.imageField(image_entry, 'maskfile'))
         return img, mask
 
     def _loadEntry(self, index):
         image_entry = self.image_entries[index]
         img, mask = self._load_image(image_entry)
 
-        imagefile = imageField(image_entry, 'imagefile')
-        imagename = imageField(image_entry, 'name')
+        imagefile = backendDb.imageField(image_entry, 'imagefile')
+        imagename = backendDb.imageField(image_entry, 'name')
 
         self.c.execute(
             'SELECT x1,y1,width,height,name FROM objects '
@@ -161,7 +165,7 @@ class ImageGenerator(Sequence):
             np.random.shuffle(self.indexes)
 
 
-class ObjectGenerator(Sequence):
+class ObjectGenerator(keras.utils.Sequence):
     ''' Items of a dataset are objects. '''
     def __init__(self,
                  db_file,
@@ -177,13 +181,14 @@ class ObjectGenerator(Sequence):
         if not op.exists(db_file):
             raise ValueError('db_file does not exist: %s' % db_file)
 
-        self.conn = openConnection(db_file, copy_to_memory=copy_to_memory)
+        self.conn = utils.openConnection(db_file,
+                                         copy_to_memory=copy_to_memory)
         self.c = self.conn.cursor()
         self.c.execute('SELECT * FROM objects WHERE %s ORDER BY objectid' %
                        where_object)
         self.object_entries = self.c.fetchall()
 
-        self.imreader = MediaReader(rootdir=rootdir)
+        self.imreader = backendMedia.MediaReader(rootdir=rootdir)
 
         self.on_epoch_end()
 
@@ -196,9 +201,9 @@ class ObjectGenerator(Sequence):
     def _loadEntry(self, index):
         object_entry = self.object_entries[index]
 
-        objectid = objectField(object_entry, 'objectid')
-        imagefile = objectField(object_entry, 'imagefile')
-        name = objectField(object_entry, 'name')
+        objectid = backendDb.objectField(object_entry, 'objectid')
+        imagefile = backendDb.objectField(object_entry, 'imagefile')
+        name = backendDb.objectField(object_entry, 'name')
 
         self.c.execute('SELECT maskfile FROM images WHERE imagefile=?',
                        (imagefile, ))
@@ -211,7 +216,7 @@ class ObjectGenerator(Sequence):
         mask = self.imreader.maskread(
             maskfile) if maskfile is not None else None
 
-        roi = objectField(object_entry, 'roi')
+        roi = backendDb.objectField(object_entry, 'roi')
         logging.debug('Roi: %s' % roi)
         img = img[roi[0]:roi[2], roi[1]:roi[3]]
         mask = mask[roi[0]:roi[2], roi[1]:roi[3]] if mask is not None else None
@@ -266,14 +271,14 @@ if __name__ == "__main__":
     if args.dataset_type == 'bare':
         dataset = BareImageGenerator(args.in_db_file, rootdir=args.rootdir)
         item = dataset.__getitem__(1)
-        print(pformat(item))
+        pprint.pprint(item)
 
     elif args.dataset_type == 'image':
         dataset = ImageGenerator(args.in_db_file, rootdir=args.rootdir)
         item = dataset.__getitem__(1)
-        print(pformat(item))
+        pprint.pprint(item)
 
     elif args.dataset_type == 'object':
         dataset = ObjectGenerator(args.in_db_file, rootdir=args.rootdir)
         item = dataset.__getitem__(1)
-        print(pformat(item))
+        pprint.pprint(item)
