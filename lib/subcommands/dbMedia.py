@@ -212,8 +212,12 @@ def cropObjects(c, args):
                                                    args.target_height,
                                                    args.target_width)
         if args.split_into_folders_by_object_name:
+            # TODO: Do something about names with spacial characters.
+            #       Cant use validateFileName because two names may get mapped
+            #       into one filename.
             namehint = '%s/%09d' % (util.maybeDecode(name), old_objectid)
         elif args.add_object_name_to_filename:
+            # TODO: Ditto.
             namehint = '%s %09d' % (util.maybeDecode(name), old_objectid)
         else:
             namehint = '%09d' % old_objectid
@@ -380,7 +384,8 @@ def tileObjects(c, args):
     collage_Y = args.num_cells_Y * (args.cell_height + gap) - gap
 
     def _recordCollage(c, collage, namehint):
-        new_imagefile = imwriter.imwrite(collage, namehint=namehint)
+        new_imagefile = imwriter.imwrite(
+            collage, namehint=util.validateFileName(namehint))
         # Insert image values.
         logging.debug('Recording imagefile with namehint: %s', namehint)
         logging.info('Recording imagefile %s', new_imagefile)

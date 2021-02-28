@@ -15,8 +15,9 @@ FONT_SIZE = 0.7
 THICKNESS = 3
 
 
-def replaceSpecialCharactersInFileName(filename):
-    invalid = '<>:"/\\|?* '
+def validateFileName(filename):
+    invalid = '<>:\'"/\\|?+=!@#$%^&*,.~`'
+    filename = maybeDecode(filename)
     for char in invalid:
         filename = filename.replace(char, '_')
     return filename
@@ -24,7 +25,7 @@ def replaceSpecialCharactersInFileName(filename):
 
 def maybeDecode(string):
     '''
-    Db entries may not be in Unicode. Call this function to use db entries
+    Db entries may be not in Unicode. Call this function to use db entries
     to name files in a filesystem.
     '''
     if isinstance(string, bytes):
