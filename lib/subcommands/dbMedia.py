@@ -568,18 +568,11 @@ def writeMedia(c, args):
                                         mask_media=args.mask_path,
                                         overwrite=args.overwrite)
 
+    logging.info('Writing imagery and updating the database.')
     c.execute(
         'SELECT imagefile,maskfile FROM images WHERE %s ORDER BY imagefile' %
         args.where_image)
-    entries = c.fetchall()
-
-    logging.info('Deleting entries which are not in "where_image".')
-    c.execute('SELECT imagefile FROM images WHERE NOT %s' % args.where_image)
-    for imagefile, in c.fetchall():
-        backendDb.deleteImage(c, imagefile)
-
-    logging.info('Writing imagery and updating the database.')
-    for imagefile, maskfile in progressbar.progressbar(entries):
+    for imagefile, maskfile in progressbar.progressbar(c.fetchall()):
 
         logging.debug('Imagefile "%s"', imagefile)
         if args.image_path is not None:

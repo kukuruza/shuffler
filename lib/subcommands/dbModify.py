@@ -996,9 +996,11 @@ def syncObjectidsWithDb(c, args):
     # The new available objectid should be above the max of either db.
     next_objectid = max(_getNextObjectidInDb(c), _getNextObjectidInDb(c_ref))
 
-    # Need to retire "objects" table to avoid objectid conflict during renaming.
+    # Retire "objects" & "polygons" to avoid objectid conflict during renaming.
     c.execute('ALTER TABLE objects RENAME TO objects_old')
     backendDb.createTableObjects(c)
+    c.execute('ALTER TABLE polygons RENAME TO polygons_old')
+    backendDb.createTablePolygons(c)
 
     num_common, num_new = 0, 0
     for imagefile, in progressbar(imagefiles):
@@ -1031,10 +1033,15 @@ def syncObjectidsWithDb(c, args):
             object_[0] = new_objectid
             object_ = tuple(object_)
             c.execute('INSERT INTO objects VALUES (?,?,?,?,?,?,?,?)', object_)
+            c.execute(
+                'INSERT INTO polygons(objectid,x,y,name) '
+                'SELECT ?,x,y,name FROM polygons_old WHERE objectid=?',
+                (new_objectid, objectid))
 
     logging.info('Found %d common and %d new objects', num_common, num_new)
 
     c.execute('DROP TABLE objects_old;')
+    c.execute('DROP TABLE polygons_old;')
 
     conn_ref.close()
 
