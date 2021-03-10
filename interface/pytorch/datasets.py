@@ -217,6 +217,7 @@ class ObjectDataset(torch.utils.data.Dataset):
 
         roi = backendDb.objectField(object_entry, 'roi')
         logging.debug('Roi: %s' % roi)
+        roi = [int(x) for x in roi]
         image = image[roi[0]:roi[2], roi[1]:roi[3]]
         mask = mask[roi[0]:roi[2], roi[1]:roi[3]] if mask is not None else None
 
