@@ -156,7 +156,18 @@ sqlite3 testdata/cars/micro1_v4.db 'SELECT width, height FROM objects WHERE name
 ```
 
 
+### Interface to Pytorch and Keras.
 
+Shuffler has an interface to Pytorch: classes [ImageDataset and ObjectDataset](https://github.com/kukuruza/shuffler/blob/master/interface/pytorch/datasets.py) that implement `torch.utils.data.Dataset`.
+A [demo](https://github.com/kukuruza/shuffler/blob/master/interface/pytorch/datasets_demo.py) provides an example of using a Shuffler database as a Dataset in Pytorch inference.
+
+Shuffler also has an interface to Keras: classes [ImageGenerator and ObjectGenerator](https://github.com/kukuruza/shuffler/blob/master/interface/keras/generetors.py) that implement `keras.utils.Sequence`.
+A [demo](https://github.com/kukuruza/shuffler/blob/master/interface/keras/generators_demo.py) provides an example of using a Shuffler database as a Generator in Keras inference.
+
+```bash
+python -m interface.pytorch.datasets_demo
+python -m interface.keras.generators_demo
+```
 
 ## Example use cases
 

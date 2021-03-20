@@ -1,19 +1,14 @@
 import sys, os.path as op
 sys.path.append(op.dirname(op.dirname(op.abspath(__file__))))
-import argparse
-import logging
-import pprint
-import numpy as np
 import torch.utils.data
 
 from interface import utils
-from lib.backend import backendDb
 from lib.backend import backendMedia
 
 
 class ImageDataset(torch.utils.data.Dataset):
-    '''
-    Items of a dataset are images.
+    ''' 
+    Items of a dataset are images, each one with its objects. 
     '''
     def __init__(self,
                  db_file,
@@ -42,6 +37,12 @@ class ImageDataset(torch.utils.data.Dataset):
                             you plan to call addRecord().
             copy_to_memory: (bool) Copies database into memory. 
                             Only for mode="r". Should be used for python2. 
+            used_keys:      (None or list of str)
+                            Originally __getitem__ returns a dict with keys:
+                            'image', 'mask', 'objects', 'imagefile', 'name',
+                            'score' (see the comments to this class above).
+                            Argument `used_keys` determines which of these keys
+                            are needed, and which can be disposed of.
             transform_group: (a callable or a dict string -> callable) 
                             Transform(s) to be applied on a sample.
                             If it is a callable, it is applied to the sample.
@@ -53,32 +54,25 @@ class ImageDataset(torch.utils.data.Dataset):
         self.mode = mode
         self.conn = utils.openConnection(db_file, mode, copy_to_memory)
         self.c = self.conn.cursor()
+        utils.checkWhereImage(where_image)
         self.c.execute('SELECT * FROM images WHERE %s ORDER BY imagefile' %
                        where_image)
         self.image_entries = self.c.fetchall()
 
         self.imreader = backendMedia.MediaReader(rootdir=rootdir)
+
+        utils.checkWhereObject(where_object)
         self.where_object = where_object
 
+        _checkUsedKeys(used_keys)
         self.used_keys = used_keys
+        utils.checkTransformGroup(transform_group)
         self.transform_group = transform_group
 
     def close(self):
         if self.mode == 'w':
             self.conn.commit()
         self.conn.close()
-
-    def _load_image(self, image_entry):
-        logging.debug('Reading image "%s"' %
-                      backendDb.imageField(image_entry, 'imagefile'))
-        image = self.imreader.imread(
-            backendDb.imageField(image_entry, 'imagefile'))
-        if backendDb.imageField(image_entry, 'maskfile') is None:
-            mask = None
-        else:
-            mask = self.imreader.maskread(
-                backendDb.imageField(image_entry, 'maskfile'))
-        return image, mask
 
     def __len__(self):
         return len(self.image_entries)
@@ -96,33 +90,10 @@ class ImageDataset(torch.utils.data.Dataset):
             imagefile:  The image id.
         '''
         image_entry = self.image_entries[index]
-        image, mask = self._load_image(image_entry)
-
-        imagefile = backendDb.imageField(image_entry, 'imagefile')
-        imagename = backendDb.imageField(image_entry, 'name')
-        imagescore = backendDb.imageField(image_entry, 'score')
-
-        keys = ['x1', 'y1', 'width', 'height', 'name', 'score']
-        self.c.execute(
-            'SELECT %s FROM objects WHERE imagefile=? AND (%s)' %
-            (','.join(keys), self.where_object), (imagefile, ))
-        object_entries = self.c.fetchall()
-        # Convert to a list of dicts, each dict with the same keys.
-        object_entries = [
-            dict(zip(keys, object_entry)) for object_entry in object_entries
-        ]
-
-        sample = {
-            'image': image,
-            'mask': mask,
-            'objects': object_entries,
-            'imagefile': imagefile,
-            'name': imagename,
-            'score': imagescore,
-        }
-
-        sample = _filter_keys(self.used_keys, sample)
-        sample = _apply_transform(self.transform_group, sample)
+        sample = utils.buildImageSample(image_entry, self.c, self.imreader,
+                                        self.where_object)
+        sample = _filterKeys(self.used_keys, sample)
+        sample = utils.applyTransform(self.transform_group, sample)
         return sample
 
 
@@ -166,13 +137,16 @@ class ObjectDataset(torch.utils.data.Dataset):
         self.mode = mode
         self.conn = utils.openConnection(db_file, mode, copy_to_memory)
         self.c = self.conn.cursor()
+        utils.checkWhereObject(where_object)
         self.c.execute('SELECT * FROM objects WHERE %s ORDER BY objectid' %
                        where_object)
         self.object_entries = self.c.fetchall()
 
         self.imreader = backendMedia.MediaReader(rootdir=rootdir)
 
+        _checkUsedKeys(used_keys)
         self.used_keys = used_keys
+        utils.checkTransformGroup(transform_group)
         self.transform_group = transform_group
 
     def close(self):
@@ -198,46 +172,9 @@ class ObjectDataset(torch.utils.data.Dataset):
             All key-value pairs from the "properties" table for this objectid.
         '''
         object_entry = self.object_entries[index]
-
-        objectid = backendDb.objectField(object_entry, 'objectid')
-        imagefile = backendDb.objectField(object_entry, 'imagefile')
-        name = backendDb.objectField(object_entry, 'name')
-        score = backendDb.objectField(object_entry, 'score')
-
-        self.c.execute('SELECT maskfile FROM images WHERE imagefile=?',
-                       (imagefile, ))
-        maskfile = self.c.fetchone()[0]
-
-        logging.debug('Reading object %d from %s imagefile' %
-                      (objectid, imagefile))
-
-        image = self.imreader.imread(imagefile)
-        mask = self.imreader.maskread(
-            maskfile) if maskfile is not None else None
-
-        roi = backendDb.objectField(object_entry, 'roi')
-        logging.debug('Roi: %s' % roi)
-        roi = [int(x) for x in roi]
-        image = image[roi[0]:roi[2], roi[1]:roi[3]]
-        mask = mask[roi[0]:roi[2], roi[1]:roi[3]] if mask is not None else None
-
-        sample = {
-            'image': image,
-            'mask': mask,
-            'name': name,
-            'score': score,
-            'imagefile': imagefile,
-            'objectid': objectid
-        }
-
-        # Add properties.
-        self.c.execute('SELECT key,value FROM properties WHERE objectid=?',
-                       (objectid, ))
-        property_entries = self.c.fetchall()
-        sample.update(dict(property_entries))
-
-        sample = _filter_keys(self.used_keys, sample)
-        sample = _apply_transform(self.transform_group, sample)
+        sample = utils.buildObjectSample(object_entry, self.c, self.imreader)
+        sample = _filterKeys(self.used_keys, sample)
+        sample = utils.applyTransform(self.transform_group, sample)
         return sample
 
     def addRecord(self, objectid, key, value):
@@ -271,7 +208,18 @@ class ObjectDataset(torch.utils.data.Dataset):
 ####      Helper functions.    ####
 
 
-def _filter_keys(used_keys, sample):
+def _checkUsedKeys(used_keys):
+    if used_keys is None:
+        return
+    if not isinstance(used_keys, list):
+        raise TypeError('used_keys is not list, but %s.' % type(used_keys))
+    for key in used_keys:
+        if not isinstance(key, str):
+            raise TypeError('key "%s" of used_keys is not str, but %s.' %
+                            (key, type(key)))
+
+
+def _filterKeys(used_keys, sample):
     '''
     Keep only `used_keys` in the dict.
     Args:
@@ -286,67 +234,3 @@ def _filter_keys(used_keys, sample):
             for (key, value) in sample.items() if key in used_keys
         }
     return sample
-
-
-def _apply_transform(transform_group, sample):
-    ''' 
-    Apply a group of transforms to a sample.
-    Args:
-        transform_group:  Can be one of the four options.
-                        1. (None) Return `sample` unchanged. 
-                        2. (callable) It is applied to the `sample` once.
-                        3. (list of callables) Each callable is applied to the
-                           sample. The results are put together in a list.
-                           This option allows to apply one single transform on
-                           image and mask together, and another transform on
-                           e.g. name.
-                        4. (dict string -> callable) Each key of this dict
-                           should match a key in each sample, and the callables 
-                           are applied to the respective sample dict values.
-        sample:         (dict) A sample queried from one of the datasets.
-    Returns:
-        sample:         (any) Sample to further go into Pytorch TrainLoader.
-    '''
-
-    if transform_group is None:
-        return sample
-
-    elif callable(transform_group):
-        return transform_group(sample)
-
-    elif isinstance(transform_group, list):
-        return [transform(sample) for transform in transform_group]
-
-    elif isinstance(transform_group, dict):
-        for key in transform_group:
-            if key not in sample:
-                raise KeyError('Key "%s" is in transform, but not in sample' %
-                               key)
-            sample[key] = transform_group[key](sample[key])
-        return sample
-
-    else:
-        raise TypeError('Unexpected type of the tranform: %s' %
-                        type(transform_group))
-
-
-if __name__ == "__main__":
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-i', '--in_db_file', required=True)
-    parser.add_argument('--rootdir', required=True)
-    parser.add_argument('--dataset_type',
-                        required=True,
-                        choices=['images', 'objects'])
-    parser.add_argument('--mode', choices=['r', 'w'], default='r')
-    args = parser.parse_args()
-
-    if args.dataset_type == 'images':
-        dataset = ImageDataset(args.in_db_file, rootdir=args.rootdir)
-        item = dataset[1]
-        pprint.pprint(item)
-
-    elif args.dataset_type == 'objects':
-        dataset = ObjectDataset(args.in_db_file, rootdir=args.rootdir)
-        item = dataset[1]
-        pprint.pprint(item)

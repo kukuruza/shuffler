@@ -1,5 +1,5 @@
 '''
-A demo for running inference on a database, and recording some results.
+A demo for running PyTorch inference on a database, and recording some results.
 '''
 
 import os
