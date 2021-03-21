@@ -74,6 +74,10 @@ class ImageDataset(torch.utils.data.Dataset):
             self.conn.commit()
         self.conn.close()
 
+    @property
+    def cursor(self):
+        return self.s
+
     def __len__(self):
         return len(self.image_entries)
 
@@ -93,7 +97,7 @@ class ImageDataset(torch.utils.data.Dataset):
         sample = utils.buildImageSample(image_entry, self.c, self.imreader,
                                         self.where_object)
         sample = _filterKeys(self.used_keys, sample)
-        sample = utils.applyTransform(self.transform_group, sample)
+        sample = utils.applyTransformGroup(self.transform_group, sample)
         return sample
 
 
@@ -174,7 +178,7 @@ class ObjectDataset(torch.utils.data.Dataset):
         object_entry = self.object_entries[index]
         sample = utils.buildObjectSample(object_entry, self.c, self.imreader)
         sample = _filterKeys(self.used_keys, sample)
-        sample = utils.applyTransform(self.transform_group, sample)
+        sample = utils.applyTransformGroup(self.transform_group, sample)
         return sample
 
     def addRecord(self, objectid, key, value):

@@ -1,13 +1,13 @@
 import sys, os.path as op
 sys.path.append(op.dirname(op.dirname(op.abspath(__file__))))
 import numpy as np
-import keras.utils
+import tensorflow as tf
 
 from interface import utils
 from lib.backend import backendMedia
 
 
-class ImageGenerator(keras.utils.Sequence):
+class ImageGenerator(tf.keras.utils.Sequence):
     ''' 
     Generates images, each one with objects.
     
@@ -98,20 +98,24 @@ class ImageGenerator(keras.utils.Sequence):
 
         self.on_epoch_end()
 
-    def __len__(self):
-        ''' Denotes the number of batches per epoch. '''
-        return int(np.ceil(len(self.image_entries) / self.batch_size))
+    @property
+    def cursor(self):
+        return self.s
 
     def close(self):
         ''' Crucial when the object is contructed in the 'w' mode. '''
         self.conn.close()
+
+    def __len__(self):
+        ''' Denotes the number of batches per epoch. '''
+        return int(np.ceil(len(self.image_entries) / self.batch_size))
 
     def _loadEntry(self, index):
         image_entry = self.image_entries[index]
         sample = utils.buildImageSample(image_entry, self.c, self.imreader,
                                         self.where_object)
         sample = _filterKeys(self.used_keys, sample)
-        sample = utils.applyTransform(self.transform_group, sample)
+        sample = utils.applyTransformGroup(self.transform_group, sample)
         return sample
 
     def __getitem__(self, index):
@@ -165,7 +169,7 @@ class BareImageGenerator(ImageGenerator):
                              shuffle=shuffle)
 
 
-class ObjectGenerator(keras.utils.Sequence):
+class ObjectGenerator(tf.keras.utils.Sequence):
     ''' 
     Generates objects, including cropped image and mask.
     
@@ -261,7 +265,7 @@ class ObjectGenerator(keras.utils.Sequence):
         object_entry = self.object_entries[index]
         sample = utils.buildObjectSample(object_entry, self.c, self.imreader)
         sample = _filterKeys(self.used_keys, sample)
-        sample = utils.applyTransform(self.transform_group, sample)
+        sample = utils.applyTransformGroup(self.transform_group, sample)
         return sample
 
     def __getitem__(self, index):

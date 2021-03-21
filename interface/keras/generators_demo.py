@@ -2,25 +2,28 @@
 A demo for running Keras inference on a database, and recording some results.
 '''
 
-import os
-import shutil
-import tempfile
 import numpy as np
+import cv2  # Used to resize objects to the same size.
+import tensorflow as tf
 
 from lib.utils import testUtils
 from interface.keras import generators
 
 
-def dummyPredict(batch):
-    ''' 
-    Replace this function with a real inference logic in your code. 
-
-    Args:
-        batch:  (a list of numpy arrays of size (Y, X, 3)) A batch of images.
-    Returns:
-        numpy array of size (batch_size, )
-    '''
-    return np.random.rand(len(batch))
+def make_model(input_shape, num_classes):
+    ''' Make a simple two-layer convolutional model. '''
+    model = tf.keras.Sequential([
+        tf.keras.layers.Input(shape=input_shape),
+        tf.keras.layers.Conv2D(32, kernel_size=(3, 3), activation="relu"),
+        tf.keras.layers.MaxPooling2D(pool_size=(2, 2)),
+        tf.keras.layers.Conv2D(64, kernel_size=(3, 3), activation="relu"),
+        tf.keras.layers.MaxPooling2D(pool_size=(2, 2)),
+        tf.keras.layers.Flatten(),
+        tf.keras.layers.Dropout(0.5),
+        tf.keras.layers.Dense(num_classes, activation="softmax"),
+    ])
+    model.summary()
+    return model
 
 
 def main():
@@ -28,44 +31,31 @@ def main():
     in_db_file = testUtils.Test_carsDb.CARS_DB_PATH
     rootdir = testUtils.Test_carsDb.CARS_DB_ROOTDIR
 
-    # We are going to make changes to the database, so let's work on its copy.
-    tmp_in_db_file = tempfile.NamedTemporaryFile().name
-    shutil.copy(in_db_file, tmp_in_db_file)
+    # Objects are resized to this shape.
+    width = 100
+    height = 100
+
+    # The transform resizes every image, and makes the label categorical.
+    transform_group = {
+        'image': lambda x: cv2.resize(x, (width, height)),
+        'name': lambda x: 1 if x == 'bus' else 0
+    }
 
     # Make a generator of OBJECTS. Every returned item is an object in the db.
-    # We specify mode='w' because we want to record some values.
-    generator = generators.ObjectGenerator(
-        tmp_in_db_file,
-        rootdir=rootdir,
-        mode='w',
-        used_keys=['image', 'objectid', 'name'],
-        batch_size=2,
-        shuffle=False)
+    generator = generators.ObjectGenerator(in_db_file,
+                                           rootdir=rootdir,
+                                           used_keys=['image', 'name'],
+                                           transform_group=transform_group,
+                                           batch_size=2,
+                                           shuffle=False)
 
-    for batch in generator:
+    model = make_model(input_shape=(height, width, 3), num_classes=2)
+    model.compile(loss="categorical_crossentropy",
+                  optimizer="adam",
+                  metrics=["accuracy"])
 
-        images = batch[0]
-        objectids = batch[1]
-        names = batch[2]
-
-        # Replace this with the real inference logic in your code.
-        results = dummyPredict(images)
-
-        # At this point, "images", "objectids", "names", "results" are.
-
-        for objectid, name, result in zip(objectids, names, results):
-
-            print('%s with objectid=%d produced dummy result %f.' %
-                  (name, objectid, result))
-
-            # Write the result to the database (if desired).
-            generator.addRecord(objectid, 'result', str(result))
-
-    # Close the generator to save changes.
-    generator.close()
-
-    # Clean up.
-    os.remove(tmp_in_db_file)
+    epochs = 10
+    model.fit(generator, epochs=epochs, workers=1)
 
 
 if __name__ == '__main__':

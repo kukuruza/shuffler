@@ -137,7 +137,7 @@ def buildObjectSample(object_entry, c, imreader):
     return sample
 
 
-def applyTransform(transform_group, sample):
+def applyTransformGroup(transform_group, sample):
     ''' 
     Apply a group of transforms to a sample.
     Args:
@@ -181,13 +181,17 @@ def applyTransform(transform_group, sample):
 
 def checkTransformGroup(transform_group):
     ''' Check the type of "transform_group", used in Pytorch and Keras. '''
-    if transform_group is None or transform_group.callable():
+    if transform_group is None or callable(transform_group):
         return
+    elif isinstance(transform_group, list):
+        for transform in transform_group:
+            if not callable(transform):
+                raise TypeError('Transform "%s" is not callable.' % transform)
     elif isinstance(transform_group, dict):
-        for i, transform in enumerate(transform_group):
-            if not transform.callable():
-                raise TypeError(
-                    'Transform #%d of transform_group is not callable.' % i)
+        for key in transform_group:
+            if not callable(transform_group[key]):
+                raise TypeError('Transform "%s" is not callable.' %
+                                transform_group[key])
     else:
         raise TypeError('transform_group is not callable or dict, but %s.' %
                         type(transform_group))
