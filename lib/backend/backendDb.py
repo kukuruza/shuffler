@@ -182,6 +182,12 @@ def parseTimeString(timestring):
     return datetime.strptime(timestring, '%Y-%m-%d %H:%M:%S.%f')
 
 
+def getColumnsInTable(c, table):
+    c.execute('PRAGMA table_info(%s);' % table)
+    # Get the first column from the result.
+    return [c[1] for c in c.fetchall()]
+
+
 def objectField(entry, field):
     ''' Convenience function to access by field name. '''
 

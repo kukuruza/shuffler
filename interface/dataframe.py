@@ -229,8 +229,10 @@ class Dataframe:
         # TODO: figure out how to not load the whole database.
         image_entries = self.cursor.fetchall()
         imagefile, maskfile, name = image_entries[index]
-        self.cursor.execute("SELECT * FROM objects WHERE imagefile=?",
-                            (imagefile, ))
+        cols = backendDb.getColumnsInTable(self.cursor, 'objects')
+        self.cursor.execute(
+            "SELECT %s FROM objects WHERE imagefile=?" % ','.join(cols),
+            (imagefile, ))
         objects = self.cursor.fetchall()
         imreader = backendMedia.MediaReader(rootdir=self.rootdir)
         if imagefile is not None:
@@ -240,7 +242,7 @@ class Dataframe:
         return {
             'image': image,
             'mask': mask,
-            'objects': [backendDb.objectAsDict(o) for o in objects],
+            'objects': [zip(cols, o) for o in objects],
             'imagefile': imagefile,
             'maskfile': maskfile,
             'name': name

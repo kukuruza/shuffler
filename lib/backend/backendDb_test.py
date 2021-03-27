@@ -86,6 +86,13 @@ class TestCars(unittest.TestCase):
         with self.assertRaises(KeyError):
             backendDb.polygonField(entry, 'dummy')
 
+    def test_getColumnsInTable(self):
+        result = backendDb.getColumnsInTable(self.cursor, 'objects')
+        self.assertEqual(result, [
+            'objectid', 'imagefile', 'x1', 'y1', 'width', 'height', 'name',
+            'score'
+        ])
+
     def test_delete_imagefile_nonexistent(self):
         with self.assertRaises(KeyError):
             backendDb.deleteImage(self.cursor, imagefile='not_existent')
