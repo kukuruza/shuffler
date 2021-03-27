@@ -1,6 +1,6 @@
 import os
 import tempfile
-from dataframe import Dataframe
+from interface.dataframe import Dataframe
 import matplotlib.pyplot as plt
 
 df = Dataframe()
