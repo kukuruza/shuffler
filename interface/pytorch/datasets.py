@@ -1,4 +1,5 @@
 import sys, os.path as op
+import logging
 sys.path.append(op.dirname(op.dirname(op.abspath(__file__))))
 import torch.utils.data
 
@@ -110,7 +111,8 @@ class ObjectDataset(torch.utils.data.Dataset):
                  mode='r',
                  copy_to_memory=True,
                  used_keys=None,
-                 transform_group=None):
+                 transform_group=None,
+                 preload_samples=False):
         '''
         Args:
             db_file:        (string) A path to an sqlite3 database file.
@@ -136,6 +138,8 @@ class ObjectDataset(torch.utils.data.Dataset):
                             (3) A dict {string: callable}: Each key of this dict
                             should match a key in each sample, and the callables
                             are applied to the respective sample dict values.
+            preload_samples:  (bool) If true, will try to preload all samples
+                            (including images) into memory in __init__.
         '''
 
         self.mode = mode
@@ -152,6 +156,18 @@ class ObjectDataset(torch.utils.data.Dataset):
         self.used_keys = used_keys
         utils.checkTransformGroup(transform_group)
         self.transform_group = transform_group
+
+        if not preload_samples:
+            self.preloaded_samples = None
+        else:
+            self.preloaded_samples = []
+            logging.info('Loading samples...')
+            for index in range(len(self)):
+                object_entry = self.object_entries[index]
+                sample = utils.buildObjectSample(object_entry, self.c,
+                                                 self.imreader)
+                self.preloaded_samples.append(sample)
+            logging.info('Loaded %d samples.', len(self))
 
     def close(self):
         if self.mode == 'w':
@@ -175,8 +191,13 @@ class ObjectDataset(torch.utils.data.Dataset):
             imagefile:  (string) The image id.
             All key-value pairs from the "properties" table for this objectid.
         '''
-        object_entry = self.object_entries[index]
-        sample = utils.buildObjectSample(object_entry, self.c, self.imreader)
+        if self.preloaded_samples is not None:
+            sample = self.preloaded_samples[index]
+        else:
+            object_entry = self.object_entries[index]
+            sample = utils.buildObjectSample(object_entry, self.c,
+                                             self.imreader)
+
         sample = _filterKeys(self.used_keys, sample)
         sample = utils.applyTransformGroup(self.transform_group, sample)
         return sample

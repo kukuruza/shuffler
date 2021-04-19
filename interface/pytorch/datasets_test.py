@@ -122,6 +122,21 @@ class TestObjectDataset(testUtils.Test_carsDb):
             (sample['objectid'], ))
         self.assertEqual(dataset.c.fetchall(), [("0.5", )])
 
+    def test_general_preload(self):
+        dataset = datasets.ObjectDataset(
+            self.tmp_in_db_file,
+            rootdir=testUtils.Test_carsDb.CARS_DB_ROOTDIR,
+            preload_samples=True)
+        self.assertEqual(len(dataset), 3)  # 3 objects.
+        sample = dataset[0]
+        self.assertTrue(isinstance(sample, dict))
+        self.assertTrue('image' in sample)
+        self.assertTrue('mask' in sample)
+        self.assertTrue('objectid' in sample)
+        self.assertTrue('imagefile' in sample)
+        self.assertTrue('name' in sample)
+        self.assertTrue('score' in sample)
+
     def test_used_keys(self):
         dataset = datasets.ObjectDataset(
             testUtils.Test_carsDb.CARS_DB_PATH,
