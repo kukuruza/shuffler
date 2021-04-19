@@ -22,6 +22,7 @@ def add_parsers(subparsers):
     validateImageNamesParser(subparsers)
     recordPositionOnPageParser(subparsers)
     getTop1NameParser(subparsers)
+    setNumStampOccuranciesParser(subparsers)
 
 
 def upgradeStampImagepathsParser(subparsers):
@@ -435,3 +436,20 @@ def getTop1NameParser(subparsers):
 def getTop1Name(c, args):
     c.execute("UPDATE objects SET name = substr(name, 0, instr(name, ' / ')) "
               "WHERE name LIKE '% / %'")
+
+
+def setNumStampOccuranciesParser(subparsers):
+    parser = subparsers.add_parser(
+        'setNumStampOccurancies',
+        description='Adds or updates property "num_instances" which tells how '
+        'many stamps there are of this name. This value is obviously the same '
+        'for stamps with the same name.')
+    parser.set_defaults(func=setNumStampOccurancies)
+
+
+def setNumStampOccurancies(c, args):
+    c.execute('DELETE FROM properties WHERE key = "num_instances"')
+    c.execute(
+        'INSERT INTO properties(objectid,key,value) SELECT o1.objectid, "num_instances", '
+        '(SELECT CAST(COUNT(1) AS TEXT) FROM objects WHERE o1.name = name) FROM objects o1'
+    )

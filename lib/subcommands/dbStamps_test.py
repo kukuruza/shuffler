@@ -152,7 +152,6 @@ class Test_syncImagesWithDb_synthetic(testUtils.Test_emptyDb):
 class Test_getTop1Name(testUtils.Test_emptyDb):
     def test_general(self):
         c = self.conn.cursor()
-        #c.execute("INSERT INTO images(imagefile) VALUES ('image0')")
         c.execute("INSERT INTO objects(objectid,imagefile,name) VALUES "
                   "(0, 'image0', 'okay'), "
                   "(1, 'image0', 'wood / stone'), "
@@ -162,6 +161,29 @@ class Test_getTop1Name(testUtils.Test_emptyDb):
         c.execute("SELECT name FROM objects")
         names = [name[0] for name in c.fetchall()]
         self.assertEqual(names, ['okay', 'wood', 'cat'])
+
+
+class Test_setNumStampOccurancies(testUtils.Test_emptyDb):
+    def test_insert_and_update(self):
+        c = self.conn.cursor()
+
+        # The 1st time (check insert).
+        c.execute("INSERT INTO objects(name) VALUES ('cat'), ('dog'), ('cat')")
+        dbStamps.setNumStampOccurancies(c, argparse.Namespace())
+        c.execute('SELECT o.name,value FROM objects o INNER JOIN properties p '
+                  ' ON o.objectid == p.objectid WHERE key="num_instances"')
+        values = set(c.fetchall())
+        # 2 for cats and 1 for dog.
+        self.assertEqual(values, set([('cat', '2')] * 2 + [('dog', '1')] * 1))
+
+        # The 2nd time (check update).
+        c.execute('INSERT INTO objects(name) VALUES ("cat"), ("dog"), ("cat")')
+        dbStamps.setNumStampOccurancies(c, argparse.Namespace())
+        c.execute('SELECT o.name,value FROM objects o INNER JOIN properties p '
+                  ' ON o.objectid == p.objectid WHERE key="num_instances"')
+        values = set(c.fetchall())
+        # 4 for cats and 2 for dog.
+        self.assertEqual(values, set([('cat', '4')] * 4 + [('dog', '2')] * 2))
 
 
 if __name__ == '__main__':
