@@ -217,9 +217,10 @@ def cropPatch(image, roi, edge, target_height, target_width):
     '''
     grayscale = len(image.shape) == 2
 
-    # Make a copy of ROI.
-    roi = list(roi)
+    # Cast to int and make a deep copy.
     logging.debug('Cropping with ROI: %s', str(roi))
+    roi = [int(round(x)) for x in roi]
+    logging.debug('Integer ROI: %s', str(roi))
 
     # Maybe expand the ROI.
     if edge == 'background':

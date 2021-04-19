@@ -249,6 +249,21 @@ class TestCropPatch(unittest.TestCase):
         expected_roi = [0, 0, 20, 40]
         self.assertEqual(actual_roi, expected_roi)
 
+    def test_edgeOriginal_float(self):
+        roi = [40.6, 30, 60, 70.6]
+        # Compare patches.
+        actual_patch, transform = utilBoxes.cropPatch(self.image, roi,
+                                                      'original', None, None)
+        expected_patch = TestCropPatch.makeGradientImage(height=19,
+                                                         width=41,
+                                                         min_y=41,
+                                                         min_x=30)
+        np.testing.assert_array_equal(actual_patch, expected_patch)
+        # Compare roi.
+        actual_roi = TestCropPatch.transformRoi(transform, roi)
+        expected_roi = [0, 0, 19, 41]
+        self.assertEqual(actual_roi, expected_roi)
+
     def test_edgeConstant_targetSizeNone(self):
         roi = [40, 30, 60, 70]
         with self.assertRaises(RuntimeError):
