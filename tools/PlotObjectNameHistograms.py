@@ -1,7 +1,8 @@
 #! /usr/bin/env python3
+import sys
 import os.path as op
 import pandas as pd
-from argparse import ArgumentParser
+import argparse
 import logging
 import sqlite3
 import matplotlib.pyplot as plt
@@ -11,7 +12,7 @@ matplotlib.rc('ytick', labelsize=30)
 
 
 def get_parser():
-    parser = ArgumentParser(
+    parser = argparse.ArgumentParser(
         'Plot the distribution of stamp names by database.')
     parser.add_argument('--db_paths', required=True, nargs='+')
     parser.add_argument('--legend_entries', nargs='+')
@@ -21,6 +22,11 @@ def get_parser():
         'name NOT LIKE "%page%" AND name NOT IN ("??", "??+", "+??", "reverse")'
     )
     parser.add_argument('-o', '--out_plot_path')
+    parser.add_argument(
+        '--at_least',
+        type=int,
+        help='If specififed, will only display classes with at_least instences.'
+    )
     parser.add_argument('--fig_width', type=int, default=60)
     parser.add_argument('--fig_height', type=int, default=10)
     parser.add_argument('--no_xticks', action='store_true')
@@ -100,8 +106,8 @@ def plot_object_name_histograms(args):
         plt.show()
 
 
-def main():
-    args = get_parser().parse_args()
+def main(argv):
+    args = get_parser().parse_args(argv)
     logging.basicConfig(level=args.logging,
                         format='%(levelname)s: %(message)s')
 
@@ -109,4 +115,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    main(sys.argv[1:])
