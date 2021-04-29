@@ -9,6 +9,7 @@ import pprint
 import tempfile
 import mock
 import numpy as np
+import simplejson as json
 
 from lib.backend import backendDb
 from lib.subcommands import dbStamps
@@ -184,6 +185,43 @@ class Test_setNumStampOccurancies(testUtils.Test_emptyDb):
         values = set(c.fetchall())
         # 4 for cats and 2 for dog.
         self.assertEqual(values, set([('cat', '4')] * 4 + [('dog', '2')] * 2))
+
+
+class Test_encodeNames(testUtils.Test_carsDb):
+    def setUp(self):
+        super().setUp()
+        self.work_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.work_dir)
+        super().tearDown()
+
+    def test_general(self):
+        c = self.conn.cursor()
+
+        # Add the special case.
+        c.execute("INSERT INTO objects(name) VALUES ('??+'), ('??+'), ('??+')")
+        # Add the non-used pages.
+        c.execute("INSERT INTO objects(name) VALUES ('page'), ('page_r')")
+
+        encoding_json_file = op.join(self.work_dir, 'encoding.json')
+        dbStamps.encodeNames(
+            c, argparse.Namespace(encoding_json_file=encoding_json_file))
+
+        c.execute('SELECT o.name,value FROM objects o INNER JOIN properties p '
+                  ' ON o.objectid == p.objectid WHERE key="name_id"')
+        entries = set(c.fetchall())
+
+        self.assertEqual(entries,
+                         set([('bus', '1'), ('car', '0'), ('??+', '-1')]))
+
+        self.assertTrue(op.exists(encoding_json_file))
+        encoding = json.load(open(encoding_json_file))
+        self.assertTrue('bus' in encoding)
+        self.assertEqual(len(encoding), 3, encoding)
+        self.assertEqual(encoding['car'], 0, encoding)
+        self.assertEqual(encoding['bus'], 1, encoding)
+        self.assertEqual(encoding['??+'], -1, encoding)
 
 
 if __name__ == '__main__':

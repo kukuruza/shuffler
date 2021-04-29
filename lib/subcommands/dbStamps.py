@@ -23,6 +23,7 @@ def add_parsers(subparsers):
     recordPositionOnPageParser(subparsers)
     getTop1NameParser(subparsers)
     setNumStampOccuranciesParser(subparsers)
+    encodeNamesParser(subparsers)
 
 
 def upgradeStampImagepathsParser(subparsers):
@@ -453,3 +454,42 @@ def setNumStampOccurancies(c, args):
         'INSERT INTO properties(objectid,key,value) SELECT o1.objectid, "num_instances", '
         '(SELECT CAST(COUNT(1) AS TEXT) FROM objects WHERE o1.name = name) FROM objects o1'
     )
+
+
+def encodeNamesParser(subparsers):
+    parser = subparsers.add_parser(
+        'encodeNames',
+        description='Encode names to integers. Write encoding to json.')
+    parser.set_defaults(func=encodeNames)
+    parser.add_argument('--encoding_json_file',
+                        required=True,
+                        help='Mapping from name to label.')
+
+
+def encodeNames(c, args):
+    c.execute('SELECT name FROM objects WHERE name NOT LIKE "%??%" AND '
+              'name NOT LIKE "page%" GROUP BY name ORDER BY COUNT(1) DESC')
+    name_list = [x for x, in c.fetchall()]
+    name_to_id = {name: name_id for name_id, name in enumerate(name_list)}
+
+    # Add the special case to the encoding.
+    c.execute('SELECT name FROM objects WHERE name LIKE "%??%"')
+    name_list = [x for x, in c.fetchall()]
+    for name in name_list:
+        name_to_id[name] = -1
+
+    with open(args.encoding_json_file, 'w') as f:
+        json.dump(name_to_id, f, indent=4)
+
+    c.execute('SELECT objectid,name FROM objects')
+    for objectid, name in c.fetchall():
+        if name in name_to_id:
+            name_id = name_to_id[name]
+        else:
+            logging.debug('Skip objectid %d with name "%s"', objectid, name)
+            continue
+        logging.debug('Writing name "%s" under id %d for objectid %d.', name,
+                      name_id, objectid)
+        c.execute(
+            'INSERT INTO properties(objectid,key,value) VALUES (?,"name_id",?)',
+            (objectid, str(name_id)))
