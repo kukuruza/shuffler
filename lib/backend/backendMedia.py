@@ -16,12 +16,12 @@ Levels of abstraction:
 
 - classes VideoReader and PictureReader:
   1) hides implementation if "imread" for images and "maskread" for masks,
-  2) maintain cache of images already in memory,
-  3) maintain a collection of open videos (in case of VideoReader).
+  2) maintain a collection of open videos (in case of VideoReader).
 
 - class MediaReader:
   1) hides whether VideoReader or PictureReader should be used,
   2) compute absolute paths from "rootdir" and the provided paths.
+  3) maintain cache of images already in memory,
 
 
 - classes VideoWriter and PictureWriter:
@@ -55,8 +55,6 @@ def getPictureSize(imagepath):
 class VideoReader:
     '''Implementation of imagery reader based on "Image" <-> "Frame in video".'''
     def __init__(self):
-        self.image_cache = {}  # cache of previously read image(s)
-        self.mask_cache = {}  # cache of previously read mask(s)
         self.videos = {}  # map from video name to imageio video object
         self.used_ago = {
         }  # map from video name to number of frames since the last time it was used
@@ -110,30 +108,14 @@ class VideoReader:
         return img
 
     def imread(self, image_id):
-        if image_id in self.image_cache:
-            logging.debug('imread: found image in cache')
-            return self.image_cache[image_id]  # get cached image if possible
-        image = self.readImpl(image_id, ismask=False)
-        logging.debug('imread: new image, updating cache')
-        self.image_cache = {
-            image_id: image
-        }  # currently only 1 image in the cache
-        return image
+        return self.readImpl(image_id, ismask=False)
 
     def maskread(self, mask_id):
         if mask_id is None:
             return None
-        if mask_id in self.mask_cache:
-            logging.debug('maskread: found mask in cache')
-            return self.mask_cache[mask_id]  # get cached mask if possible
         mask = self.readImpl(mask_id, ismask=True)
-        mask = mask[:, :,
-                    0]  # Take the 1st channel to make the mask grayscale.
-        logging.debug('imread: new mask, updating cache')
-        self.mask_cache = {
-            mask_id: mask
-        }  # currently only 1 image in the cache
-        return mask
+        # Take the 1st channel to make the mask grayscale.
+        return mask[:, :, 0]
 
     def close(self):
         for key in self.videos:
@@ -406,6 +388,7 @@ class MediaReader:
     The purpose is to automatically understand if an image_id is a picture or video frame.
     If it is a picture, create PictureReader.
     If it is a video frame, create VideoReader.
+    Reader can not later change, that is, can not mix pictures and video media.
     '''
     def __init__(self, rootdir):  # TODO: pass kwargs to self.reader.__init__
         self.rootdir = rootdir
@@ -413,13 +396,16 @@ class MediaReader:
             raise ValueError('rootdir must be a string, got %s' % str(rootdir))
         self.reader = None  # Lazy initialization.
 
+        self.image_cache = {}  # cache of previously read image(s)
+        self.mask_cache = {}  # cache of previously read mask(s)
+
     def close(self):
         if self.reader is not None:
             self.reader.close()
 
-    def imread(self, image_id):
-        logging.debug('Try to read image_id "%s" with rootdir "%s"' %
-                      (image_id, self.rootdir))
+    def _imread_no_cache(self, image_id):
+        ''' The image id is not in cache, actually read it. '''
+
         image_id = op.join(self.rootdir, image_id)
 
         if self.reader is not None:
@@ -452,9 +438,26 @@ class MediaReader:
             'does not seem to refer to either picture file or video frame.' %
             (image_id, self.rootdir))
 
-    def maskread(self, mask_id):
-        logging.debug('Try to read mask_id "%s" with rootdir "%s"' %
-                      (mask_id, self.rootdir))
+    def imread(self, image_id):
+        logging.debug('Try to read image_id "%s" with rootdir "%s"' %
+                      (image_id, self.rootdir))
+
+        # Try to read from cache.
+        if image_id in self.image_cache:
+            logging.debug('imread: found image in cache')
+            return self.image_cache[image_id]  # get cached image if possible
+
+        image = self._imread_no_cache(image_id)
+
+        logging.debug('imread: new image, updating cache')
+        self.image_cache = {
+            image_id: image
+        }  # currently only 1 image in the cache
+        return image
+
+    def _maskread_no_cache(self, mask_id):
+        ''' The mask is not in cache, actually read it. '''
+
         mask_id = op.join(self.rootdir, mask_id)
 
         if self.reader is not None:
@@ -477,14 +480,29 @@ class MediaReader:
             'does not seem to refer to either picture file or video frame.' %
             (mask_id, self.rootdir))
 
+    def maskread(self, mask_id):
+        logging.debug('Try to read mask_id "%s" with rootdir "%s"' %
+                      (mask_id, self.rootdir))
+
+        # Try to read from cache.
+        if mask_id in self.mask_cache:
+            logging.debug('maskread: found mask in cache')
+            return self.mask_cache[mask_id]  # get cached mask if possible
+
+        mask = self._maskread_no_cache(mask_id)
+
+        logging.debug('maskread: new mask, updating cache')
+        self.mask_cache = {
+            mask_id: mask
+        }  # currently only 1 image in the cache
+        return mask
+
 
 class MockWriter:
-    def __init__(self,
-                 imagedir=None,
-                 maskdir=None):
+    def __init__(self, imagedir=None, maskdir=None):
         # TODO: Use imagedir and maskdir to return proper paths.
-        self.imagedir = imagedir     # Ignored.
-        self.maskdir = maskdir       # Ignored.
+        self.imagedir = imagedir  # Ignored.
+        self.maskdir = maskdir  # Ignored.
         self.image_current_frame = -1
         self.mask_current_frame = -1
 
@@ -557,8 +575,7 @@ class MediaWriter:
                                         maskdir=mask_media,
                                         overwrite=overwrite)
         elif media_type == 'mock':
-            self.writer = MockWriter(imagedir=image_media,
-                                     maskdir=mask_media)
+            self.writer = MockWriter(imagedir=image_media, maskdir=mask_media)
         else:
             raise ValueError(
                 '"media" must be either "video" or "pictures", not %s' %
