@@ -463,20 +463,19 @@ def moveRootdirParser(subparsers):
         description='Change imagefile and maskfile entries to be relative '
         'to the provided rootdir.')
     parser.set_defaults(func=moveRootdir)
-    parser.add_argument('newrootdir',
+    parser.add_argument('--newrootdir',
                         help='All paths will be relative to the newrootdir.')
 
 
 def _moveRootDir(c, oldrootdir, newrootdir):
     logging.info('Moving from rootdir %s to new rootdir %s', oldrootdir,
                  newrootdir)
-    relpath = op.relpath(oldrootdir, newrootdir)
-    logging.info('The path of oldroot relative to newrootdir is %s', relpath)
 
     c.execute('SELECT imagefile FROM images')
     for oldfile, in progressbar(c.fetchall()):
         if oldfile is not None:
-            newfile = op.normpath(op.join(relpath, oldfile))
+            path = op.join(oldrootdir, oldfile)
+            newfile = op.relpath(path, newrootdir)
             c.execute('UPDATE images SET imagefile=? WHERE imagefile=?',
                       (newfile, oldfile))
             c.execute('UPDATE objects SET imagefile=? WHERE imagefile=?',
@@ -485,7 +484,8 @@ def _moveRootDir(c, oldrootdir, newrootdir):
     c.execute('SELECT maskfile FROM images')
     for oldfile, in progressbar(c.fetchall()):
         if oldfile is not None:
-            newfile = op.normpath(op.join(relpath, oldfile))
+            path = op.join(oldrootdir, oldfile)
+            newfile = op.relpath(path, newrootdir)
             c.execute('UPDATE images SET maskfile=? WHERE maskfile=?',
                       (newfile, oldfile))
 

@@ -71,6 +71,44 @@ class Test_revertObjectTransforms_SyntheticDb(unittest.TestCase):
         self.assertEqual(self.original_polygon_gt, original_polygon)
 
 
+class Test_moveRootdir_SyntheticDb(unittest.TestCase):
+    def setUp(self):
+        self.conn = sqlite3.connect(':memory:')
+        backendDb.createDb(self.conn)
+        c = self.conn.cursor()
+        c.execute('INSERT INTO images(imagefile) VALUES ("a/b")')
+        c.execute('INSERT INTO objects(imagefile,objectid,x1,y1,width,height) '
+                  'VALUES ("a/b",0,10,20,30,40)')
+
+    def _assertImagesAndObjectsConsistency(self, c):
+        c.execute('SELECT COUNT(1) FROM images')
+        num_images = c.fetchone()[0]
+        c.execute('SELECT COUNT(1) FROM images i JOIN objects o '
+                  'WHERE i.imagefile = o.imagefile')
+        num_same = c.fetchone()[0]
+        self.assertEqual(num_images, num_same)
+
+    def _assertResult(self, rootdir, newrootdir, expected):
+        c = self.conn.cursor()
+        args = argparse.Namespace(rootdir=rootdir,
+                                  newrootdir=newrootdir,
+                                  verify_paths=False)
+        dbModify.moveRootdir(c, args)
+        self._assertImagesAndObjectsConsistency(c)
+        c.execute('SELECT imagefile FROM images')
+        imagefile, = c.fetchone()
+        self.assertEqual(imagefile, expected)
+
+    def test1(self):
+        self._assertResult(rootdir='.', newrootdir='.', expected='a/b')
+
+    def test2(self):
+        self._assertResult(rootdir='.', newrootdir='a', expected='b')
+
+    def test3(self):
+        self._assertResult(rootdir='.', newrootdir='c', expected='../a/b')
+
+
 if __name__ == '__main__':
     progressbar.streams.wrap_stdout()
     nose.runmodule()
