@@ -197,9 +197,9 @@ def exportCoco(c, args):
         objectid = backendDb.objectField(object_entry, 'objectid')
         name = backendDb.objectField(object_entry, 'name')
         imagefile = backendDb.objectField(object_entry, 'imagefile')
+        util.polygons2bboxes(c, objectid)  # Get a box if there wasn't one.
         bbox = backendDb.objectField(object_entry, 'bbox')
         imageid = imageids[imagefile]
-        util.polygons2bboxes(c, objectid)  # Write proper bboxes.
 
         # Get polygons.
         c.execute('SELECT DISTINCT(name) FROM polygons WHERE objectid=?',
@@ -216,8 +216,8 @@ def exportCoco(c, args):
                     'SELECT x,y FROM polygons WHERE objectid=? AND name=?',
                     (objectid, polygon_name))
             polygon = c.fetchall()
-            polygon_coco = np.array(
-                polygon).flatten().tolist()  # to [x1, y1, x2, y2, ... xn, yn].
+            polygon_coco = np.array(polygon).flatten().astype(
+                int).tolist()  # to [x1, y1, x2, y2, ... xn, yn].
             polygons_coco.append(polygon_coco)
 
         # Get area.
@@ -230,7 +230,7 @@ def exportCoco(c, args):
             "category_id": categoryids[name],
             "segmentation": polygons_coco,
             "area": area,
-            "bbox": list(bbox),
+            "bbox": [int(round(x)) for x in bbox],
             "iscrowd": 0,
         })
 
