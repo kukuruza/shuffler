@@ -474,8 +474,10 @@ def _moveRootDir(c, oldrootdir, newrootdir):
     c.execute('SELECT imagefile FROM images')
     for oldfile, in progressbar(c.fetchall()):
         if oldfile is not None:
-            path = op.join(oldrootdir, oldfile)
+            path = op.normpath(op.abspath(op.join(oldrootdir, oldfile)))
             newfile = op.relpath(path, newrootdir)
+            logging.debug('Abs path "%s" has a relative path "%s".',
+                          path, newfile)
             c.execute('UPDATE images SET imagefile=? WHERE imagefile=?',
                       (newfile, oldfile))
             c.execute('UPDATE objects SET imagefile=? WHERE imagefile=?',
@@ -484,7 +486,7 @@ def _moveRootDir(c, oldrootdir, newrootdir):
     c.execute('SELECT maskfile FROM images')
     for oldfile, in progressbar(c.fetchall()):
         if oldfile is not None:
-            path = op.join(oldrootdir, oldfile)
+            path = op.normpath(op.abspath(op.join(oldrootdir, oldfile)))
             newfile = op.relpath(path, newrootdir)
             c.execute('UPDATE images SET maskfile=? WHERE maskfile=?',
                       (newfile, oldfile))
