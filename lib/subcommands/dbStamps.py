@@ -24,6 +24,7 @@ def add_parsers(subparsers):
     getTop1NameParser(subparsers)
     setNumStampOccuranciesParser(subparsers)
     encodeNamesParser(subparsers)
+    exportToJsonParser(subparsers)
 
 
 def upgradeStampImagepathsParser(subparsers):
@@ -493,3 +494,82 @@ def encodeNames(c, args):
         c.execute(
             'INSERT INTO properties(objectid,key,value) VALUES (?,"name_id",?)',
             (objectid, str(name_id)))
+
+
+def exportToJsonParser(subparsers):
+    parser = subparsers.add_parser(
+        'exportToJson', description='Export fields and properties to json.')
+    parser.set_defaults(func=exportToJson)
+    parser.add_argument('--add_name', action='store_true')
+    parser.add_argument('--add_score', action='store_true')
+    parser.add_argument('--add_imagefile', action='store_true')
+    parser.add_argument('--keys',
+                        nargs='+',
+                        required=True,
+                        help='The keys of properties to export.')
+    parser.add_argument(
+        '--value_types',
+        nargs='+',
+        choices=['str', 'int', 'float'],
+        help='Optional types of properties values. '
+        'The list of "value_types" must match the list of "keys". '
+        'If provided, values will be parsed as this type.')
+    parser.add_argument(
+        '--json_path',
+        help='If specified, write to json. Otherwise, to stdout.')
+
+
+def exportToJson(c, args):
+    results = {'objects': []}
+
+    if args.value_types is not None and len(args.keys) != len(
+            args.value_types):
+        raise ValueError('"value_types" specified, but its length %d '
+                         'does not match the length of "keys" %d' %
+                         (len(args.value_types), len(args.keys)))
+    elif args.value_types is None:
+        args.value_types = 'str' * len(args.keys)
+    transforms = {}
+    for key, type_str in zip(args.keys, args.value_types):
+        if type_str == 'str':
+            transforms[key] = lambda x: x
+        elif type_str == 'int':
+            transforms[key] = lambda x: int(x)
+        elif type_str == 'float':
+            transforms[key] = lambda x: float(x)
+        else:
+            assert 0, 'We should not be here with type %s' % type_str
+
+    keys_list = ','.join('"%s"' % args.keys)
+    c.execute('SELECT objectid,imagefile,name,score FROM objects')
+    for objectid, imagefile, name, score in c.fetchall():
+        c.execute(
+            'SELECT key,value FROM properties WHERE objectid=? AND keys IN (%s)'
+            % keys_list, (objectid, ))
+        entries = dict(c.fetchall())
+        # Apply transform to the value.
+        result = {k: transforms[k](v) for k, v in entries.items()}
+
+        if args.add_name:
+            if 'name' in result:
+                raise ValueError('Cant add object name to results, because '
+                                 '"name" is already a key of a property.')
+            result['name'] = name
+
+        if args.add_score:
+            if 'score' in result:
+                raise ValueError('Cant add object name to results, because '
+                                 '"score" is already a key of a property.')
+            result['score'] = score
+
+        if args.add_imagefile:
+            if 'imagefile' in result:
+                raise ValueError('Cant add object name to results, because '
+                                 '"imagefile" is already a key of a property.')
+            result['imagefile'] = imagefile
+
+        results['objects'].append(result)
+
+    if args.json_path:
+        with open(args.json_path, 'w') as f:
+            f.write(json.dumps(results, sort_keys=True, indent=2))
