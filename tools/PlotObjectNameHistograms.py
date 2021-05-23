@@ -14,7 +14,8 @@ matplotlib.rc('ytick', labelsize=30)
 def get_parser():
     parser = argparse.ArgumentParser(
         'Plot the distribution of stamp names by database.')
-    parser.add_argument('--db_paths', required=True, nargs='+')
+    parser.add_argument('--db_path', required=True)
+    parser.add_argument('--campaign_names', required=True, nargs='+')
     parser.add_argument('--legend_entries', nargs='+')
     parser.add_argument(
         '--where_objects',
@@ -31,6 +32,7 @@ def get_parser():
     parser.add_argument('--fig_height', type=int, default=10)
     parser.add_argument('--no_xticks', action='store_true')
     parser.add_argument('--fontsize', type=int, default=25)
+    parser.add_argument('--ylog', action='store_true')
     parser.add_argument('--show', action='store_true')
     parser.add_argument(
         '--logging',
@@ -44,32 +46,39 @@ def get_parser():
 def plot_object_name_histograms(args):
     # Process empty and non-empty legend_entries.
     if args.legend_entries is None:
-        legend_entries = [op.basename(db_path) for db_path in args.db_paths]
-    elif len(args.legend_entries) != len(args.db_paths):
+        legend_entries = [name for name in args.campaign_names]
+    elif len(args.legend_entries) != len(args.campaign_names):
         raise ValueError(
-            'Number of elements in legend_entries (%d) and db_paths '
+            'Number of elements in legend_entries (%d) and campaign_names '
             '(%d) mismatches.' %
-            (len(args.legend_entries), len(args.db_paths)))
+            (len(args.legend_entries), len(args.campaign_names)))
     else:
         legend_entries = args.legend_entries
 
     # Load all the data.
+    if not op.exists(args.db_path):
+        raise FileNotFoundError('Database "%s" not found.' % args.db_path)
+    conn = sqlite3.connect(args.db_path)
+    c = conn.cursor()
+
     dfs = []
-    for db_path, legend_entry in zip(args.db_paths, legend_entries):
-        if not op.exists(db_path):
-            raise FileNotFoundError('Input database "%s" not found' % db_path)
-        conn = sqlite3.connect(db_path)
-        c = conn.cursor()
+    for campaign_name, legend_entry in zip(args.campaign_names,
+                                           legend_entries):
         c.execute(
-            'SELECT name,COUNT(1) FROM objects WHERE (%s) GROUP BY name' %
-            (args.where_objects, ))
+            'SELECT name,COUNT(1) FROM objects o '
+            'JOIN properties p ON o.objectid=p.objectid '
+            'WHERE key="campaign" AND value=? AND (%s) GROUP BY name' %
+            args.where_objects, (campaign_name, ))
         entries = c.fetchall()
         if len(entries) == 0:
-            raise ValueError('No entries in database "%s"' % db_path)
+            raise ValueError('No entries for campaign "%s"' % campaign_name)
+
         df = pd.DataFrame(entries, columns=['name', 'count'])
         df['series'] = legend_entry
         dfs.append(df)
     df = pd.concat(dfs)
+
+    conn.close()
     # print(df)
 
     # Maybe keep only those classes with enough objects.
@@ -93,6 +102,8 @@ def plot_object_name_histograms(args):
     matplotlib.rc('ytick', labelsize=args.fontsize)
     figsize = (args.fig_width, args.fig_height)
     df.loc[:, legend_entries].plot.bar(stacked=True, figsize=figsize)
+    if args.ylog:
+        plt.yscale('log', nonpositive='clip')
     if args.no_xticks:
         plt.xticks([])
     else:
