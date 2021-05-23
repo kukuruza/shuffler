@@ -418,12 +418,13 @@ def recordPositionOnPage(c, args):
             assert 0 <= x_perc <= 1, x_perc
             assert 0 <= y_perc <= 1, y_perc
 
-        c.execute(
-            'INSERT INTO properties(objectid, key, value) VALUES '
-            '(?, "x_on_page", ?), (?, "width_on_page", ?), '
-            '(?, "y_on_page", ?), (?, "height_on_page", ?)',
-            (objectid, str(x_perc), objectid, str(width_perc), objectid,
-             str(y_perc), objectid, str(height_perc)))
+        if len(pages) > 0:
+            c.execute(
+                'INSERT INTO properties(objectid, key, value) VALUES '
+                '(?, "x_on_page", ?), (?, "width_on_page", ?), '
+                '(?, "y_on_page", ?), (?, "height_on_page", ?)',
+                (objectid, str(x_perc), objectid, str(width_perc), objectid,
+                 str(y_perc), objectid, str(height_perc)))
 
 
 def getTop1NameParser(subparsers):
@@ -503,6 +504,7 @@ def exportToJsonParser(subparsers):
     parser.add_argument('--add_name', action='store_true')
     parser.add_argument('--add_score', action='store_true')
     parser.add_argument('--add_imagefile', action='store_true')
+    parser.add_argument('--add_objectid', action='store_true')
     parser.add_argument('--keys',
                         nargs='+',
                         required=True,
@@ -528,7 +530,7 @@ def exportToJson(c, args):
                          'does not match the length of "keys" %d' %
                          (len(args.value_types), len(args.keys)))
     elif args.value_types is None:
-        args.value_types = 'str' * len(args.keys)
+        args.value_types = ['str'] * len(args.keys)
     transforms = {}
     for key, type_str in zip(args.keys, args.value_types):
         if type_str == 'str':
@@ -540,15 +542,24 @@ def exportToJson(c, args):
         else:
             assert 0, 'We should not be here with type %s' % type_str
 
-    keys_list = ','.join('"%s"' % args.keys)
-    c.execute('SELECT objectid,imagefile,name,score FROM objects')
+    keys_list = ','.join(['"%s"' % key for key in args.keys])
+    properties_query = 'SELECT key,value FROM properties WHERE objectid=? AND key IN (%s)' % keys_list
+    logging.debug(properties_query)
+
+    c.execute('SELECT objectid,imagefile,name,score FROM objects ORDER BY imagefile')
     for objectid, imagefile, name, score in c.fetchall():
-        c.execute(
-            'SELECT key,value FROM properties WHERE objectid=? AND keys IN (%s)'
-            % keys_list, (objectid, ))
+        c.execute(properties_query, (objectid, ))
         entries = dict(c.fetchall())
+        logging.debug(entries)
         # Apply transform to the value.
         result = {k: transforms[k](v) for k, v in entries.items()}
+        logging.debug(result)
+
+        if args.add_objectid:
+            if 'objectid' in result:
+                raise ValueError('Cant add object name to results, because '
+                                 '"objectid" is already a key of a property.')
+            result['objectid'] = objectid
 
         if args.add_name:
             if 'name' in result:
@@ -573,3 +584,6 @@ def exportToJson(c, args):
     if args.json_path:
         with open(args.json_path, 'w') as f:
             f.write(json.dumps(results, sort_keys=True, indent=2))
+    else:
+        print(json.dumps(results, sort_keys=True, indent=2))
+
