@@ -24,7 +24,8 @@ def add_parsers(subparsers):
     getTop1NameParser(subparsers)
     setNumStampOccuranciesParser(subparsers)
     encodeNamesParser(subparsers)
-    exportToJsonParser(subparsers)
+    exportToJsonToPublishParser(subparsers)
+    importJsonWithPredictionsParser(subparsers)
 
 
 def upgradeStampImagepathsParser(subparsers):
@@ -497,10 +498,11 @@ def encodeNames(c, args):
             (objectid, str(name_id)))
 
 
-def exportToJsonParser(subparsers):
+def exportToJsonToPublishParser(subparsers):
     parser = subparsers.add_parser(
-        'exportToJson', description='Export fields and properties to json.')
-    parser.set_defaults(func=exportToJson)
+        'exportToJsonToPublish',
+        description='Export fields and properties to json.')
+    parser.set_defaults(func=exportToJsonToPublish)
     parser.add_argument('--add_name', action='store_true')
     parser.add_argument('--add_score', action='store_true')
     parser.add_argument('--add_imagefile', action='store_true')
@@ -521,7 +523,7 @@ def exportToJsonParser(subparsers):
         help='If specified, write to json. Otherwise, to stdout.')
 
 
-def exportToJson(c, args):
+def exportToJsonToPublish(c, args):
     results = {'objects': []}
 
     if args.value_types is not None and len(args.keys) != len(
@@ -586,4 +588,49 @@ def exportToJson(c, args):
             f.write(json.dumps(results, sort_keys=True, indent=2))
     else:
         print(json.dumps(results, sort_keys=True, indent=2))
+
+def importJsonWithPredictionsParser(subparsers):
+    parser = subparsers.add_parser(
+        'importJsonWithPredictions', description='Export fields and properties to json.')
+    parser.set_defaults(func=importJsonWithPredictions)
+    parser.add_argument(
+        '--json_file',
+        required=True,
+        help='If specified, write to json. Otherwise, to stdout.')
+    parser.add_argument('--encoding_json_file',
+                        required=True,
+                        help='Mapping from name to label.')
+
+def importJsonWithPredictions(c, args):
+    with open(args.encoding_json_file) as f:
+        encoding = json.load(f)
+    decoding = {}
+    for name, name_id in encoding.items():
+        if name_id == -1:
+            decoding[name_id] = None
+        elif name_id in decoding:
+            raise ValueError('Not expecting multiple back mapping.')
+        else:
+            decoding[name_id] = name
+    logging.info('Have %d entries in decoding.', len(decoding))
+    
+    with open(args.json_file) as f:
+        data = json.load(f)
+    c.execute('DELETE FROM properties WHERE key="classification_score"')
+    c.execute('DELETE FROM properties WHERE key="classification_name_id"')
+    for objectid in progressbar.progressbar(data['objects']):
+        object_ = data['objects'][objectid][0]
+        objectid = int(objectid)
+        name_id = object_['classification_name_ids'][0]
+        score = object_['classification_scores'][0]
+        c.execute('INSERT INTO properties(objectid,key,value) '
+                  'VALUES(?,"classification_score",?)',
+                  (objectid, str(score)))
+        c.execute('INSERT INTO properties(objectid,key,value) '
+                  'VALUES(?,"classification_name_id",?)',
+                  (objectid, str(name_id)))
+        if name_id not in decoding:
+            raise ValueError('name_id %d not in decoding.')
+        c.execute('UPDATE objects SET name=? WHERE objectid=?',
+                  (decoding[name_id], objectid))
 
