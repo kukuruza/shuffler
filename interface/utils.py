@@ -1,5 +1,6 @@
 import sqlite3
 import logging
+import traceback
 
 from lib.backend import backendDb
 
@@ -49,16 +50,19 @@ def buildImageSample(image_entry, cursor, imreader, where_object='TRUE'):
         name:       (str) The "name" field of the "images" table.
         score:      (float) The "score" field of the "images" table.
     '''
-    # Load the image and mask.
-    logging.debug('Reading image "%s"' %
-                  backendDb.imageField(image_entry, 'imagefile'))
-    image = imreader.imread(backendDb.imageField(image_entry, 'imagefile'))
-    if backendDb.imageField(image_entry, 'maskfile') is None:
-        mask = None
-    else:
-        mask = imreader.maskread(backendDb.imageField(image_entry, 'maskfile'))
-
     imagefile = backendDb.imageField(image_entry, 'imagefile')
+    maskfile = backendDb.imageField(image_entry, 'maskfile')
+
+    # Load the image and mask.
+    logging.debug('Reading image "%s"' % imagefile)
+    try:
+        image = imreader.imread(imagefile)
+        mask = imreader.maskread(maskfile) if maskfile is not None else None
+    except ValueError:
+        traceback.print_exc()
+        logging.error('Reading image or mask failed. Returning None.')
+        return None
+
     imagename = backendDb.imageField(image_entry, 'name')
     imagescore = backendDb.imageField(image_entry, 'score')
 
@@ -110,8 +114,13 @@ def buildObjectSample(object_entry, c, imreader):
     logging.debug('Reading object %d from %s imagefile' %
                   (objectid, imagefile))
 
-    image = imreader.imread(imagefile)
-    mask = imreader.maskread(maskfile) if maskfile is not None else None
+    try:
+        image = imreader.imread(imagefile)
+        mask = imreader.maskread(maskfile) if maskfile is not None else None
+    except ValueError:
+        traceback.print_exc()
+        logging.error('Reading image or mask failed. Returning None.')
+        return None
 
     roi = backendDb.objectField(object_entry, 'roi')
     logging.debug('Roi: %s' % roi)

@@ -97,6 +97,9 @@ class ImageDataset(torch.utils.data.Dataset):
         image_entry = self.image_entries[index]
         sample = utils.buildImageSample(image_entry, self.c, self.imreader,
                                         self.where_object)
+        if sample is None:
+            logging.warning('Returning None for index %d', index)
+            return None
         sample = _filterKeys(self.used_keys, sample)
         sample = utils.applyTransformGroup(self.transform_group, sample)
         return sample
@@ -166,7 +169,10 @@ class ObjectDataset(torch.utils.data.Dataset):
                 object_entry = self.object_entries[index]
                 sample = utils.buildObjectSample(object_entry, self.c,
                                                  self.imreader)
-                self.preloaded_samples.append(sample)
+                if sample is None:
+                    logging.warning('Skip bad sample %d', index)
+                else:
+                    self.preloaded_samples.append(sample)
             logging.info('Loaded %d samples.', len(self))
 
     def close(self):
@@ -197,6 +203,9 @@ class ObjectDataset(torch.utils.data.Dataset):
             object_entry = self.object_entries[index]
             sample = utils.buildObjectSample(object_entry, self.c,
                                              self.imreader)
+            if sample is None:
+                logging.warning('Returning None for index %d', index)
+                return None
 
         sample = _filterKeys(self.used_keys, sample)
         sample = utils.applyTransformGroup(self.transform_group, sample)
