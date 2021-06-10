@@ -26,6 +26,7 @@ def add_parsers(subparsers):
     encodeNamesParser(subparsers)
     exportToJsonToPublishParser(subparsers)
     importJsonWithPredictionsParser(subparsers)
+    classifyPagesParser(subparsers)
 
 
 def upgradeStampImagepathsParser(subparsers):
@@ -548,7 +549,8 @@ def exportToJsonToPublish(c, args):
     properties_query = 'SELECT key,value FROM properties WHERE objectid=? AND key IN (%s)' % keys_list
     logging.debug(properties_query)
 
-    c.execute('SELECT objectid,imagefile,name,score FROM objects ORDER BY imagefile')
+    c.execute(
+        'SELECT objectid,imagefile,name,score FROM objects ORDER BY imagefile')
     for objectid, imagefile, name, score in c.fetchall():
         c.execute(properties_query, (objectid, ))
         entries = dict(c.fetchall())
@@ -589,9 +591,11 @@ def exportToJsonToPublish(c, args):
     else:
         print(json.dumps(results, sort_keys=True, indent=2))
 
+
 def importJsonWithPredictionsParser(subparsers):
     parser = subparsers.add_parser(
-        'importJsonWithPredictions', description='Export fields and properties to json.')
+        'importJsonWithPredictions',
+        description='Export fields and properties to json.')
     parser.set_defaults(func=importJsonWithPredictions)
     parser.add_argument(
         '--json_file',
@@ -600,6 +604,7 @@ def importJsonWithPredictionsParser(subparsers):
     parser.add_argument('--encoding_json_file',
                         required=True,
                         help='Mapping from name to label.')
+
 
 def importJsonWithPredictions(c, args):
     with open(args.encoding_json_file) as f:
@@ -613,7 +618,7 @@ def importJsonWithPredictions(c, args):
         else:
             decoding[name_id] = name
     logging.info('Have %d entries in decoding.', len(decoding))
-    
+
     with open(args.json_file) as f:
         data = json.load(f)
     c.execute('DELETE FROM properties WHERE key="classification_score"')
@@ -623,14 +628,68 @@ def importJsonWithPredictions(c, args):
         objectid = int(objectid)
         name_id = object_['classification_name_ids'][0]
         score = object_['classification_scores'][0]
-        c.execute('INSERT INTO properties(objectid,key,value) '
-                  'VALUES(?,"classification_score",?)',
-                  (objectid, str(score)))
-        c.execute('INSERT INTO properties(objectid,key,value) '
-                  'VALUES(?,"classification_name_id",?)',
-                  (objectid, str(name_id)))
+        c.execute(
+            'INSERT INTO properties(objectid,key,value) '
+            'VALUES(?,"classification_score",?)', (objectid, str(score)))
+        c.execute(
+            'INSERT INTO properties(objectid,key,value) '
+            'VALUES(?,"classification_name_id",?)', (objectid, str(name_id)))
         if name_id not in decoding:
             raise ValueError('name_id %d not in decoding.')
         c.execute('UPDATE objects SET name=? WHERE objectid=?',
                   (decoding[name_id], objectid))
 
+
+def classifyPagesParser(subparsers):
+    parser = subparsers.add_parser(
+        'classifyPages',
+        description=
+        'Classify pages into right and left. Only cares about name "page".')
+    parser.set_defaults(func=classifyPages)
+    parser.add_argument(
+        '--IoU_threshold',
+        type=int,
+        default=0.2,
+        help=
+        'Pages are classified if the x-axis IoU is less than this threshold.')
+
+
+def classifyPages(c, args):
+    count = 0
+
+    c.execute('SELECT imagefile FROM images')
+    for imagefile, in c.fetchall():
+        c.execute(
+            'SELECT objectid,x1,x1+width FROM objects '
+            'WHERE imagefile=? AND name="page"', (imagefile, ))
+
+        page_entries = c.fetchall()
+        logging.debug('Found %d pages for %s', len(page_entries), imagefile)
+
+        if len(page_entries) != 2:
+            continue
+
+        # Calculate IoU.
+        objectid_a, x1_a, x2_a = page_entries[0]
+        objectid_b, x1_b, x2_b = page_entries[1]
+        intersection = max(0, min(x2_a, x2_b) - max(x1_a, x1_b))
+        union = (x2_a - x1_a) + (x2_b - x1_b) - intersection
+        IoU = float(intersection) / union
+        assert IoU >= 0, (intersection, union)
+        logging.debug('x1_a: %d, x2_a: %d, x1_b: %d, x2_b: %d, IoU: %0.3f',
+                      x1_a, x2_a, x1_b, x2_b, IoU)
+
+        if IoU < args.IoU_threshold:
+            count += 1
+            if x1_a + x2_a < x1_b + x2_b:
+                objectid_left = objectid_a
+                objectid_right = objectid_b
+            else:
+                objectid_left = objectid_b
+                objectid_right = objectid_a
+            c.execute('UPDATE objects SET name="page_l" WHERE objectid=?',
+                      (objectid_left, ))
+            c.execute('UPDATE objects SET name="page_r" WHERE objectid=?',
+                      (objectid_right, ))
+
+    logging.info('Have updated %d images.', count)
