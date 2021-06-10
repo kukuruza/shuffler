@@ -43,18 +43,21 @@ class DatasetWriter:
 
         # Maybe create directory for out_db_file.
         out_db_dir = op.dirname(out_db_file)
-        if not op.exists(out_db_dir):
+        if out_db_dir and not op.exists(out_db_dir):
             os.makedirs(out_db_dir)
 
         # Create and open a database.
-        if op.exists(out_db_file):
-            if overwrite:
-                os.remove(out_db_file)
-            else:
-                raise ValueError('"%s" already exists.' % out_db_file)
+        if op.exists(out_db_file) and overwrite:
+            os.remove(out_db_file)
+            is_new = True
+        elif op.exists(out_db_file):
+            is_new = False
+        else:
+            is_new = True
         self.conn = sqlite3.connect(out_db_file)
         self.c = self.conn.cursor()
-        createDb(self.conn)
+        if is_new:
+            createDb(self.conn)
 
     def __enter__(self):
         return self
@@ -215,7 +218,9 @@ class DatasetWriter:
         entry = (imagefile, width, height, maskfile, timestamp, name, score)
         s = 'images(imagefile,width,height,maskfile,timestamp,name,score)'
         logging.debug('Writing %s to %s', entry, s)
-        self.c.execute('INSERT INTO %s VALUES (?,?,?,?,?,?,?)' % s, entry)
+
+        self.c.execute('INSERT OR IGNORE INTO %s VALUES (?,?,?,?,?,?,?)' % s,
+                       entry)
         return imagefile
 
     def addObject(self, object_dict):
