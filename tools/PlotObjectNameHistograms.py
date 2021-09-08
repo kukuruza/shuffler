@@ -7,8 +7,6 @@ import logging
 import sqlite3
 import matplotlib.pyplot as plt
 import matplotlib
-matplotlib.rc('legend', fontsize=30, handlelength=2)
-matplotlib.rc('ytick', labelsize=30)
 
 
 def get_parser():
@@ -28,6 +26,8 @@ def get_parser():
         type=int,
         help='If specififed, will only display classes with at_least instences.'
     )
+    parser.add_argument('--title', 
+        help='If specified, will add this text as caption.')
     parser.add_argument('--fig_width', type=int, default=60)
     parser.add_argument('--fig_height', type=int, default=10)
     parser.add_argument('--no_xticks', action='store_true')
@@ -98,7 +98,8 @@ def plot_object_name_histograms(args):
     print(df)
 
     # Plot.
-    matplotlib.rc('legend', fontsize=args.fontsize, handlelength=2)
+    matplotlib.rc('legend', fontsize=args.fontsize-2, handlelength=2)
+    matplotlib.rc('legend', title_fontsize=args.fontsize-2)
     matplotlib.rc('ytick', labelsize=args.fontsize)
     figsize = (args.fig_width, args.fig_height)
     df.loc[:, legend_entries].plot.bar(stacked=True, figsize=figsize)
@@ -110,7 +111,10 @@ def plot_object_name_histograms(args):
         plt.xticks(rotation=90)
     plt.grid(axis='y')
     plt.xlabel('')
+    if args.title is not None:
+        plt.title(args.title, fontsize=args.fontsize + 2, pad=30)
     plt.tight_layout()
+    plt.gca().get_legend().set_title('active learning cycle')
     if args.out_plot_path:
         plt.savefig(args.out_plot_path)
     if args.show:
