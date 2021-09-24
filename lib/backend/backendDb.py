@@ -229,6 +229,21 @@ def setObjectField(entry, field, value):
     return tuple(entry)
 
 
+def objectEntryToDict(entry):
+    ''' Convert the tuple returned by sqlite3 SELECT into dict. '''
+
+    return {
+        'objectid': entry[0],
+        'imagefile': entry[1],
+        'x1': entry[2],
+        'y1': entry[3],
+        'width': entry[4],
+        'height': entry[5],
+        'name': entry[6],
+        'score': entry[7]
+    }
+
+
 def imageField(entry, field):
     ''' Convenience function to access by field name. '''
 

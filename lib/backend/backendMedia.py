@@ -348,7 +348,10 @@ class PictureWriter:
                 os.makedirs(imagedir)
 
         # Write.
-        imageio.imwrite(imagepath, image, quality=self.jpg_quality)
+        if op.splitext(name)[1] == '.jpg':
+          imageio.imwrite(imagepath, image, quality=self.jpg_quality)
+        else:
+          imageio.imwrite(imagepath, image)
         return imagepath
 
     def maskwrite(self, mask, namehint=None):

@@ -19,7 +19,6 @@ from lib.utils import util
 
 def add_parsers(subparsers):
     importLabelmeParser(subparsers)
-    importLabelmeObjectsParser(subparsers)
     exportLabelmeParser(subparsers)
 
 
@@ -28,8 +27,8 @@ def _pointsOfPolygon(annotation):
     xs = []
     ys = []
     for pt in pts:
-        xs.append(int(float(pt.find('x').text)) - 1)
-        ys.append(int(float(pt.find('y').text)) - 1)
+        xs.append(int(float(pt.find('x').text)))
+        ys.append(int(float(pt.find('y').text)))
     logging.debug('Parsed polygon xs=%s, ys=%s.' % (xs, ys))
     return xs, ys
 
@@ -113,8 +112,6 @@ def importLabelme(c, args):
 
             # find the name of object.
             name = object_.find('name').text
-            if name is not None:
-                name = name.encode('utf-8')
 
             # get all the points
             xs, ys = _pointsOfPolygon(object_)
@@ -162,7 +159,7 @@ def importLabelme(c, args):
                     continue
                 c.execute(
                     'INSERT INTO properties(objectid,key,value) VALUES (?,?,?);',
-                    (objectid, attrib.text.encode('utf-8'), 'true'))
+                    (objectid, attrib.text, 'true'))
 
             util.polygons2bboxes(c, objectid)  # Generate a bounding box.
 
@@ -177,118 +174,22 @@ def importLabelme(c, args):
                 cv2.destroyWindow('importLabelmeImages')
 
 
-def importLabelmeObjectsParser(subparsers):
-    parser = subparsers.add_parser(
-        'importLabelmeObjects',
-        description='Import LabelMe annotations of objects. For each objectid '
-        'in the db, will look for annotation in the form objectid.xml')
-    parser.set_defaults(func=importLabelmeObjects)
-    parser.add_argument('--annotations_dir',
-                        required=True,
-                        help='Directory with xml files.')
-    parser.add_argument('--with_display', action='store_true')
-    parser.add_argument('--keep_original_object_name',
-                        action='store_true',
-                        help='Do not update the object name from parsed xml.')
-    parser.add_argument(
-        '--polygon_name',
-        help='If specified, give each polygon entry this name.')
-
-
-def importLabelmeObjects(c, args):
-    if args.with_display:
-        imreader = backendMedia.MediaReader(rootdir=args.rootdir)
-
-    annotations_paths = os.listdir(args.annotations_dir)
-
-    c.execute('SELECT objectid,imagefile FROM objects')
-    for objectid, imagefile in progressbar(c.fetchall()):
-        logging.debug('Processing object: %d' % objectid)
-
-        # Find annotation files that match the object.
-        # There may be 1 or 2 dots because of some bug/feature in LabelMe.
-        regex = re.compile('0*%s[\.]{1,2}xml' % str(objectid))
-        logging.debug('Will try to match %s' % regex)
-        matches = [f for f in annotations_paths if re.match(regex, f)]
-        if len(matches) == 0:
-            logging.info('Annotation file does not exist: "%s". Skip image.',
-                         annotation_file)
-            continue
-        elif len(matches) > 1:
-            logging.warning('Found multiple files: %s', pformat(matches))
-        annotation_file = op.join(args.annotations_dir, matches[0])
-        logging.info('Got a match %s' % annotation_file)
-
-        tree = ET.parse(annotation_file)
-        objects_ = tree.getroot().findall('object')
-
-        # remove all deleted
-        objects_ = [
-            object_ for object_ in objects_
-            if object_.find('deleted').text != '1'
-        ]
-        if len(objects_) > 1:
-            logging.error('More than one object in %s' % annotation_file)
-            continue
-        object_ = objects_[0]
-
-        # find the name of object.
-        name = object_.find('name').text.encode('utf-8')
-        if not args.keep_original_object_name:
-            c.execute('UPDATE objects SET name=? WHERE objectid=?',
-                      (name, objectid))
-
-        if object_.find('occluded').text == 'yes':
-            c.execute(
-                'INSERT INTO properties(objectid,key,value) VALUES (?,?,?);',
-                (objectid, 'occluded', 'true'))
-
-        for attrib in object_.findall('attributes'):
-            if not attrib.text:
-                continue
-            c.execute(
-                'INSERT INTO properties(objectid,key,value) VALUES (?,?,?);',
-                (objectid, attrib.text.encode('utf-8'), 'true'))
-
-        # get all the points
-        xs, ys = _pointsOfPolygon(object_)
-
-        # Filter out degenerate polygons
-        if _isPolygonDegenerate(xs, ys):
-            logging.error('degenerate polygon %s,%s in %s' %
-                          (str(xs), str(ys), annotation_file))
-            continue
-
-        # Update polygon.
-        for i in range(len(xs)):
-            polygon = (objectid, xs[i], ys[i], args.polygon_name)
-            c.execute(
-                'INSERT INTO polygons(objectid,x,y,name) VALUES (?,?,?,?)',
-                polygon)
-
-        if args.with_display:
-            img = imreader.imread(imagefile)
-            pts = np.array([xs, ys], dtype=np.int32).transpose()
-            util.drawScoredPolygon(img, pts, name, score=1)
-            cv2.imshow('importLabelmeObjects', img[:, :, ::-1])
-            if cv2.waitKey(-1) == 27:
-                args.with_display = False
-                cv2.destroyWindow('importLabelmeObjects')
-
-
 def exportLabelmeParser(subparsers):
     parser = subparsers.add_parser(
-        'exportLabelme', description='Import LabelMe annotations for a db.')
+        'exportLabelme',
+        description='Export database in LabelMe format. '
+        'Basenames of "imagefile" entries in the db will be used as names of recorded images and annotations.'
+    )
     parser.set_defaults(func=exportLabelme)
     parser.add_argument('--images_dir',
                         help='Directory to write jpg files to. '
-                        'If not specified, will not write jpg.')
+                        'If not specified, will not write jpg. '
+                        'Normally, it will be "/path/to/labelme/Images".')
     parser.add_argument('--annotations_dir',
                         required=True,
-                        help='Directory to write xml files to.')
-    parser.add_argument('--username',
-                        help='Optional LabelMe username. '
-                        'If left blank and if polygons have names,')
+                        help='Directory to write xml files to. '
+                        'Normally, it will be "/path/to/labelme/Annotations".')
+    parser.add_argument('--username', help='Optional LabelMe username.')
     parser.add_argument(
         '--folder',
         required=True,
@@ -312,6 +213,15 @@ def exportLabelmeParser(subparsers):
 
 def exportLabelme(c, args):
     print_warning_for_multiple_polygons_in_the_end = False
+
+    # Check if names of files will be unique.
+    c.execute('SELECT imagefile FROM images')
+    imagenames = [op.basename(x) for x, in c.fetchall()]
+    if len(set(imagenames)) < len(imagenames):
+        raise ValueError(
+            'Image BASENAMES are not unique in the database. '
+            'Currently not able to export because the output files names are '
+            'inferred from basenames of "imagefiles".')
 
     if not op.exists(args.annotations_dir):
         os.makedirs(args.annotations_dir)
@@ -426,6 +336,10 @@ def exportLabelme(c, args):
                 imagename = imagename_fixed
                 logging.warning('Replaced invalid characters in image name %s',
                                 imagename)
+        # Labelme supports only JPG.
+        if op.splitext(imagename)[1] != '.jpg':
+            logging.info('Changing the file extension to JPG: %s', imagefile)
+            imagename = op.splitext(imagename)[0] + '.jpg'
 
         logging.debug('Writing imagefile %s as:\n%s', imagefile,
                       ET.tostring(el_root, pretty_print=True).decode("utf-8"))
@@ -443,7 +357,11 @@ def exportLabelme(c, args):
         # Write image.
         if args.images_dir is not None:
             image = imreader.imread(imagefile)
-            imagefile = imwriter.imwrite(image, namehint=imagename)
+            new_imagefile = imwriter.imwrite(image, namehint=imagename)
+            c.execute('UPDATE images SET imagefile=? WHERE imagefile=?',
+                      (new_imagefile, imagefile))
+            c.execute('UPDATE objects SET imagefile=? WHERE imagefile=?',
+                      (new_imagefile, imagefile))
 
     if print_warning_for_multiple_polygons_in_the_end:
         logging.warning(
