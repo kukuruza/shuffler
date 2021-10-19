@@ -476,6 +476,9 @@ def encodeNames(c, args):
     name_list = [x for x, in c.fetchall()]
     name_to_id = {name: name_id for name_id, name in enumerate(name_list)}
 
+    # First, remove whatever is in there.
+    c.execute('DELETE FROM properties WHERE key="name_id"')
+
     # Add the special case to the encoding.
     c.execute('SELECT name FROM objects WHERE name LIKE "%??%"')
     name_list = [x for x, in c.fetchall()]
