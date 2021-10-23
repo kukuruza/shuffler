@@ -56,11 +56,11 @@ Install dependencies:
 conda create -n shuffler python=3.7
 conda activate shuffler
 
-conda install -y -c conda-forge ffmpeg=4.0
-conda install -y imageio matplotlib lxml simplejson progressbar2 pillow scipy opencv=3
+conda install -c conda-forge imageio ffmpeg=4 opencv matplotlib
+conda install lxml simplejson progressbar2 pillow scipy
 
 # If desired, add support for plotting commands
-conda install -y pandas seaborn
+conda install pandas seaborn
 ```
 
 Clone this project:
@@ -83,8 +83,8 @@ The `shuffler.py` tool requires Python3, but the Keras generators, Pytorch datas
 The commands below will install the dependencies necessary for using them. Conda environment may be using Python2 or Python3
 
 ```bash
-conda install -y -c conda-forge ffmpeg=4.0
-conda install -y imageio progressbar2 pillow numpy opencv=3
+conda install -c conda-forge ffmpeg=4 imageio opencv
+conda install progressbar2 pillow numpy
 ```
 
 
