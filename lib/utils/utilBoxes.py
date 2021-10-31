@@ -303,3 +303,24 @@ def cropPatch(image, roi, edge, target_height, target_width):
         patch = cv2.resize(patch, dsize=(target_width, target_height))
 
     return patch, transform
+
+
+def applyTransformToRoi(transform, roi):
+    '''
+    Apply tranform that Shuffler uses to the provided ROI. 
+    Args:
+      roi:        (y1, x1, y2, x2)
+      transform   np array of shape 2x3. roi_new = transform * roi.
+    '''
+    (y1, x1, y2, x2) = roi
+    roi = np.array([[y1, y2], [x1, x2], [1., 1.]])
+    roi = np.dot(transform, roi)
+    roi = (roi[0, 0], roi[1, 0], roi[0, 1], roi[1, 1])
+    logging.debug(roi)
+    return roi
+
+
+def clipRoiToShape(roi, shape):
+    return (max(roi[0], 0), max(roi[1],
+                                0), min(roi[2],
+                                        shape[0]), min(roi[3], shape[1]))

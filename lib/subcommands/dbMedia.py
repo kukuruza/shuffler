@@ -437,12 +437,16 @@ def tileObjects(c, args):
 
         # A small copy of the image.
         if args.image_icon:
-            old_image[
-                max(old_roi[0], 0):min(old_roi[2], old_image.shape[0]),
-                max(old_roi[1], 0):min(old_roi[3], old_image.shape[1])] = 255
-            image_icon, _ = utilBoxes.cropPatch(
+            image_icon, transform_icon = utilBoxes.cropPatch(
                 old_image, [0, 0, old_image.shape[0], old_image.shape[1]],
                 'constant', args.cell_height, args.cell_width)
+            roi_icon = utilBoxes.applyTransformToRoi(transform_icon, old_roi)
+            roi_icon = [int(x) for x in roi_icon]
+            roi_icon = utilBoxes.clipRoiToShape(roi_icon, image_icon.shape)
+            old_image = cv2.rectangle(image_icon, (roi_icon[1], roi_icon[0]),
+                                      (roi_icon[3], roi_icon[2]),
+                                      color=(255, 255, 255),
+                                      thickness=2)
             crop = np.hstack([crop, image_icon])
 
         # Get the cell coordinates. Cells are populated row by row.

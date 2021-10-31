@@ -481,6 +481,44 @@ class TestCropPatch(unittest.TestCase):
         self.assertEqual(actual_roi, expected_roi)
 
 
+class Test_applyTransformToRoi(unittest.TestCase):
+    def test_normal(self):
+        roi = (10, 20, 30, 40)
+
+        transform = np.eye(2, 3)
+        self.assertEqual(utilBoxes.applyTransformToRoi(transform, roi), roi)
+
+        transform = np.array([[1, 0, 10], [0, 1, 20]])
+        self.assertEqual(utilBoxes.applyTransformToRoi(transform, roi),
+                         (20, 40, 40, 60))
+
+        tranform = np.array([[1, 1, 0], [1, 1, 0]])
+        self.assertEqual(utilBoxes.applyTransformToRoi(tranform, roi),
+                         (30, 30, 70, 70))
+
+
+class Test_clipRoiToShape(unittest.TestCase):
+    def test_normal(self):
+        shape = (100, 200, 3)
+        # Normal.
+        self.assertEqual(utilBoxes.clipRoiToShape((10, 20, 30, 40), shape),
+                         (10, 20, 30, 40))
+        # Out of boundaries.
+        self.assertEqual(utilBoxes.clipRoiToShape((-10, 20, 30, 40), shape),
+                         (0, 20, 30, 40))
+        self.assertEqual(utilBoxes.clipRoiToShape((10, -20, 30, 40), shape),
+                         (10, 0, 30, 40))
+        self.assertEqual(utilBoxes.clipRoiToShape((10, 20, 300, 40), shape),
+                         (10, 20, 100, 40))
+        self.assertEqual(utilBoxes.clipRoiToShape((10, 20, 30, 400), shape),
+                         (10, 20, 30, 200))
+        # Float.
+        self.assertEqual(utilBoxes.clipRoiToShape((10, 20, 30, 400.5), shape),
+                         (10, 20, 30, 200))
+        self.assertEqual(utilBoxes.clipRoiToShape((-10.5, 20, 30, 40), shape),
+                         (0, 20, 30, 40))
+
+
 if __name__ == '__main__':
     progressbar.streams.wrap_stdout()
     nose.runmodule()
