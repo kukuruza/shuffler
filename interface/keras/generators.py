@@ -98,13 +98,20 @@ class ImageGenerator(tf.keras.utils.Sequence):
 
         self.on_epoch_end()
 
-    @property
-    def cursor(self):
-        return self.s
-
     def close(self):
         ''' Crucial when the object is contructed in the 'w' mode. '''
         self.conn.close()
+
+    def execute(self, *args, **kwargs):
+        ''' A thin wrapper that conceals self.c and its methods. '''
+
+        self.c.execute(*args, **kwargs)
+        return self.c.fetchall()
+
+    # Deprecate in favor of execute.
+    @property
+    def cursor(self):
+        return self.c
 
     def __len__(self):
         ''' Denotes the number of batches per epoch. '''
@@ -256,6 +263,17 @@ class ObjectGenerator(tf.keras.utils.Sequence):
 
     def close(self):
         self.conn.close()
+
+    def execute(self, *args, **kwargs):
+        ''' A thin wrapper that conceals self.c and its methods. '''
+
+        self.c.execute(*args, **kwargs)
+        return self.c.fetchall()
+
+    # Deprecate in favor of execute.
+    @property
+    def cursor(self):
+        return self.c
 
     def __len__(self):
         ''' Denotes the number of batches per epoch. '''

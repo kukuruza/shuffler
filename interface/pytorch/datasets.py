@@ -75,6 +75,13 @@ class ImageDataset(torch.utils.data.Dataset):
             self.conn.commit()
         self.conn.close()
 
+    def execute(self, *args, **kwargs):
+        ''' A thin wrapper that conceals self.c and its methods. '''
+
+        self.c.execute(*args, **kwargs)
+        return self.c.fetchall()
+
+    # TODO: deprecate in favor of 'execute'.
     @property
     def cursor(self):
         return self.s
@@ -180,6 +187,17 @@ class ObjectDataset(torch.utils.data.Dataset):
             self.conn.commit()
         self.conn.close()
 
+    def execute(self, *args, **kwargs):
+        ''' A thin wrapper that conceals self.c and its methods. '''
+
+        self.c.execute(*args, **kwargs)
+        return self.c.fetchall()
+
+    # TODO: deprecate in favor of 'execute'.
+    @property
+    def cursor(self):
+        return self.s
+
     def __len__(self):
         return len(self.object_entries)
 
@@ -200,6 +218,8 @@ class ObjectDataset(torch.utils.data.Dataset):
         if self.preloaded_samples is not None:
             sample = self.preloaded_samples[index]
         else:
+            logging.debug('Querying for %d-th object out of %d', index,
+                          len(self.object_entries))
             object_entry = self.object_entries[index]
             sample = utils.buildObjectSample(object_entry, self.c,
                                              self.imreader)
