@@ -371,6 +371,9 @@ def recordPositionOnPageParser(subparsers):
 
 
 def recordPositionOnPage(c, args):
+    # Clean old positions.
+    c.execute('DELETE FROM properties WHERE key IN '
+              '("x_on_page", "width_on_page", "y_on_page", "height_on_page")')
     # Get all stamp objects.
     c.execute('SELECT objectid,imagefile,x1+width/2,y1+height/2,width,height '
               'FROM objects WHERE name NOT LIKE "%page%"')
