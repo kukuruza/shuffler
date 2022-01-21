@@ -52,6 +52,8 @@ def buildImageSample(image_entry, cursor, imreader, where_object='TRUE'):
     '''
     imagefile = backendDb.imageField(image_entry, 'imagefile')
     maskfile = backendDb.imageField(image_entry, 'maskfile')
+    image_width = backendDb.imageField(image_entry, 'width')
+    image_height = backendDb.imageField(image_entry, 'height')
 
     # Load the image and mask.
     logging.debug('Reading image "%s"' % imagefile)
@@ -79,6 +81,8 @@ def buildImageSample(image_entry, cursor, imreader, where_object='TRUE'):
     sample = {
         'image': image,
         'mask': mask,
+        'image_width': image_width,
+        'image_height': image_height,
         'objects': object_entries,
         'imagefile': imagefile,
         'name': imagename,
