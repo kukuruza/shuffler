@@ -25,7 +25,7 @@ def add_parsers(subparsers):
     setNumStampOccuranciesParser(subparsers)
     encodeNamesParser(subparsers)
     exportToJsonToPublishParser(subparsers)
-    importJsonWithPredictionsParser(subparsers)
+    decodeStampPredictionsParser(subparsers)
     classifyPagesParser(subparsers)
 
 
@@ -598,21 +598,16 @@ def exportToJsonToPublish(c, args):
         print(json.dumps(results, sort_keys=True, indent=2))
 
 
-def importJsonWithPredictionsParser(subparsers):
-    parser = subparsers.add_parser(
-        'importJsonWithPredictions',
-        description='Export fields and properties to json.')
-    parser.set_defaults(func=importJsonWithPredictions)
-    parser.add_argument(
-        '--json_file',
-        required=True,
-        help='If specified, write to json. Otherwise, to stdout.')
+def decodeStampPredictionsParser(subparsers):
+    parser = subparsers.add_parser('decodeStampPredictions',
+                                   description='Import .')
+    parser.set_defaults(func=decodeStampPredictions)
     parser.add_argument('--encoding_json_file',
                         required=True,
                         help='Mapping from name to label.')
 
 
-def importJsonWithPredictions(c, args):
+def decodeStampPredictions(c, args):
     with open(args.encoding_json_file) as f:
         encoding = json.load(f)
     decoding = {}
@@ -625,21 +620,9 @@ def importJsonWithPredictions(c, args):
             decoding[name_id] = name
     logging.info('Have %d entries in decoding.', len(decoding))
 
-    with open(args.json_file) as f:
-        data = json.load(f)
-    c.execute('DELETE FROM properties WHERE key="classification_score"')
-    c.execute('DELETE FROM properties WHERE key="classification_name_id"')
-    for objectid in progressbar.progressbar(data['objects']):
-        object_ = data['objects'][objectid][0]
-        objectid = int(objectid)
-        name_id = object_['classification_name_ids'][0]
-        score = object_['classification_scores'][0]
-        c.execute(
-            'INSERT INTO properties(objectid,key,value) '
-            'VALUES(?,"classification_score",?)', (objectid, str(score)))
-        c.execute(
-            'INSERT INTO properties(objectid,key,value) '
-            'VALUES(?,"classification_name_id",?)', (objectid, str(name_id)))
+    c.execute('SELECT objectid,name FROM objects')
+    for objectid, name_id in progressbar.progressbar(c.fetchall()):
+        name_id = int(name_id)
         if name_id not in decoding:
             raise ValueError('name_id %d not in decoding.')
         c.execute('UPDATE objects SET name=? WHERE objectid=?',
