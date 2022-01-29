@@ -186,17 +186,21 @@ class VideoWriter:
 
         if ismask:
             # "huffyuv" codec is good for png. "rgb24" keeps all colors and is supported by VLC.
-            self.mask_writer = imageio.get_writer(vpath,
-                                                  fps=self.fps,
-                                                  codec='huffyuv',
-                                                  pixelformat='rgb24')
+            self.mask_writer = imageio.get_writer(
+                vpath,
+                fps=self.fps,
+                codec='huffyuv',
+                macro_block_size=None,  # No resizing of frame.
+                pixelformat='rgb24')
         else:
             # "mjpeg" for JPG images with highest quality and keeping all info with "yuvj444p".
-            self.image_writer = imageio.get_writer(vpath,
-                                                   fps=self.fps,
-                                                   codec='mjpeg',
-                                                   quality=10,
-                                                   pixelformat='yuvj444p')
+            self.image_writer = imageio.get_writer(
+                vpath,
+                fps=self.fps,
+                codec='mjpeg',
+                quality=10,
+                macro_block_size=None,  # No resizing of frame.
+                pixelformat='yuvj444p')
 
     def imwrite(self, image):
         # Multiple checks and lazy init.
@@ -349,9 +353,9 @@ class PictureWriter:
 
         # Write.
         if op.splitext(name)[1] == '.jpg':
-          imageio.imwrite(imagepath, image, quality=self.jpg_quality)
+            imageio.imwrite(imagepath, image, quality=self.jpg_quality)
         else:
-          imageio.imwrite(imagepath, image)
+            imageio.imwrite(imagepath, image)
         return imagepath
 
     def maskwrite(self, mask, namehint=None):
