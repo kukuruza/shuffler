@@ -182,8 +182,8 @@ def applyTransformGroup(transform_group, sample):
     elif isinstance(transform_group, dict):
         for key in transform_group:
             if key not in sample:
-                raise KeyError('Key "%s" is in transform, but not in sample' %
-                               key)
+                logging.debug('Key %s is not in sample. Will use None.', key)
+                sample[key] = None
             sample[key] = transform_group[key](sample[key])
         return sample
 

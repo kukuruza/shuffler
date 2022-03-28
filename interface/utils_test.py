@@ -25,12 +25,14 @@ class TestApplyTransform(unittest.TestCase):
     def test_dict(self):
         transform_group = {
             'image': lambda x: x[:, :, 0],
-            'name': lambda _: 'hi'
+            'name': lambda _: 'hi',
+            'dummy': lambda x: x,
         }
         sample = {'image': np.zeros((10, 10, 3)), 'objectid': 1, 'name': 'car'}
         sample = utils.applyTransformGroup(transform_group, sample)
         self.assertEqual(len(sample['image'].shape), 2)  # Grayscale image.
         self.assertEqual(sample['name'], 'hi')  # All names replaced to "hi".
+        self.assertIsNone(sample['dummy'])  # Returns None for missing keys.
 
 
 class TestCheckTransformGroup(unittest.TestCase):
