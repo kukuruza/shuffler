@@ -190,4 +190,5 @@ class Test_carsDb(Test_DB):
 
     def tearDown(self):
         self.conn.close()
-        os.remove(self.temp_db_path)
+        if op.exists(self.temp_db_path):
+            os.remove(self.temp_db_path)

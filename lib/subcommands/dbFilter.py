@@ -1,10 +1,11 @@
-import os, sys, os.path as op
+import os.path as op
 import numpy as np
 import sqlite3
 import cv2
 import logging
-from glob import glob
-from pprint import pformat
+import traceback
+import multiprocessing
+import concurrent.futures
 from progressbar import progressbar
 
 from lib.backend import backendDb
@@ -24,6 +25,7 @@ def add_parsers(subparsers):
     filterObjectsSQLParser(subparsers)
     filterImagesSQLParser(subparsers)
     filterImagesByIdsParser(subparsers)
+    filterBadImagesParser(subparsers)
 
 
 def filterImagesOfAnotherDbParser(subparsers):
@@ -523,3 +525,70 @@ def filterImagesByIds(c, args):
 
     for imagefile, in progressbar(imagefiles):
         backendDb.deleteImage(c, imagefile)
+
+
+def filterBadImagesParser(subparsers):
+    parser = subparsers.add_parser(
+        'filterBadImages',
+        description='Loads all images and masks and delete unreadable ones. '
+        'Note that missing images and masks are not deleted')
+    parser.add_argument(
+        '--force_single_thread',
+        action='store_true',
+        help='If specified, single thread is used for storage formats. '
+        'Otherwise, Picture storage format is process in parallel.')
+    parser.set_defaults(func=filterBadImages)
+
+
+def isImageOk(imreader, imagefile, maskfile):
+    if imagefile is not None:
+        try:
+            imreader.imread(imagefile)
+        except ValueError:
+            logging.info('Will delete image %s', imagefile)
+            logging.debug("Got exception:\n%s", traceback.print_exc())
+            return False
+    if maskfile is not None:
+        try:
+            imreader.maskread(maskfile)
+        except ValueError:
+            logging.info('Will delete image %s', imagefile)
+            logging.debug("Got exception:\n%s", traceback.print_exc())
+            return False
+    return True
+
+
+def filterBadImages(c, args):
+    imreader = backendMedia.MediaReader(rootdir=args.rootdir)
+
+    num_deleted_imagefiles = 0
+
+    c.execute('SELECT imagefile,maskfile FROM images')
+    image_entries = c.fetchall()
+
+    if (isinstance(imreader, backendMedia.PictureReader)
+            and not args.force_single_thread):
+        # Can make it parallel.
+        max_workers = multiprocessing.cpu_count() - 1
+        logging.info('Running filtering with %d workers.', max_workers)
+        with concurrent.futures.ThreadPoolExecutor(max_workers) as executor:
+            futures = []
+            for imagefile, maskfile in progressbar(image_entries):
+                logging.debug('Imagefile "%s"', imagefile)
+                futures.append(
+                    executor.submit(isImageOk, imreader, imagefile, maskfile))
+
+        for future in concurrent.futures.as_completed(futures):
+            if not future.result():
+                backendDb.deleteImage(c, imagefile)
+                num_deleted_imagefiles += 1
+
+    else:
+        logging.info('Running filtering in a single thread.')
+        for imagefile, maskfile in progressbar(image_entries):
+            logging.debug('Imagefile "%s"', imagefile)
+            if not isImageOk(imreader, imagefile, maskfile):
+                backendDb.deleteImage(c, imagefile)
+                num_deleted_imagefiles += 1
+
+    logging.info("Deleted %d image(s).", num_deleted_imagefiles)
