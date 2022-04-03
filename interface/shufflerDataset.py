@@ -50,9 +50,9 @@ class DatasetWriter:
         if op.exists(out_db_file) and overwrite:
             os.remove(out_db_file)
             is_new = True
-        elif op.exists(out_db_file):
+        elif op.exists(out_db_file):  # not overwrite.
             is_new = False
-        else:
+        else:  # not exists.
             is_new = True
         self.conn = sqlite3.connect(out_db_file)
         self.c = self.conn.cursor()

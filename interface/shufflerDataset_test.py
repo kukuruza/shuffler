@@ -387,29 +387,27 @@ class TestDatasetWriter(unittest.TestCase):
             self.writer.addImage({'imagefile': 'nonexisting.jpg'})
 
     def test_failed_record_maskfile(self):
+        ''' Should fail to record an maskfile of mask that does not exist. '''
         out_db_file = op.join(self.work_dir, 'out.db')
         image_path = op.join(self.work_dir, 'images')
         image = np.zeros((100, 100, 3), dtype=np.uint8)
 
         self.writer = DatasetWriter(out_db_file, image_path=image_path)
 
-        # Try to record an maskfile of mask that does not exist.
-        with self.assertRaises(
-                ValueError):  # Cant use FileExistsError in Python 2.
+        # Cant use FileExistsError in Python 2.
+        with self.assertRaises(ValueError):
             self.writer.addImage({
                 'image': image,
                 'maskfile': 'nonexisting.png'
             })
 
     def test_overwrite_db(self):
+        ''' Test "overwrite" for the .db file. '''
         out_db_file = op.join(self.work_dir, 'out.db')
 
-        # Check "overwrite" for the .db file.
         self.writer = DatasetWriter(out_db_file)
-        with self.assertRaises(
-                ValueError):  # Cant use FileExistsError in Python 2.
-            self.writer = DatasetWriter(out_db_file)
-        self.writer = DatasetWriter(out_db_file, overwrite=True)
+        self.writer = DatasetWriter(out_db_file)  # Should open to change.
+        self.writer = DatasetWriter(out_db_file, overwrite=True)  # Overwrites.
 
     def test_overwrite_video(self):
         out_db_file1 = op.join(self.work_dir, 'out1.db')
