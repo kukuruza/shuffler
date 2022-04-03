@@ -113,10 +113,10 @@ def _parseObject(c, line, imagefile):
     alpha = words[3]
     # 4    bbox         2D bounding box of object in the image (0-based index):
     #                   contains left, top, right, bottom pixel coordinates
-    x1 = int(float(words[4]))
-    y1 = int(float(words[5]))
-    width = int(float(words[6]) - float(words[4]) + 1)
-    height = int(float(words[7]) - float(words[5]) + 1)
+    x1 = float(words[4])
+    y1 = float(words[5])
+    width = float(words[6]) - float(words[4]) + 1
+    height = float(words[7]) - float(words[5]) + 1
     # 3    dimensions   3D object dimensions: height, width, length (in meters)
     dim_height = words[8]
     dim_width = words[9]

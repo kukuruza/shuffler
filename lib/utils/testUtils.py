@@ -180,7 +180,7 @@ class Test_carsDb(Test_DB):
             matches:
                 match 1: objectids 1 and 2
     '''
-    CARS_DB_PATH = 'testdata/cars/micro1_v4.db'
+    CARS_DB_PATH = 'testdata/cars/micro1_v5.db'
     CARS_DB_ROOTDIR = 'testdata/cars'
 
     def setUp(self):

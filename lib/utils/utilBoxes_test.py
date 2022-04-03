@@ -89,6 +89,47 @@ class Test_getIoU(unittest.TestCase):
         self.assertEqual(utilBoxes.getIoU([2, 1, 4, 3], [2, 3, 4, 5]), 0.0)
 
 
+class TestExpandRoi(unittest.TestCase):
+    def test_identity(self):
+        roi = [0.5, 0.5, 100.5, 200.5]
+        np.testing.assert_array_equal(
+            np.array(roi), np.array(utilBoxes.expandRoi(roi, (0, 0))))
+
+    def test_xIsGreater(self):
+        roi = [0.5, 0.5, 100.5, 200.5]
+        perc = (0.5, 1)
+        expected = [-24.5, -99.5, 125.5, 300.5]
+        np.testing.assert_array_equal(np.array(expected),
+                                      np.array(utilBoxes.expandRoi(roi, perc)))
+
+    def test_yIsGreater(self):
+        roi = [0.5, 0.5, 200.5, 100.5]
+        perc = (1, 0.5)
+        expected = [-99.5, -24.5, 300.5, 125.5]
+        np.testing.assert_array_equal(np.array(expected),
+                                      np.array(utilBoxes.expandRoi(roi, perc)))
+
+    def test_invalid(self):
+        with self.assertRaises(ValueError):
+            utilBoxes.expandRoi([0.5, 0.5, 100.5, 200.5], (-0.8, 0))
+
+
+class TestExpandRoiUpToRatio(unittest.TestCase):
+    def test_identity(self):
+        roi = [0.5, 0.5, 100.5, 100.5]
+        ratio = 1.
+        expected = roi
+        np.testing.assert_array_equal(
+            expected, np.array(utilBoxes.expandRoiUpToRatio(roi, ratio)))
+
+    def test_equal(self):
+        roi = [0.5, 0.5, 100.5, 200.5]
+        ratio = 1.
+        expected = [-49.5, 0.5, 150.5, 200.5]
+        np.testing.assert_array_equal(
+            expected, np.array(utilBoxes.expandRoiUpToRatio(roi, ratio)))
+
+
 class TestCropPatch(unittest.TestCase):
     @staticmethod
     def transformRoi(transform, roi):
@@ -118,13 +159,13 @@ class TestCropPatch(unittest.TestCase):
                           max_x=None,
                           max_y=None):
         '''
-      Make an image of dimensions (height, width, 3) with the following channels:
-         red:    vertical gradient [min_y, max_y), horizontally constant.
-         green:  horizontal gradient [min_x, max_x), vertically constant.
-         blue:   zeros.
-      If max_x or max_y are not specified, they are computed such that
-      the step of the gradient is 1 in that direction.
-      '''
+        Make an image of dimensions (height, width, 3) with the following channels:
+            red:    vertical gradient [min_y, max_y), horizontally constant.
+            green:  horizontal gradient [min_x, max_x), vertically constant.
+            blue:   zeros.
+        If max_x or max_y are not specified, they are computed such that
+        the step of the gradient is 1 in that direction.
+        '''
         if max_y is None:
             max_y = min_y + height
         if max_x is None:
@@ -249,25 +290,15 @@ class TestCropPatch(unittest.TestCase):
         expected_roi = [0, 0, 20, 40]
         self.assertEqual(actual_roi, expected_roi)
 
-    def test_edgeOriginal_float(self):
-        roi = [40.6, 30, 60, 70.6]
-        # Compare patches.
-        actual_patch, transform = utilBoxes.cropPatch(self.image, roi,
-                                                      'original', None, None)
-        expected_patch = TestCropPatch.makeGradientImage(height=19,
-                                                         width=41,
-                                                         min_y=41,
-                                                         min_x=30)
-        np.testing.assert_array_equal(actual_patch, expected_patch)
-        # Compare roi.
-        actual_roi = TestCropPatch.transformRoi(transform, roi)
-        expected_roi = [0, 0, 19, 41]
-        self.assertEqual(actual_roi, expected_roi)
-
     def test_edgeConstant_targetSizeNone(self):
         roi = [40, 30, 60, 70]
         with self.assertRaises(RuntimeError):
             utilBoxes.cropPatch(self.image, roi, 'constant', None, None)
+
+    def test_edgeConstant_lessThanTwoIntegerPixels(self):
+        roi = [9.1, 20, 11.9, 40]
+        with self.assertRaises(ValueError):
+            utilBoxes.cropPatch(self.image, roi, 'constant', 20, 20)
 
     def test_edgeConstant_noStretch(self):
         roi = [40, 30, 60, 70]
@@ -478,6 +509,75 @@ class TestCropPatch(unittest.TestCase):
         # Compare roi.
         actual_roi = TestCropPatch.transformRoi(transform, roi)
         expected_roi = [10, 0, 30, 40]
+        self.assertEqual(actual_roi, expected_roi)
+
+    def test_edgeBackground_float_stretch(self):
+        roi = [9.5, 9.5, 20.5, 30.5]
+        # Compare patches.
+        actual_patch, transform = utilBoxes.cropPatch(self.image,
+                                                      roi,
+                                                      'background',
+                                                      target_height=40,
+                                                      target_width=40)
+        expected_patch = TestCropPatch.makeGradientImage(height=40,
+                                                         width=40,
+                                                         min_y=5,
+                                                         min_x=10,
+                                                         max_y=25,
+                                                         max_x=30)
+        norm = (actual_patch.mean() + expected_patch.mean()) / 2.
+        actual_patch = actual_patch / norm
+        expected_patch = expected_patch / norm
+        np.testing.assert_array_almost_equal(actual_patch,
+                                             expected_patch,
+                                             decimal=0)
+        # Compare roi.
+        actual_roi = TestCropPatch.transformRoi(transform, roi)
+        expected_roi = [9, -1, 31, 41]
+        self.assertEqual(actual_roi, expected_roi)
+
+
+class TestGetTransformBetweenRois(unittest.TestCase):
+    def test_identity(self):
+        roi = [10, 20, 30, 40]
+        np.testing.assert_array_equal(
+            np.eye(3, 3, dtype=float),
+            np.array(utilBoxes._getTransformBetweenRois(roi, roi)))
+
+    def test_X2(self):
+        roi1 = [10, 20, 30, 40]
+        roi2 = [10, 20, 50, 60]
+        np.testing.assert_array_equal(
+            np.array([[2, 0, -10], [0, 2, -20], [0, 0, 1]]),
+            np.array(utilBoxes._getTransformBetweenRois(roi1, roi2)))
+
+    def test_invalidRoi1(self):
+        roi1 = [10, 20, 0, 0]
+        roi2 = [10, 20, 50, 60]
+        with self.assertRaises(ValueError):
+            utilBoxes._getTransformBetweenRois(roi1, roi2)
+
+    def test_invalidRoi2(self):
+        roi1 = [10, 20, 50, 60]
+        roi2 = [10, 20, 0, 0]
+        with self.assertRaises(ValueError):
+            utilBoxes._getTransformBetweenRois(roi1, roi2)
+
+
+class TestApplyTransformToRoi(unittest.TestCase):
+    def test_identity(self):
+        transform = np.eye(3, 3, dtype=float)
+        roi = [10, 20, 30, 40]
+        actual_roi = utilBoxes.applyTransformToRoi(transform, roi)
+        self.assertEqual(actual_roi, roi)
+
+    def test_X2(self):
+        transform = np.eye(3, 3, dtype=float)
+        transform[0, 0] = 2
+        transform[1, 1] = 2
+        roi = [10, 20, 30, 40]
+        expected_roi = [20, 40, 60, 80]
+        actual_roi = utilBoxes.applyTransformToRoi(transform, roi)
         self.assertEqual(actual_roi, expected_roi)
 
 

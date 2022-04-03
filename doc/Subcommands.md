@@ -107,17 +107,17 @@
 ```bash
 # Print general info. Info about objects are grouped by image.
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'test/databases/micro1_v4.db' \
+  --in_db_file 'test/databases/micro1_v5.db' \
   printInfo --objects_by_image
 
 # Print several tables of a database
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'test/databases/micro1_v4.db' \
+  --in_db_file 'test/databases/micro1_v5.db' \
   dumpDb --tables objects properties
 
 # Plot a histogram of value of field "yaw" of objects named "car".
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'test/databases/micro1_v4.db' \
+  --in_db_file 'test/databases/micro1_v5.db' \
   plotHistogram \
     'SELECT value FROM objects 
      INNER JOIN properties p1 ON objects.objectid=p1.objectid 
@@ -126,7 +126,7 @@
 
 # Plot a "strip" plot of values of field "yaw" and "pitch" of objects named "car".
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'test/databases/micro1_v4.db' \
+  --in_db_file 'test/databases/micro1_v5.db' \
   plotStrip \
     'SELECT p1.value, p2.value FROM objects 
      INNER JOIN properties p1 ON objects.objectid=p1.objectid 
@@ -136,7 +136,7 @@
 
 # Plot a scatter plot of values of field "yaw" and "pitch" of objects named "car".
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'test/databases/micro1_v4.db' \
+  --in_db_file 'test/databases/micro1_v5.db' \
   plotScatter \
     'SELECT p1.value, p2.value FROM objects 
      INNER JOIN properties p1 ON objects.objectid=p1.objectid 
@@ -150,17 +150,17 @@
 ```bash
 # Examine images.
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'testdata/cars/micro1_v4.db' \
+  --in_db_file 'testdata/cars/micro1_v5.db' \
   examineImages
 
 # Examine objects.
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'testdata/cars/micro1_v4.db' \
+  --in_db_file 'testdata/cars/micro1_v5.db' \
   examineObjects
 
 # Examine matches.
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'testdata/cars/micro1_v4.db' \
+  --in_db_file 'testdata/cars/micro1_v5.db' \
   examineMatches
 ```
 
@@ -169,39 +169,39 @@
 ```bash
 # Filter images that are present another .
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'testdata/cars/micro1_v4.db' \
-  filterImagesOfAnotherDb --ref_db_file 'testdata/cars/micro1_v4_singleim.db'
+  --in_db_file 'testdata/cars/micro1_v5.db' \
+  filterImagesOfAnotherDb --ref_db_file 'testdata/cars/micro1_v5_singleim.db'
 
 # Filter objects at image border.
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'testdata/cars/micro1_v4.db' \
+  --in_db_file 'testdata/cars/micro1_v5.db' \
   filterObjectsAtBorder --with_display
 
 # Filter objects that intersect other objects too much.
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'testdata/cars/micro1_v4.db' \
+  --in_db_file 'testdata/cars/micro1_v5.db' \
   filterObjectsByIntersection --with_display
 
 # Filter objects that have certain names.
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'testdata/cars/micro1_v4.db' \
+  --in_db_file 'testdata/cars/micro1_v5.db' \
   filterObjectsByName --good_names 'car' 'bus'
 
 # Filter objects that have low score.
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'testdata/cars/micro1_v4.db' \
+  --in_db_file 'testdata/cars/micro1_v5.db' \
   filterObjectsByScore --score_threshold 0.7
 
 # Filter objects with an SQL query
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'testdata/cars/micro1_v4.db' \
+  --in_db_file 'testdata/cars/micro1_v5.db' \
   filterObjectsSQL \
     'SELECT objects.objectid FROM objects ' \
     'INNER JOIN properties ON objects.objectid=properties.objectid ' \
     'WHERE properties.value="blue" AND objects.score > 0.8'
 # or
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'testdata/cars/micro1_v4.db' \
+  --in_db_file 'testdata/cars/micro1_v5.db' \
   filterObjectsSQL \
     'SELECT objects.objectid FROM objects ' \
     'INNER JOIN properties p1 ON objects.objectid=p1.objectid ' \
@@ -214,57 +214,57 @@
 ```bash
 # Add a video of images and a video of masks.
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'testdata/cars/micro1_v4.db' \
+  --in_db_file 'testdata/cars/micro1_v5.db' \
   addVideo --image_video_path 'testdata/moon/images.avi' --mask_video_path 'testdata/moon/masks.avi'
 
 # Add image and mask pictures.
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'testdata/cars/micro1_v4.db' \
+  --in_db_file 'testdata/cars/micro1_v5.db' \
   addPictures --image_pattern 'testdata/moon/images/*.jpg' --mask_pattern 'testdata/moon/masks/*.png'
 
 # Discard all, but the first N images.
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'testdata/cars/micro1_v4.db' \
+  --in_db_file 'testdata/cars/micro1_v5.db' \
   headImages -n 2
 
 # Discard all, but the last N images.
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'testdata/cars/micro1_v4.db' \
+  --in_db_file 'testdata/cars/micro1_v5.db' \
   tailImages -n 2
 
 # Expand bounding boxes
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'testdata/cars/micro1_v4.db' \
+  --in_db_file 'testdata/cars/micro1_v5.db' \
   expandBoxes --expand_perc 0.2 --with_display
 # or to try match the target_ratio
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'testdata/cars/micro1_v4.db' \
+  --in_db_file 'testdata/cars/micro1_v5.db' \
   expandBoxes --expand_perc 0.2 --target_ratio 0.75 --with_display
 
 # To move the directory of images or masks
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'testdata/cars/micro1_v4.db' \
+  --in_db_file 'testdata/cars/micro1_v5.db' \
   moveMedia --image_path '/tmp/images' --mask_path '/tmp/masks' --where_image 'imagefile LIKE "cars/images/%"'
 
 # Add a new database (follow this one with mergeObjectDuplicates).
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'testdata/cars/micro1_v4.db' \
-  addDb --db_file 'testdata/cars/micro1_v4_singleim.db'
+  --in_db_file 'testdata/cars/micro1_v5.db' \
+  addDb --db_file 'testdata/cars/micro1_v5_singleim.db'
 
 # Merge multiple objects that have the same ROI 
 # For example, when objects were collected from different annotators and then merged via addDb.
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'testdata/cars/micro1_v4.db' \
+  --in_db_file 'testdata/cars/micro1_v5.db' \
   mergeObjectDuplicates
 
 # Split into several databases.
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'testdata/cars/micro1_v4.db' \
+  --in_db_file 'testdata/cars/micro1_v5.db' \
   splitDb --out_dir '.' --out_names 'test' 'train' --out_fractions 0.3 0.7 --shuffle
 
 # Masks from polygons.
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'testdata/cars/micro1_v4.db' \
+  --in_db_file 'testdata/cars/micro1_v5.db' \
   polygonsToMask --media "pictures" --mask_path 'cars/mask_polygons' \
     --skip_empty_masks --substitute_with_box
 ```
@@ -273,30 +273,30 @@
 ```bash
 # Evaluate semantic segmentation.
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'testdata/cars/micro1_v4.db' \
-  evaluateSegmentationIoU --gt_db_file 'testdata/cars/micro1_v4_polygons.db' \
+  --in_db_file 'testdata/cars/micro1_v5.db' \
+  evaluateSegmentationIoU --gt_db_file 'testdata/cars/micro1_v5_polygons.db' \
     --gt_mapping_dict '{0: "background", 255: "car"}' --out_dir 'test/testIoU'
 
 # Evaluate single-class detection (background vs foreground), 
 # where masks of current db are grayscale probabilities.
-./shuffler.py --rootdir 'test' --in_db_file 'testdata/cars/micro1_v4.db' \
-  evaluateBinarySegmentation --gt_db_file 'testdata/cars/micro1_v4_polygons.db'
+./shuffler.py --rootdir 'test' --in_db_file 'testdata/cars/micro1_v5.db' \
+  evaluateBinarySegmentation --gt_db_file 'testdata/cars/micro1_v5_polygons.db'
 
 # Evaluate object detection.
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'testdata/cars/micro1_v4.db' \
-  evaluateDetection --gt_db_file 'testdata/cars/micro1_v4_singleim.db'
+  --in_db_file 'testdata/cars/micro1_v5.db' \
+  evaluateDetection --gt_db_file 'testdata/cars/micro1_v5_singleim.db'
 ```
 
 #### <a name="write">Write a new image directory / video
 
 ```bash
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'testdata/cars/micro1_v4.db' \
+  --in_db_file 'testdata/cars/micro1_v5.db' \
   writeImages --media 'pictures' --image_path 'cars/exported' --mask_alpha 0.5 --with_imageid
 
 ./shuffler.py --rootdir 'test' \
-  --in_db_file 'testdata/cars/micro1_v4.db' \
+  --in_db_file 'testdata/cars/micro1_v5.db' \
   cropObjects --media 'pictures' --image_path 'cars/exported' --mask_path 'cars/exportedmask' \
   --target_width 64 --target_height 64
 ```

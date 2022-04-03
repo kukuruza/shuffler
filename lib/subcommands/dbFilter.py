@@ -444,8 +444,9 @@ def filterObjectsInsideCertainObjects(c, args):
 
                 # Check that the center is within the shadow polygon or bbox.
                 if len(shadow_polygon) > 0:
-                    is_inside = cv2.pointPolygonTest(np.array(shadow_polygon),
-                                                     center_yx, False) >= 0
+                    is_inside = cv2.pointPolygonTest(
+                        np.array(shadow_polygon).astype(int), center_yx,
+                        False) >= 0
                 else:
                     shadow_roi = utilBoxes.bbox2roi(
                         backendDb.objectField(shadow_object_entry, 'bbox'))

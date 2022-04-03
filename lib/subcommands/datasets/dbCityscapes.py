@@ -32,10 +32,10 @@ def _importJson(c, jsonpath, imagefile, imheight, imwidth):
     for object_ in objects:
         name = object_['label']
         polygon = object_['polygon']
-        x1 = int(np.min([point[0] for point in polygon]))
-        y1 = int(np.min([point[1] for point in polygon]))
-        x2 = int(np.max([point[0] for point in polygon]))
-        y2 = int(np.max([point[1] for point in polygon]))
+        x1 = np.min([point[0] for point in polygon])
+        y1 = np.min([point[1] for point in polygon])
+        x2 = np.max([point[0] for point in polygon])
+        y2 = np.max([point[1] for point in polygon])
         width = x2 - x1
         height = y2 - y1
         c.execute(

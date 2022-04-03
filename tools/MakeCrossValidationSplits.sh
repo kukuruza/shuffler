@@ -11,7 +11,7 @@
 
 # Example:
 #   tools/MakeCrossValidationSplits \
-#     --input_db testdata/cars/micro1_v4.db \
+#     --input_db testdata/cars/micro1_v5.db \
 #     --output_dir /tmp/cross_validation \
 #     --number 3
 

@@ -1,11 +1,9 @@
-import os, os.path as op
 import logging
 import sqlite3
 from datetime import datetime
 import io
-import shutil
-import tempfile
 import numpy as np
+import pprint
 
 
 def _load_db_to_memory(in_db_path):
@@ -20,13 +18,6 @@ def _load_db_to_memory(in_db_path):
     # Create a database in memory and import from tempfile
     conn = sqlite3.connect(":memory:")
     conn.cursor().executescript(tempfile.read())
-    return conn
-
-
-def _copy_db_to_tmpfile(in_db_path):
-    tmp_path = tempfile.NamedTemporaryFile()
-    shutil.copy(in_db_path, tmp_path)
-    conn = sqlite3.connect("tmp_path")
     return conn
 
 
@@ -73,10 +64,10 @@ def createTableObjects(cursor):
     cursor.execute('CREATE TABLE objects '
                    '(objectid INTEGER PRIMARY KEY, '
                    'imagefile TEXT, '
-                   'x1 INTEGER, '
-                   'y1 INTEGER, '
-                   'width INTEGER, '
-                   'height INTEGER, '
+                   'x1 REAL, '
+                   'y1 REAL, '
+                   'width REAL, '
+                   'height REAL, '
                    'name TEXT, '
                    'score REAL '
                    ');')
@@ -108,8 +99,8 @@ def createTablePolygons(cursor):
     cursor.execute('CREATE TABLE polygons '
                    '(id INTEGER PRIMARY KEY, '
                    'objectid INTEGER, '
-                   'x INTEGER, '
-                   'y INTEGER, '
+                   'x REAL, '
+                   'y REAL, '
                    'name TEXT '
                    ');')
     cursor.execute(
@@ -133,7 +124,7 @@ def createDb(conn):
     ''' Creates all the necessary tables and indexes. '''
 
     cursor = conn.cursor()
-    conn.execute('PRAGMA user_version = 4')  # This is version 4.
+    conn.execute('PRAGMA user_version = 5')  # This is version 5.
     createTableImages(cursor)
     createTableObjects(cursor)
     createTableProperties(cursor)
@@ -421,3 +412,24 @@ def updateObjectTransform(c, objectid, transform):
         c.execute(
             'INSERT INTO properties(objectid,key,value) VALUES (?,"bx",?)',
             (objectid, str(transform[1, 2])))
+
+
+def upgradeV4toV5(cursor):
+    ''' Upgrade the schema to V5, now object coordinates are floating-point. '''
+
+    # Drop indexes in the 'objects' and 'polygons' tables.
+    cursor.execute('SELECT name FROM sqlite_master WHERE type == "index" '
+                   'AND (name LIKE "objects%" OR name LIKE "polygons%")')
+    for index_name, in cursor.fetchall():
+        logging.debug('Dropping index: %s', index_name)
+        cursor.execute('DROP INDEX "%s"' % index_name)
+    # Objects.
+    cursor.execute('ALTER TABLE objects RENAME TO objects_old')
+    createTableObjects(cursor)
+    cursor.execute('INSERT INTO objects SELECT * FROM objects_old;')
+    cursor.execute('DROP TABLE objects_old;')
+    # Polygons.
+    cursor.execute('ALTER TABLE polygons RENAME TO polygons_old')
+    createTablePolygons(cursor)
+    cursor.execute('INSERT INTO polygons SELECT * FROM polygons_old;')
+    cursor.execute('DROP TABLE polygons_old;')

@@ -77,7 +77,7 @@ def drawScoredRoi(img, roi, label=None, score=None):
         score = 1
     color = tuple([int(x * 255)
                    for x in plt.cm.get_cmap('jet')(float(score))][0:3][::-1])
-    roi = [int(a) for a in roi]  # In case some function did not cast them.
+    roi = [int(a) for a in roi]
     cv2.rectangle(img, (roi[1], roi[0]), (roi[3], roi[2]), color, THICKNESS)
     text_coords = (roi[1], roi[0] - SCALE)
     cv2.putText(img, label, text_coords, FONT, FONT_SIZE, (0, 0, 0), THICKNESS)
@@ -105,7 +105,6 @@ def drawScoredPolygon(img, polygon, label=None, score=None):
         score = 1
     color = tuple([int(x * 255)
                    for x in plt.cm.get_cmap('jet')(float(score))][0:3][::-1])
-    # In case some function did not cast them.
     polygon = [(int(x), int(y)) for x, y in polygon]
     for i1 in range(len(polygon)):
         i2 = (i1 + 1) % len(polygon)
@@ -327,7 +326,7 @@ def bboxes2polygons(cursor, objectid):
             'INSERT INTO polygons(objectid,x,y,name) VALUES (?,?,?,"bounding box")',
             (objectid, x, y))
     logging.debug(
-        'Added polygon from bbox y1=%d,x1=%d,y2=%d,x2=%d to objectid %d', y1,
+        'Added polygon from bbox y1=%f,x1=%f,y2=%f,x2=%f to objectid %d', y1,
         x1, y2, x2, objectid)
 
 

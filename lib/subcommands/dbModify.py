@@ -40,6 +40,7 @@ def add_parsers(subparsers):
     syncObjectidsWithDbParser(subparsers)
     syncObjectsDataWithDbParser(subparsers)
     revertObjectTransformsParser(subparsers)
+    upgradeV4toV5Parser(subparsers)
 
 
 def bboxesToPolygonsParser(subparsers):
@@ -319,20 +320,25 @@ def expandObjects(c, args):
 
         # Scale.
         if args.target_ratio:
+            # Expand the bbox, if present in "objects" table.
             if old_roi is not None:
-                roi = utilBoxes.expandRoiToRatio(old_roi, args.expand_perc,
-                                                 args.target_ratio)
+                roi = utilBoxes.expandRoiUpToRatio(old_roi, args.target_ratio)
+                roi = utilBoxes.expandRoi(roi,
+                                          (args.expand_perc, args.expand_perc))
                 logging.debug('Roi changed from %s to %s for object %d',
                               str(old_roi), str(roi), objectid)
+            # Expand polygons, if present in "polygons" table.
             if len(old_polygon):
                 raise NotImplementedError(
                     'Cant scale polygons to target ratio. It is a TODO.')
         else:
+            # Expand the bbox, if present in "objects" table.
             if old_roi is not None:
                 roi = utilBoxes.expandRoi(old_roi,
                                           (args.expand_perc, args.expand_perc))
                 logging.debug('Roi changed from %s to %s for object %d',
                               str(old_roi), str(roi), objectid)
+            # Expand polygons, if present in "polygons" table.
             if len(old_polygon):
                 ids = [backendDb.polygonField(p, 'id') for p in old_polygon]
                 old_xs = [backendDb.polygonField(p, 'x') for p in old_polygon]
@@ -1444,3 +1450,15 @@ def revertObjectTransforms(c, args):
     c.execute('DELETE FROM properties WHERE key="old_imagefile"')
     logging.info('%d objects out of %d were reverted.', count,
                  len(object_entries))
+
+
+def upgradeV4toV5Parser(subparsers):
+    parser = subparsers.add_parser(
+        'upgradeV4toV5',
+        description=
+        'Upgrade the database version. V5 uses floats for all coordinates.')
+    parser.set_defaults(func=upgradeV4toV5)
+
+
+def upgradeV4toV5(c, args):
+    backendDb.upgradeV4toV5(c)

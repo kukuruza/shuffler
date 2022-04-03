@@ -103,10 +103,10 @@ def importDetrac(c, args):
 
                     # Parse bbox.
                     box = target.find('box')
-                    x1 = int(float(box.attrib['left']))
-                    y1 = int(float(box.attrib['top']))
-                    width = int(float(box.attrib['width']))
-                    height = int(float(box.attrib['height']))
+                    x1 = float(box.attrib['left'])
+                    y1 = float(box.attrib['top'])
+                    width = float(box.attrib['width'])
+                    height = float(box.attrib['height'])
                     logging.debug('Parsed box: %s' %
                                   str([x1, y1, width, height]))
                     c.execute(

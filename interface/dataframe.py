@@ -9,7 +9,7 @@ The workflow is expected to be like below. Refer to "dataframe_demo.ipynb" file.
 
 # Init.
 df = Dataframe()
-df.load('testdata/cars/micro1_v4.db', rootdir='testdata/cars')
+df.load('testdata/cars/micro1_v5.db', rootdir='testdata/cars')
 
 # Shuffler subcommands.
 df.sql(sql='DELETE FROM properties')

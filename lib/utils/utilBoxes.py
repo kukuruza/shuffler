@@ -45,89 +45,36 @@ def getIoU(roi1, roi2):
     area1 = (roi1[3] - roi1[1]) * (roi1[2] - roi1[0])
     area2 = (roi2[3] - roi2[1]) * (roi2[2] - roi2[0])
     union = area1 + area2 - intersection
-    IoU = intersection / union if union > 0 else 0.
+    IoU = intersection / float(union) if union > 0 else 0.
     return IoU
 
 
-def expandRoiBorder(roi, imsize, perc, integer_result=True):
+def expandRoi(roi, perc):
     '''
-    Expands a ROI, and clips it within borders.
-    Floats are rounded to the nearest integer.
+    Expands a ROI. Floats are rounded to the nearest integer. 
+    Args:
+      roi:   list or tuple [y1, x1, y2, x2]
+      perc:  tuple (perc_y, perc_x). Both must be > -0.5.
     '''
-    imheight, imwidth = imsize
-    perc_y, perc_x = perc
-    if (perc_y, perc_x) == (0, 0): return roi
-
-    half_delta_y = float(roi[2] + 1 - roi[0]) * perc_y / 2
-    half_delta_x = float(roi[3] + 1 - roi[1]) * perc_x / 2
-    # the result must be within (imheight, imwidth)
-    bbox_height = roi[2] + 1 - roi[0] + half_delta_y * 2
-    bbox_width = roi[3] + 1 - roi[1] + half_delta_x * 2
-    if bbox_height > imheight or bbox_width > imwidth:
-        logging.warning(
-            'expanded bbox of size (%d,%d) does not fit into image (%d,%d)' %
-            (bbox_height, bbox_width, imheight, imwidth))
-        # if so, decrease half_delta_y, half_delta_x
-        coef = min(imheight / bbox_height, imwidth / bbox_width)
-        logging.warning('decreased bbox to (%d,%d)' %
-                        (bbox_height, bbox_width))
-        bbox_height *= coef
-        bbox_width *= coef
-        logging.warning('decreased bbox to (%d,%d)' %
-                        (bbox_height, bbox_width))
-        half_delta_y = (bbox_height - (roi[2] + 1 - roi[0])) * 0.5
-        half_delta_x = (bbox_width - (roi[3] + 1 - roi[1])) * 0.5
-    # and a small epsilon to account for floating-point imprecisions
-    EPS = 0.001
-    # expand each side
-    roi[0] -= (half_delta_y - EPS)
-    roi[1] -= (half_delta_x - EPS)
-    roi[2] += (half_delta_y - EPS)
-    roi[3] += (half_delta_x - EPS)
-    # move to clip into borders
-    if roi[0] < 0:
-        roi[2] += abs(roi[0])
-        roi[0] = 0
-    if roi[1] < 0:
-        roi[3] += abs(roi[1])
-        roi[1] = 0
-    if roi[2] > imheight - 1:
-        roi[0] -= abs((imheight - 1) - roi[2])
-        roi[2] = imheight - 1
-    if roi[3] > imwidth - 1:
-        roi[1] -= abs((imwidth - 1) - roi[3])
-        roi[3] = imwidth - 1
-    # check that now averything is within borders (bbox is not too big)
-    assert roi[0] >= 0 and roi[1] >= 0, str(roi)
-    assert roi[2] <= imheight - 1 and roi[3] <= imwidth - 1, str(roi)
-    # make integer
-    if integer_result:
-        roi = [int(round(x)) for x in roi]
-    return roi
-
-
-def expandRoi(roi, perc, integer_result=True):
-    ''' Expands a ROI. Floats are rounded to the nearest integer. '''
     roi = list(roi)
     perc_y, perc_x = perc
-    if (perc_y, perc_x) == (0, 0): return roi
+    if (perc_y, perc_x) == (0, 0):
+        return roi
+    if perc_y < -0.5 or perc_x < -0.5:
+        raise ValueError('perc_y=%f and perc_x=%f must be > -0.5', perc_y,
+                         perc_x)
 
-    half_delta_y = float(roi[2] + 1 - roi[0]) * perc_y / 2
-    half_delta_x = float(roi[3] + 1 - roi[1]) * perc_x / 2
-    # and a small epsilon to account for floating-point imprecisions
-    EPS = 0.001
+    half_delta_y = float(roi[2] - roi[0]) * perc_y / 2
+    half_delta_x = float(roi[3] - roi[1]) * perc_x / 2
     # expand each side
-    roi[0] -= (half_delta_y - EPS)
-    roi[1] -= (half_delta_x - EPS)
-    roi[2] += (half_delta_y - EPS)
-    roi[3] += (half_delta_x - EPS)
-    # make integer
-    if integer_result:
-        roi = [int(round(x)) for x in roi]
+    roi[0] -= half_delta_y
+    roi[1] -= half_delta_x
+    roi[2] += half_delta_y
+    roi[3] += half_delta_x
     return roi
 
 
-def expandPolygon(xs, ys, perc, integer_result=True):
+def expandPolygon(xs, ys, perc):
     '''
     Expand polygon from its median center in all directions.
     Floating-point numbers are then rounded to the nearest integer.
@@ -147,48 +94,17 @@ def expandPolygon(xs, ys, perc, integer_result=True):
     return xs, ys
 
 
-def expandRoiToRatioBorder(roi, imsize, expand_perc, ratio):
-    ''' Expands a ROI to keep 'ratio', and maybe more, up to 'expand_perc' '''
-    imheight, imwidth = imsize
-    bbox = roi2bbox(roi)
+def expandRoiUpToRatio(roi, ratio):
+    '''Expands a ROI to match 'ratio'. '''
     # adjust width and height to ratio
-    height = float(roi[2] + 1 - roi[0])
-    width = float(roi[3] + 1 - roi[1])
+    height = float(roi[2] - roi[0])
+    width = float(roi[3] - roi[1])
     if height / width < ratio:
         perc = ratio * width / height - 1
-        roi = expandRoiBorder(roi, (imheight, imwidth), (perc, 0),
-                              integer_result=False)
+        roi = expandRoi(roi, (perc, 0))
     else:
         perc = height / width / ratio - 1
-        roi = expandRoiBorder(roi, (imheight, imwidth), (0, perc),
-                              integer_result=False)
-    # additional expansion
-    perc = (1 + expand_perc) / (1 + perc) - 1
-    if perc > 0:
-        roi = expandRoiBorder(roi, (imheight, imwidth), (perc, perc),
-                              integer_result=False)
-    roi = [int(round(x)) for x in roi]
-    return roi
-
-
-def expandRoiToRatio(roi, expand_perc, ratio):
-    '''Expands a ROI to keep 'ratio', and maybe more, up to 'expand_perc'
-  '''
-    bbox = roi2bbox(roi)
-    # adjust width and height to ratio
-    height = float(roi[2] + 1 - roi[0])
-    width = float(roi[3] + 1 - roi[1])
-    if height / width < ratio:
-        perc = ratio * width / height - 1
-        roi = expandRoi(roi, (perc, 0), integer_result=False)
-    else:
-        perc = height / width / ratio - 1
-        roi = expandRoi(roi, (0, perc), integer_result=False)
-    # additional expansion
-    #perc = (1 + expand_perc) / (1 + perc) - 1
-    #if perc > 0:
-    roi = expandRoi(roi, (expand_perc, expand_perc))
-    roi = [int(round(x)) for x in roi]
+        roi = expandRoi(roi, (0, perc))
     return roi
 
 
@@ -198,53 +114,65 @@ def cropPatch(image, roi, edge, target_height, target_width):
       edge:   {'distort', 'constant', 'background', 'original'}
               'distort'     Crops out the ROI and resizes it to target shape
                             without regards to aspect ratio.
-              'constant'    Pads zeros on the sides of ROI to match the target
-                            aspect ratio, then crops and resizes.
+              'constant'    Pads zeros (black) on the sides of ROI to match 
+                            the target aspect ratio, then crops and resizes.
               'background'  Resizes the ROI to aspect ratio (with along X or Y),
-                            then resizes to match the target dimensions.
+                            then resizes to match the target dimensions. Stuff
+                            outside of the image is black.
               'original'    Crops out ROI and does NOT resize. Target dimensions
                             are ignored.
       target_height and target_width:
                   Target dimensions. Must be specified if edge != 'original'.
     Returns:
       patch:      The cropped patch. Color or grayscale depending on the image.
+                  Non-integer ROI is reduced to the nearest int on each side.
       transform:  A numpy float array of shape (3,3) representing an affine
                   transform from a point in the original image to that point in
-                  the cropped image.
+                  the cropped image. Applying transform to an integer ROI gives 
+                  [0, 0, H, W] where HxW is the size of the crop. Applying it
+                  to NON-integer ROI produces [-e1, -e2, H + e3, W + e4], where
+                  "eps" is a small number.
     TODO: Perspective crops may be necessary in the future. In that case,
           actual cropping may be better via cv2 perspectiveTransform function.
           Then a new function cropPerspective would be necessary.
     '''
+    logging.debug('Cropping with ROI: %s', str(roi))
+
+    if (edge != 'original' and
+        (target_height is None or not isinstance(target_height, int)
+         or target_width is None or not isinstance(target_width, int))):
+        raise RuntimeError(
+            'When edge is not "original", target_height and target_width are '
+            'required and must be int, not %s, %s' %
+            (target_height, target_width))
+
     grayscale = len(image.shape) == 2
 
-    # Cast to int and make a deep copy.
-    logging.debug('Cropping with ROI: %s', str(roi))
-    roi = [int(round(x)) for x in roi]
-    logging.debug('Integer ROI: %s', str(roi))
+    # Make a deep copy.
+    roi = list(roi)
 
     # Maybe expand the ROI.
     if edge == 'background':
         target_ratio = target_height / target_width
-        roi = expandRoiToRatio(roi, 0.0, target_ratio)
+        roi = expandRoiUpToRatio(roi, target_ratio)
+
+    # Reduce the bbox to the nearest integer pixel in every direction.
+    roi[0] = int(np.ceil(roi[0]))
+    roi[1] = int(np.ceil(roi[1]))
+    roi[2] = int(np.floor(roi[2]))
+    roi[3] = int(np.floor(roi[3]))
 
     height, width = roi[2] - roi[0], roi[3] - roi[1]
+    if height <= 1 or width <= 1:
+        raise ValueError('Cant crop from HxW = %dx%d.' % (height, width))
 
-    # Start with identity transform.
+    # Transform from the original bbox to the cooridnates of the crop.
+    # If bbox was non-integer, the transformed roi is [-e1, -e2, H+e3, W+e4],
+    #   where "e" is small, H & W are dimensions of the crop.
     transform = np.eye(3, 3, dtype=float)
-    # Transform is set to match the bottom-left corner now.
     transform[0, 2] = -roi[0]
     transform[1, 2] = -roi[1]
-
-    if edge == 'background':
-        if grayscale:
-            pads = ((height, height), (width, width))
-        else:
-            pads = ((height, height), (width, width), (0, 0))
-        image = np.pad(image, pad_width=pads, mode='constant')
-        roi = [
-            roi[0] + height, roi[1] + width, roi[2] + height, roi[3] + width
-        ]
-        logging.debug('Cropping as "background" adjusted ROI to: %s', str(roi))
+    logging.debug('Transform of taking ROI to origin:\n%s', transform)
 
     # Pad parts of the rois out of the image boundaries with zero.
     padsy = max(0, -roi[0]), max(0, roi[2] - image.shape[0])
@@ -258,6 +186,7 @@ def cropPatch(image, roi, edge, target_height, target_width):
     roi[1] += padsx[0]
     roi[2] -= padsy[1]
     roi[3] -= padsx[1]
+    logging.debug('Roi with pads compensated for out of boundaries: %s', roi)
 
     # Crop the image.
     patch = image[roi[0]:roi[2], roi[1]:roi[3]]
@@ -266,10 +195,7 @@ def cropPatch(image, roi, edge, target_height, target_width):
     patch = np.pad(patch, pad_width=pads, mode='constant')
 
     if edge == 'constant':
-        if target_height is None or target_width is None:
-            raise RuntimeError(
-                'When edge is not "original", '
-                'both target_height and target_width are required.')
+
         target_ratio = target_height / target_width
         if height > int(target_ratio * width):
             pad1 = (int(height / target_ratio) - width) // 2
@@ -291,15 +217,22 @@ def cropPatch(image, roi, edge, target_height, target_width):
             ' to shape %s.', target_ratio, str(pads), str(patch.shape))
         patch = np.pad(patch, pad_width=pads, mode='constant')
         # Transform is offset to match the bottom-left corner now.
-        transform[0, 2] += pads[0][0]
-        transform[1, 2] += pads[1][0]
+        transform_pad = np.eye(3, 3, dtype=float)
+        transform_pad[0, 2] = pads[0][0]
+        transform_pad[1, 2] = pads[1][0]
+        transform = np.dot(transform_pad, transform)
+        logging.debug('Transform for padding:\n%s', transform_pad)
+        logging.debug('Combined transform after padding:\n%s', transform)
 
     if edge != 'original':
         # The transform is scaled on X and Y to match the top-right corner.
-        transform[0, 0] = target_height / float(patch.shape[0])
-        transform[1, 1] = target_width / float(patch.shape[1])
-        transform[0, 2] *= transform[0, 0]
-        transform[1, 2] *= transform[1, 1]
+        transform_scale = np.eye(3, 3, dtype=float)
+        transform_scale[0, 0] = target_height / float(patch.shape[0])
+        transform_scale[1, 1] = target_width / float(patch.shape[1])
+        transform = np.dot(transform_scale, transform)
+        logging.debug('Transform for scaling patch:\n%s', transform_scale)
+        logging.debug('Combined transform after scaling patch:\n%s', transform)
+
         patch = cv2.resize(patch, dsize=(target_width, target_height))
 
     return patch, transform
@@ -324,3 +257,17 @@ def clipRoiToShape(roi, shape):
     return (max(roi[0], 0), max(roi[1],
                                 0), min(roi[2],
                                         shape[0]), min(roi[3], shape[1]))
+
+
+def _getTransformBetweenRois(roi_from, roi_to):
+    if roi_from[2] <= roi_from[0] or roi_from[3] <= roi_from[1]:
+        raise ValueError('Roi_from has weight or height <= 0: %s' % roi_from)
+    if roi_to[2] <= roi_to[0] or roi_to[3] <= roi_to[1]:
+        raise ValueError('Roi_to has weight or height <= 0: %s' % roi_to)
+
+    transform = np.eye(3, 3, dtype=float)
+    transform[0, 0] = (roi_to[2] - roi_to[0]) / (roi_from[2] - roi_from[0])
+    transform[1, 1] = (roi_to[3] - roi_to[1]) / (roi_from[3] - roi_from[1])
+    transform[0, 2] = roi_to[0] - transform[0, 0] * roi_from[0]
+    transform[1, 2] = roi_to[1] - transform[1, 1] * roi_from[1]
+    return transform

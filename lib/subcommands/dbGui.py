@@ -323,8 +323,8 @@ def examineObjects(c, args):
             polygon_entries = c.fetchall()
             if len(polygon_entries) > 0:
                 logging.info('showing object with a polygon.')
-                polygon = [(backendDb.polygonField(p, 'x'),
-                            backendDb.polygonField(p, 'y'))
+                polygon = [(int(backendDb.polygonField(p, 'x')),
+                            int(backendDb.polygonField(p, 'y')))
                            for p in polygon_entries]
                 logging.debug('nonscaled polygon: %s' % pformat(polygon))
                 polygon = [(int(scale * x), int(scale * y))
@@ -463,8 +463,8 @@ def labelObjects(c, args):
             polygon_entries = c.fetchall()
             if len(polygon_entries) > 0:
                 logging.info('showing object with a polygon.')
-                polygon = [(backendDb.polygonField(p, 'x'),
-                            backendDb.polygonField(p, 'y'))
+                polygon = [(int(backendDb.polygonField(p, 'x')),
+                            int(backendDb.polygonField(p, 'y')))
                            for p in polygon_entries]
                 logging.debug('nonscaled polygon: %s' % pformat(polygon))
                 polygon = [(int(scale * p[0]), int(scale * p[1]))

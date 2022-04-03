@@ -1,6 +1,5 @@
 import os, os.path as op
 import sqlite3
-import cv2
 from lxml import etree as ET
 import logging
 from glob import glob
@@ -24,9 +23,9 @@ def _pointsOfPolygon(annotation):
     xs = []
     ys = []
     for pt in pts:
-        xs.append(int(float(pt.find('x').text)))
-        ys.append(int(float(pt.find('y').text)))
-    logging.debug('Parsed polygon xs=%s, ys=%s.' % (xs, ys))
+        xs.append(float(pt.find('x').text))
+        ys.append(float(pt.find('y').text))
+    logging.debug('Parsed polygon xs=%s, ys=%s.', xs, ys)
     return xs, ys
 
 
@@ -91,7 +90,7 @@ def importLabelme(c, args):
     # Adding images.
     image_paths = (glob(op.join(args.images_dir, '*.jpg')) +
                    glob(op.join(args.images_dir, '*.JPG')))
-    logging.info('Adding %d images.' % len(image_paths))
+    logging.info('Adding %d images.', len(image_paths))
     imagefiles = []
     for image_path in progressbar(image_paths):
         height, width = backendMedia.getPictureSize(image_path)
@@ -127,7 +126,7 @@ def importLabelme(c, args):
                           labelme_imagefile)
             continue
         elif len(matches) > 1:
-            logging.warning('Found multiple files: %s' % pformat(matches))
+            logging.warning('Found multiple files: %s', pformat(matches))
         # FIXME: pick the latest as opposed to just one of those.
         annotation_file = op.join(args.annotations_dir, matches[0])
         logging.debug('Got a match %s' % annotation_file)
@@ -147,8 +146,8 @@ def importLabelme(c, args):
 
             # filter out degenerate polygons
             if _isPolygonDegenerate(xs, ys):
-                logging.warning('Degenerate polygon %s,%s in %s' %
-                                (str(xs), str(ys), annotation_file))
+                logging.warning('Degenerate polygon %s,%s in %s', str(xs),
+                                str(ys), annotation_file)
                 continue
 
             if args.replace:
@@ -312,13 +311,13 @@ def exportLabelme(c, args):
             c.execute('SELECT DISTINCT(name) FROM polygons WHERE objectid=?',
                       (objectid, ))
             pol_names = [x for x, in c.fetchall()]
-            logging.debug('For objectid %d found %d polygons' %
-                          (objectid, len(pol_names)))
+            logging.debug('For objectid %d found %d polygons', objectid,
+                          len(pol_names))
             if len(pol_names) > 1:
                 print_warning_for_multiple_polygons_in_the_end = True
                 logging.warning(
-                    'objectid %d has multiple polygons: %s. Wrote only the first.'
-                    % (objectid, pformat(pol_names)))
+                    'objectid %d has multiple polygons: %s. Wrote only the first.',
+                    objectid, pformat(pol_names))
             for pol_name in pol_names:
                 el_polygon = ET.SubElement(el_object, 'polygon')
                 # Recording the username.
@@ -343,8 +342,8 @@ def exportLabelme(c, args):
                     el_point = ET.SubElement(el_polygon, 'pt')
                     ET.SubElement(el_point, 'x').text = str(x)
                     ET.SubElement(el_point, 'y').text = str(y)
-                logging.debug('Polygon %s has %d points.' %
-                              (pol_name, len(xy_entries)))
+                logging.debug('Polygon %s has %d points.', pol_name,
+                              len(xy_entries))
 
         c.execute('UPDATE images SET name=? WHERE imagefile=?',
                   (imagefile, imagefile))
@@ -372,7 +371,7 @@ def exportLabelme(c, args):
         # Write annotation.
         annotation_name = '%s.xml' % op.splitext(image_name)[0]
         annotation_path = op.join(args.annotations_dir, annotation_name)
-        logging.debug('Writing annotation to %s' % annotation_path)
+        logging.debug('Writing annotation to "%s"', annotation_path)
         if op.exists(annotation_path) and not args.overwrite:
             raise FileExistsError('Annotation file "%s" already exists. '
                                   'Maybe pass "overwrite" argument.')

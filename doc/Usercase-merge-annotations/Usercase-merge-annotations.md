@@ -1,7 +1,7 @@
 Import from LabelMe, each image is labelled by multiple annotators.
 
 ```bash
-./shuffler.py --rootdir '.' -i 'testdata/labelme/init.db' \
+./shuffler.py --rootdir '.' -i 'testdata/labelme/init_v5.db' \
   importLabelmeObjects --annotations_dir 'testdata/labelme/w55-e04-objects1' \
   --keep_original_object_name --polygon_name annotator1 \| \
   importLabelmeObjects --annotations_dir 'testdata/labelme/w55-e04-objects2' \

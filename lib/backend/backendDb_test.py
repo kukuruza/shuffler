@@ -1,5 +1,4 @@
-import os, sys, os.path as op
-import logging
+import os
 import sqlite3
 import shutil
 import unittest
@@ -14,7 +13,7 @@ from lib.utils import testUtils
 
 class TestCars(unittest.TestCase):
 
-    CARS_DB_PATH = 'testdata/cars/micro1_v4.db'
+    CARS_DB_PATH = 'testdata/cars/micro1_v5.db'
 
     def setUp(self):
         self.temp_db_path = tempfile.NamedTemporaryFile().name
@@ -246,6 +245,63 @@ class Test_updateObjectTransform_emptyDb(testUtils.Test_emptyDb):
 
         np.testing.assert_array_equal(np.matmul(transform1, transform0),
                                       transform2)
+
+
+class TestUpgradeV4toV5Cars(testUtils.Test_emptyDb):
+
+    CARS_DB_V4_PATH = 'testdata/cars/micro1_v5.db'
+    CARS_DB_V5_PATH = 'testdata/cars/micro1_v5.db'
+
+    def setUp(self):
+        self.temp_db_v4_path = tempfile.NamedTemporaryFile().name
+        self.temp_db_v5_path = tempfile.NamedTemporaryFile().name
+
+        shutil.copyfile(self.CARS_DB_V4_PATH, self.temp_db_v4_path)
+        shutil.copyfile(self.CARS_DB_V5_PATH, self.temp_db_v5_path)
+
+        self.conn = sqlite3.connect(self.temp_db_v4_path)
+        backendDb.upgradeV4toV5(self.conn.cursor())
+
+    def tearDown(self):
+        self.conn.close()
+        os.remove(self.temp_db_v4_path)
+        os.remove(self.temp_db_v5_path)
+
+    def _test_table_contents(self, cursor, table):
+        ''' Compare the contents of "table" between "main" and "gt" schema names. '''
+
+        cursor.execute('SELECT * FROM %s' % table)
+        entries_main = cursor.fetchall()
+        cursor.execute('ATTACH "%s" AS gt' % self.temp_db_v5_path)
+        cursor.execute('SELECT * FROM gt.%s' % table)
+        entries_gt = cursor.fetchall()
+        self.assertEqual(entries_main, entries_gt)
+
+    def test_compareContentImages(self):
+        self._test_table_contents(self.conn.cursor(), 'images')
+
+    def test_compareContentObjects(self):
+        self._test_table_contents(self.conn.cursor(), 'objects')
+
+    def test_compareContentMatches(self):
+        self._test_table_contents(self.conn.cursor(), 'matches')
+
+    def test_compareContentPolygons(self):
+        self._test_table_contents(self.conn.cursor(), 'polygons')
+
+    def test_compareContentProperties(self):
+        self._test_table_contents(self.conn.cursor(), 'properties')
+
+    def test_indexNames(self):
+        cursor = self.conn.cursor()
+        cursor.execute('SELECT name FROM sqlite_master WHERE type == "index"')
+        entries_main = cursor.fetchall()
+        cursor.execute('ATTACH "%s" AS gt' % self.temp_db_v5_path)
+        cursor.execute('SELECT name FROM sqlite_master WHERE type == "index"')
+        entries_gt = cursor.fetchall()
+        self.assertEqual(entries_main, entries_gt)
+
+        # TODO: Test that indexes actually have the same info.
 
 
 if __name__ == '__main__':

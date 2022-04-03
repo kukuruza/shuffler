@@ -220,7 +220,7 @@ def cropObjects(c, args):
                                                    args.target_height,
                                                    args.target_width)
         if args.split_into_folders_by_object_name:
-            # TODO: Do something about names with spacial characters.
+            # TODO: Do something about names with special characters.
             #       Cant use validateFileName because two names may get mapped
             #       into one filename.
             namehint = '%s/%09d' % (util.maybeDecode(name), old_objectid)
