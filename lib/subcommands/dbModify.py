@@ -40,6 +40,7 @@ def add_parsers(subparsers):
     syncObjectidsWithDbParser(subparsers)
     syncObjectsDataWithDbParser(subparsers)
     revertObjectTransformsParser(subparsers)
+    fixRoundingViaRefDbParser(subparsers)
     upgradeV4toV5Parser(subparsers)
 
 
@@ -1450,6 +1451,111 @@ def revertObjectTransforms(c, args):
     c.execute('DELETE FROM properties WHERE key="old_imagefile"')
     logging.info('%d objects out of %d were reverted.', count,
                  len(object_entries))
+
+
+def fixRoundingViaRefDbParser(subparsers):
+    parser = subparsers.add_parser(
+        'fixRoundingViaRefDb',
+        description='If a dataset has been exported to a format that does not '
+        'support floating point coordinates (such as LabelMe), and then '
+        'reimported again, then any floating point precision is lost. '
+        'This function uses floating point coordinates of bboxes and polygons '
+        'in ref_db_file (which was recorded before the export) to update '
+        'the active database (after manual labeling/editing and reimport). '
+        'Points (corners of bboxes or point in polygons) that are subpixel '
+        'distance away from the corresponding points in ref_db_file are deemed '
+        'not-edited by a user and is restored from red_db_file.')
+    parser.add_argument(
+        '--epsilon',
+        type=float,
+        default=1.,
+        help='How close should a new value be from the old one in order to be '
+        'considered a rounding error to fix rather than a user input.')
+    parser.set_defaults(func=fixRoundingViaRefDb)
+    parser.add_argument('--ref_db_file', required=True)
+
+
+def fixRoundingViaRefDb(c, args):
+    if not op.exists(args.ref_db_file):
+        raise FileNotFoundError('Ref db does not exist: %s', args.ref_db_file)
+    c.execute('ATTACH ? AS "ref"', (args.ref_db_file, ))
+
+    # Update if objects.x1 has changed.
+    # Can not udpate both x1 and width in one UPDATE FROM SELECT statement.
+    c.execute(
+        'UPDATE objects SET width = ('
+        '  SELECT x1 - refo.x1 + width FROM ref.objects refo '
+        '  WHERE objects.objectid = refo.objectid) '
+        'WHERE objectid IN ('
+        '  SELECT o.objectid FROM objects o JOIN ref.objects refo '
+        '  ON o.objectid = refo.objectid '
+        '  WHERE o.x1 != refo.x1 AND ABS(o.x1 - refo.x1) < ?)',
+        (args.epsilon, ))
+    c.execute(
+        'UPDATE objects SET x1 = ('
+        '  SELECT x1 FROM ref.objects refo '
+        '  WHERE objects.objectid = refo.objectid) '
+        'WHERE objectid IN ('
+        '  SELECT o.objectid FROM objects o JOIN ref.objects refo '
+        '  ON o.objectid = refo.objectid '
+        '  WHERE o.x1 != refo.x1 AND ABS(o.x1 - refo.x1) < ?)',
+        (args.epsilon, ))
+    # Update if x2 = objects.x1 + objects.width has changed.
+    c.execute(
+        'UPDATE objects SET width = ('
+        '  SELECT x1 - objects.x1 + width FROM ref.objects refo '
+        '  WHERE objects.objectid = refo.objectid) '
+        'WHERE objectid IN ('
+        '  SELECT o.objectid FROM objects o JOIN ref.objects refo '
+        '  ON o.objectid = refo.objectid '
+        '  WHERE o.x1 + o.width != refo.x1 + refo.width '
+        '    AND ABS(o.x1 + o.width - refo.x1 - refo.width) < ?)',
+        (args.epsilon, ))
+    # Update if objects.y1 has changed.
+    # Can not udpate both y1 and height in one UPDATE FROM SELECT statement.
+    c.execute(
+        'UPDATE objects SET height = ('
+        '  SELECT y1 - refo.y1 + height FROM ref.objects refo '
+        '  WHERE objects.objectid = refo.objectid) '
+        'WHERE objectid IN ('
+        '  SELECT o.objectid FROM objects o JOIN ref.objects refo '
+        '  ON o.objectid = refo.objectid '
+        '  WHERE o.y1 != refo.y1 AND ABS(o.y1 - refo.y1) < ?)',
+        (args.epsilon, ))
+    c.execute(
+        'UPDATE objects SET y1 = ('
+        '  SELECT y1 FROM ref.objects refo '
+        '  WHERE objects.objectid = refo.objectid) '
+        'WHERE objectid IN ('
+        '  SELECT o.objectid FROM objects o JOIN ref.objects refo '
+        '  ON o.objectid = refo.objectid '
+        '  WHERE o.y1 != refo.y1 AND ABS(o.y1 - refo.y1) < ?)',
+        (args.epsilon, ))
+    # Update if y2 = objects.y1 + objects.height has changed.
+    c.execute(
+        'UPDATE objects SET height = ('
+        '  SELECT y1 - objects.y1 + height FROM ref.objects refo '
+        '  WHERE objects.objectid = refo.objectid) '
+        'WHERE objectid IN ('
+        '  SELECT o.objectid FROM objects o JOIN ref.objects refo '
+        '  ON o.objectid = refo.objectid '
+        '  WHERE o.y1 + o.height != refo.y1 + refo.height '
+        '    AND ABS(o.y1 + o.height - refo.y1 - refo.height) < ?)',
+        (args.epsilon, ))
+    # Update if polygon.x has changed.
+    c.execute(
+        'UPDATE polygons SET x = ('
+        'SELECT x FROM ref.polygons refp WHERE polygons.id = refp.id) '
+        'WHERE id IN ('
+        '  SELECT p.id FROM polygons p JOIN ref.polygons refp ON p.id = refp.id '
+        '  WHERE p.x != refp.x AND ABS(p.x - refp.x) < ?)', (args.epsilon, ))
+    # Update if polygon.y has changed.
+    c.execute(
+        'UPDATE polygons SET y = ('
+        'SELECT y FROM ref.polygons refp WHERE polygons.id = refp.id) '
+        'WHERE id IN ('
+        '  SELECT p.id FROM polygons p JOIN ref.polygons refp ON p.id = refp.id '
+        '  WHERE p.y != refp.y AND ABS(p.y - refp.y) < ?)', (args.epsilon, ))
 
 
 def upgradeV4toV5Parser(subparsers):
