@@ -51,7 +51,7 @@ class TestCars(unittest.TestCase):
 
         # Multiple fields.
         self.assertEqual(backendDb.objectFields(entry, ['objectid', 'x1']),
-                         [1, 225], str(entry))
+                         [1, 225.1], str(entry))
         with self.assertRaises(KeyError):
             self.assertEqual(backendDb.objectFields(entry, ['x1', 'dummy']))
 
@@ -98,8 +98,8 @@ class TestCars(unittest.TestCase):
             backendDb.polygonField(entry, 'dummy')
 
         # Multiple fields.
-        self.assertEqual(backendDb.polygonFields(entry, ['id', 'x']), [1, 97],
-                         str(entry))
+        self.assertEqual(backendDb.polygonFields(entry, ['id', 'x']),
+                         [1, 97.1], str(entry))
         with self.assertRaises(KeyError):
             self.assertEqual(backendDb.polygonFields(entry, ['id', 'dummy']))
 

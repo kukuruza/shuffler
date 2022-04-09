@@ -23,8 +23,9 @@ def _pointsOfPolygon(annotation):
     xs = []
     ys = []
     for pt in pts:
-        xs.append(float(pt.find('x').text))
-        ys.append(float(pt.find('y').text))
+        # Labelme does not process float, so round to int.
+        xs.append(int(float(pt.find('x').text)))
+        ys.append(int(float(pt.find('y').text)))
     logging.debug('Parsed polygon xs=%s, ys=%s.', xs, ys)
     return xs, ys
 
@@ -59,7 +60,7 @@ def importLabelmeParser(subparsers):
 def importLabelme(c, args):
     if args.ref_db_file:
         if not op.exists(args.ref_db_file):
-            raise FileNotFoundError('Ref db does not exist: %s',
+            raise FileNotFoundError('Ref db does not exist: %s' %
                                     args.ref_db_file)
         conn_ref = sqlite3.connect('file:%s?mode=ro' % args.ref_db_file,
                                    uri=True)

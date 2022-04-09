@@ -100,7 +100,8 @@ class Test_getIntersectingObjects(unittest.TestCase):
     def test_twoIntersecting(self):
         objects1 = [(1, 'image', 10, 10, 30, 30, 'name1', 1.)]
         objects2 = [(2, 'image', 20, 20, 30, 30, 'name2', 1.),
-                    (3, 'image', 10, 10, 30, 30, 'name3', 1.)]
+                    (3, 'image', 10, 10, 30, 30, 'name3', 1.),
+                    (4, 'image', 40, 50, 60, 70, 'name4', 1.)]
         pairs_to_merge = util.getIntersectingObjects(objects1, objects2, 0.1)
         self.assertEqual(pairs_to_merge, [(1, 3)])
 
@@ -171,6 +172,88 @@ class Test_makeExportedImageName(unittest.TestCase):
                                               'src_dir/file(?)name',
                                               fix_invalid_image_names=True)
         self.assertEqual(tgt_path, 'tgt_dir/file___name')
+
+
+class Test_getMatchPolygons(unittest.TestCase):
+    def test_empty(self):
+        pairs = util.getMatchPolygons([], [], 1.)
+        self.assertEqual(pairs, [])
+
+    def test_firstEmpty(self):
+        objectid = 1
+        polygons2 = [(1, objectid, 10, 30, 'name1')]
+        pairs = util.getMatchPolygons([], polygons2, 1.)
+        self.assertEqual(pairs, [])
+
+    def test_identical(self):
+        ''' Identical points are not matched if when ignoring names. '''
+        objectid = 1
+        polygons1 = [(1, objectid, 10, 30, 'name1')]
+        polygons2 = [(2, objectid, 10, 30, 'name2')]
+        pairs = util.getMatchPolygons(polygons1, polygons2, 1., True)
+        self.assertEqual(pairs, [(1, 2)])
+
+    def test_identicalAndNameMatter(self):
+        ''' Identical points are not matched if names differ. '''
+        objectid = 1
+        polygons1 = [(1, objectid, 10, 30, 'name1')]
+        polygons2 = [(2, objectid, 10, 30, 'name2')]
+        pairs = util.getMatchPolygons(polygons1, polygons2, 1., False)
+        self.assertEqual(pairs, [])
+
+    def test_someMatchingPointsAndNameIgnored(self):
+        ''' Some points are matched, names are ignored. '''
+        objectid = 1
+        polygons1 = [(1, objectid, 100, 100, 'name1'),
+                     (2, objectid, 10, 30, 'name2')]
+        polygons2 = [(3, objectid, 10, 30, 'name2'),
+                     (4, objectid, 200, 200, 'name3')]
+        pairs = util.getMatchPolygons(polygons1, polygons2, 1., True)
+        self.assertEqual(pairs, [(2, 3)])
+
+    def test_ambiguousPointsInPolygon1(self):
+        ''' Expect an error if two points can be matched. Names are ignored. '''
+        objectid = 1
+        polygons1 = [(1, objectid, 10, 30, 'name1'),
+                     (2, objectid, 10, 30, 'name2')]
+        polygons2 = [(3, objectid, 10, 30, 'name2'),
+                     (4, objectid, 200, 200, 'name3')]
+        # If there are matches of repeated points, then smth is wrong here.
+        with self.assertRaises(ValueError):
+            util.getMatchPolygons(polygons1, polygons2, 1., True)
+
+    def test_ambiguousPointsInPolygon2(self):
+        ''' Expect an error if two points can be matched. Names are ignored. '''
+        objectid = 1
+        polygons1 = [(3, objectid, 10, 30, 'name2'),
+                     (4, objectid, 200, 200, 'name3')]
+        polygons2 = [(1, objectid, 10, 30, 'name1'),
+                     (2, objectid, 10, 30, 'name2')]
+        # If there are matches of repeated points, then smth is wrong here.
+        with self.assertRaises(ValueError):
+            util.getMatchPolygons(polygons1, polygons2, 1., True)
+
+    def test_haveRepeatedPointsAndNameMatter(self):
+        ''' Only the point with matching name is matched out of two points. '''
+        objectid = 1
+        polygons1 = [(1, objectid, 10, 30, 'name1'),
+                     (2, objectid, 10, 30, 'name2')]
+        polygons2 = [(3, objectid, 10, 30, 'name2'),
+                     (4, objectid, 200, 200, 'name3')]
+        pairs = util.getMatchPolygons(polygons1, polygons2, 1., False)
+        self.assertEqual(pairs, [(2, 3)])
+
+    def test_haveNameIsNull(self):
+        ''' Only the point with matching name is matched out of two points. '''
+        objectid = 1
+        polygons1 = [(1, objectid, 10, 30, None),
+                     (2, objectid, 20, 40, 'name1'),
+                     (3, objectid, 30, 50, 'name2')]
+        polygons2 = [(4, objectid, 30, 50, 'name2'),
+                     (5, objectid, 20, 40, 'name1'),
+                     (6, objectid, 10, 30, None)]
+        pairs = util.getMatchPolygons(polygons1, polygons2, 1., False)
+        self.assertEqual(set(pairs), set([(1, 6), (2, 5), (3, 4)]))
 
 
 if __name__ == '__main__':

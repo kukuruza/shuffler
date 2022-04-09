@@ -419,7 +419,8 @@ def getIntersectingObjects(objects1, objects2, IoU_threshold, same_id_ok=True):
                 roi1 = backendDb.objectField(object1, 'roi')
                 roi2 = backendDb.objectField(object2, 'roi')
                 pairwise_IoU[i1, i2] = utilBoxes.getIoU(roi1, roi2)
-    logging.debug('Pairwise_IoU is:\n%s', pprint.pformat(pairwise_IoU))
+    logging.debug('getIntersectingObjects got Pairwise_IoU:\n%s',
+                  np.array2string(pairwise_IoU, precision=1))
 
     # Greedy search for pairs.
     pairs_to_merge = []
@@ -440,7 +441,7 @@ def getIntersectingObjects(objects1, objects2, IoU_threshold, same_id_ok=True):
         pairs_to_merge.append((objectid1, objectid2))
         name1 = backendDb.objectField(objects1[i1], 'name')
         name2 = backendDb.objectField(objects2[i2], 'name')
-        logging.debug('Will merge objects %d (%s) and %d (%s) with IoU %f.',
+        logging.debug('Matching objects %d (%s) and %d (%s) with IoU %f.',
                       objectid1, name1, objectid2, name2, IoU)
 
     return pairs_to_merge
@@ -491,3 +492,75 @@ def makeExportedImageName(tgt_dir,
             'several dirs. Use --full_imagefile_as_name. '
         raise FileExistsError(message)
     return tgt_path
+
+
+def getMatchPolygons(polygons1, polygons2, threshold, ignore_name=True):
+    '''
+    Given two lists of polygons points find pairs that are within threshold.
+    Polygons are assumed to belong to the same object.
+
+    Args:
+      polygons1, polygons2: A list of polygon entries.
+                            Each entry is the whole row in the 'polygon' table.
+      threshold:            (float) Anything above it is not matched.
+      ignore_name:          (bool) Whether to match points with different names.
+    Returns:
+      pairs_to_merge:       A list of tuples. Each tuple has [polygon]id of an
+                            entry in 'polygons1' and [polygon]id of an entry in 
+                            'polygons2'.
+    '''
+    # Compute pairwise distances between rectangles.
+    # TODO: possibly can optimize in future to avoid O(N^2) complexity.
+    pairwise_dist = np.zeros(shape=(len(polygons1), len(polygons2)),
+                             dtype=float)
+    for i1, polygon_entry1 in enumerate(polygons1):
+        for i2, polygon_entry2 in enumerate(polygons2):
+            x1 = backendDb.polygonField(polygon_entry1, 'x')
+            y1 = backendDb.polygonField(polygon_entry1, 'y')
+            name1 = backendDb.polygonField(polygon_entry1, 'name')
+            x2 = backendDb.polygonField(polygon_entry2, 'x')
+            y2 = backendDb.polygonField(polygon_entry2, 'y')
+            name2 = backendDb.polygonField(polygon_entry2, 'name')
+            pairwise_dist[i1, i2] = np.linalg.norm(
+                np.array([x1, y1], dtype=float) -
+                np.array([x2, y2], dtype=float)) + (
+                    0 if ignore_name or name1 == name2 else np.inf)
+    logging.debug('getMatchPolygons got pairwise_dist:\n%s',
+                  np.array2string(pairwise_dist, precision=1))
+
+    # Greedy search for pairs.
+    pairs_to_merge = []
+    for _ in range(min(len(polygons1), len(polygons2))):
+        i1, i2 = np.unravel_index(np.argmin(pairwise_dist),
+                                  pairwise_dist.shape)
+        dist = pairwise_dist[i1, i2]
+        # Stop if no more good pairs.
+        if dist > threshold:
+            logging.debug('Already got a non-matching pair: %d and %d', i1, i2)
+            break
+        # If there are multiple matches under the threshold, it's a problem
+        # because matching should be non-ambiguous. In so, raise an error.
+        pairwise_dist[i1, i2] = np.inf
+        if np.min(pairwise_dist[i1, :]) < threshold:
+            i2_ambiguous = np.argmin(pairwise_dist[i1, :].flatten())
+            raise ValueError('Polygon points id=%d can be matched with two '
+                             'points id=%d and id=%d, which is ambiguous' %
+                             (i1, i2, i2_ambiguous))
+        if np.min(pairwise_dist[:, i2]) < threshold:
+            i1_ambiguous = np.argmin(pairwise_dist[:, i2].flatten())
+            raise ValueError('Two polygon points id=%d and id=%d can be '
+                             'matched with id=%d, which is ambiguous' %
+                             (i1, i1_ambiguous, i2))
+        # np.min(pairwise_dist[i1, :])
+        # Disable these polygons for the next step.
+        pairwise_dist[i1, :] = np.inf
+        pairwise_dist[:, i2] = np.inf
+        # Add a pair to the list.
+        id1 = backendDb.polygonField(polygons1[i1], 'id')
+        id2 = backendDb.polygonField(polygons2[i2], 'id')
+        pairs_to_merge.append((id1, id2))
+        logging.debug(
+            'Matched points %d and %d (indices %d and %d) with distance %.2f.',
+            id1, id2, i1, i2, dist)
+
+    return pairs_to_merge

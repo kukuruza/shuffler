@@ -1,8 +1,11 @@
 import os, os.path as op
+import logging
 import sqlite3
+import shutil
 import progressbar
 import unittest
 import argparse
+import pprint
 import tempfile
 import numpy as np
 import cv2
@@ -10,13 +13,15 @@ import nose
 
 from lib.backend import backendDb
 from lib.subcommands.datasets import dbLabelme
-from lib.subcommands import dbInfo
+from lib.subcommands import dbModify
 
 
 class Test_exportLabelme_importLabelme_synthetic(unittest.TestCase):
+    '''
+    Check that running exportLabelme, importLabelme, and syncRoundedCoordinatesWithDb in
+    sequence has no effect.
+    '''
     def setUp(self):
-        ''' Create a database with one iamge and one object. '''
-
         self.work_dir = tempfile.mkdtemp()
         self.rootdir = self.work_dir  # rootdir is defined for readability.
         # Image dir is another layer of directories in order to check option
@@ -31,8 +36,8 @@ class Test_exportLabelme_importLabelme_synthetic(unittest.TestCase):
         cv2.imwrite(op.join(self.rootdir, self.imagefile), image)
         assert op.exists(op.join(self.rootdir, self.imagefile))
 
-        self.ref_db_file = op.join(self.rootdir, 'ref_db_file.db')
-        self.conn = sqlite3.connect(self.ref_db_file)
+        self.exported_db_file = op.join(self.rootdir, 'exported_db_file.db')
+        self.conn = sqlite3.connect(self.exported_db_file)
         backendDb.createDb(self.conn)
         c = self.conn.cursor()
         c.execute('INSERT INTO images(imagefile) VALUES (?)',
@@ -43,12 +48,20 @@ class Test_exportLabelme_importLabelme_synthetic(unittest.TestCase):
         # Polygons are consistent with the object.
         c.execute('INSERT INTO polygons(objectid,x,y) '
                   'VALUES (123,40,20), (123,70,20), (123,70,30)')
+        # Save changes and make a copy to allow the comparison after the import.
+        self.conn.commit()
+        self.old_db_file = op.join(self.rootdir, 'old_db_file.db')
+        shutil.copyfile(self.exported_db_file, self.old_db_file)
+
+    def tearDown(self):
+        if op.exists(self.work_dir):
+            shutil.rmtree(self.work_dir)
 
     def test_regular(self):
         #
         # Export.
         #
-        c_old = self.conn.cursor()
+        c = self.conn.cursor()
         args = argparse.Namespace(rootdir=self.rootdir,
                                   images_dir=op.join(self.work_dir, 'Images'),
                                   annotations_dir=op.join(
@@ -60,24 +73,9 @@ class Test_exportLabelme_importLabelme_synthetic(unittest.TestCase):
                                   dirtree_level_for_name=2,
                                   fix_invalid_image_names=True,
                                   overwrite=False)
-        dbLabelme.exportLabelme(c_old, args)
+        dbLabelme.exportLabelme(c, args)
         # Save changes to allow the use of this file as ref_db_file at export.
         self.conn.commit()
-
-        # Check that the exported image name is correct
-        c_old.execute('SELECT imagefile FROM images')
-        imagefile_old = c_old.fetchone()
-        # The export must make the following changes:
-        #   1. Dir "images" is a part of the file name.
-        #   2. Invalid characters "(" and ")" are replaces with "_".
-        #   3. png is replaces with jpg.
-        self.assertEqual(imagefile_old, ('Images/images_image__.jpg', ))
-        # Make sure exported files exist.
-        self.assertTrue(
-            op.exists(op.join(self.work_dir, 'Images/images_image__.jpg')))
-        self.assertTrue(
-            op.exists(op.join(self.work_dir,
-                              'Annotations/images_image__.xml')))
 
         #
         # Import.
@@ -90,46 +88,59 @@ class Test_exportLabelme_importLabelme_synthetic(unittest.TestCase):
                                   annotations_dir=op.join(
                                       self.work_dir, 'Annotations'),
                                   replace=False,
-                                  ref_db_file=self.ref_db_file)
+                                  ref_db_file=self.exported_db_file)
         dbLabelme.importLabelme(c_new, args)
 
+        # Sync objectids.
+        logging.debug('============ syncObjectidsWithDb =============')
+        args = argparse.Namespace(ref_db_file=self.old_db_file,
+                                  IoU_threshold=0.9)
+        dbModify.syncObjectidsWithDb(c_new, args)
+
+        # Sync polygons. Polygon names are not preserved by Labelme.
+        logging.debug('============ syncPolygonIdsWithDb =============')
+        args = argparse.Namespace(ref_db_file=self.old_db_file,
+                                  epsilon=1.,
+                                  ignore_name=True)
+        dbModify.syncPolygonIdsWithDb(c_new, args)
+
+        # Sync to fix rounding.
+        logging.debug('============ syncRoundedCoordinatesWithDb ============')
+        args = argparse.Namespace(ref_db_file=self.old_db_file, epsilon=1.)
+        dbModify.syncRoundedCoordinatesWithDb(c_new, args)
+
         # Check that imagefiles matches.
-        c_new.execute('SELECT imagefile FROM images')
-        imagefile_new = c_new.fetchone()
-        self.assertEqual(imagefile_new, (self.imagefile, ))
+        conn_old = backendDb.connect(self.old_db_file, 'load_to_memory')
+        c_old = conn_old.cursor()
+        images_query = 'SELECT imagefile FROM images ORDER BY imagefile'
+        c_old.execute(images_query)
+        imagefiles_old = c_old.fetchall()
+        c_new.execute(images_query)
+        imagefiles_new = c_new.fetchall()
+        self.assertEqual(imagefiles_old, imagefiles_new)
 
         # Check that objects match.
-        c_old.execute('SELECT * FROM objects')
+        objects_query = ('SELECT objectid,imagefile,x1,y1,width,height,name '
+                         'FROM objects ORDER BY objectid')
+        c_old.execute(objects_query)
         objects_old = c_old.fetchall()
-        c_new.execute('SELECT * FROM objects')
+        c_new.execute(objects_query)
         objects_new = c_new.fetchall()
+        self.assertEqual(objects_old, objects_new)
 
-        args = argparse.Namespace(tables=['objects'], limit=100)
-        dbInfo.dumpDb(c_old, args)
-        dbInfo.dumpDb(c_new, args)
-
-        self.assertEqual(len(objects_old), 1,
-                         'exportLabelme must keep the original object.')
-        self.assertEqual(len(objects_new), 1,
-                         'importLabelme mist read the original object.')
-        bbox_old = backendDb.objectField(objects_old[0], 'bbox')
-        bbox_new = backendDb.objectField(objects_new[0], 'bbox')
-        self.assertListEqual(bbox_old, bbox_new)
-        name_old = backendDb.objectField(objects_old[0], 'name')
-        name_new = backendDb.objectField(objects_new[0], 'name')
-        self.assertEqual(name_old, name_new)
-
-        # Check that objects match.
-        c_old.execute('SELECT x,y FROM polygons')
+        # Check that polygons match.
+        OBJECT_ID_WITH_POLYGONS = 123  # Only this object has polygons in cars db.
+        polygons_query = 'SELECT id,objectid,x,y FROM polygons WHERE objectid=? ORDER BY id'
+        c_old.execute(polygons_query, (OBJECT_ID_WITH_POLYGONS, ))
         polygons_old = c_old.fetchall()
-        c_new.execute('SELECT x,y FROM polygons')
+        logging.debug('old polygons:\n%s', pprint.pformat(polygons_old))
+        assert len(polygons_old) == 3, 'SetUp wrote 3 polygons.'
+        c_new.execute(polygons_query, (OBJECT_ID_WITH_POLYGONS, ))
         polygons_new = c_new.fetchall()
-
-        self.assertEqual(len(polygons_old), 3,
-                         'exportLabelme must keep the original polygons.')
+        logging.debug('new polygons:\n%s', pprint.pformat(polygons_new))
         self.assertEqual(len(polygons_new), 3,
                          'importLabelme mist read the original polygons.')
-        self.assertTupleEqual(polygons_old[0], polygons_new[0])
+        self.assertEqual(polygons_old, polygons_new)
 
 
 if __name__ == '__main__':
