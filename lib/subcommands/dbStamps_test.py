@@ -196,25 +196,28 @@ class Test_encodeNames(testUtils.Test_carsDb):
         shutil.rmtree(self.work_dir)
         super().tearDown()
 
-    def test_general(self):
+    def test_WriteAndReadEncodingFile(self):
         c = self.conn.cursor()
 
         # Add the special case.
         c.execute("INSERT INTO objects(name) VALUES ('??+'), ('??+'), ('??+')")
-        # Add the non-used pages.
-        c.execute("INSERT INTO objects(name) VALUES ('page'), ('page_r')")
 
         encoding_json_file = op.join(self.work_dir, 'encoding.json')
-        dbStamps.encodeNames(
-            c, argparse.Namespace(encoding_json_file=encoding_json_file))
 
+        # Encode with writing the encoding file.
+        dbStamps.encodeNames(
+            c,
+            argparse.Namespace(out_encoding_json_file=encoding_json_file,
+                               in_encoding_json_file=None))
+
+        # Test the database.
         c.execute('SELECT o.name,value FROM objects o INNER JOIN properties p '
                   ' ON o.objectid == p.objectid WHERE key="name_id"')
-        entries = set(c.fetchall())
-
-        self.assertEqual(entries,
+        entries = c.fetchall()
+        self.assertEqual(set(entries),
                          set([('bus', '1'), ('car', '0'), ('??+', '-1')]))
 
+        # Test the encoding file.
         self.assertTrue(op.exists(encoding_json_file))
         encoding = json.load(open(encoding_json_file))
         self.assertTrue('bus' in encoding)
@@ -222,6 +225,23 @@ class Test_encodeNames(testUtils.Test_carsDb):
         self.assertEqual(encoding['car'], 0, encoding)
         self.assertEqual(encoding['bus'], 1, encoding)
         self.assertEqual(encoding['??+'], -1, encoding)
+
+        # Add the class which was not there during writing the encoding file.
+        c.execute("INSERT INTO objects(name) VALUES ('dog'), ('dog')")
+
+        # Encode with reading the encoding file.
+        dbStamps.encodeNames(
+            c,
+            argparse.Namespace(in_encoding_json_file=encoding_json_file,
+                               out_encoding_json_file=None))
+
+        # Test the database.
+        c.execute('SELECT o.name,value FROM objects o INNER JOIN properties p '
+                  ' ON o.objectid == p.objectid WHERE key="name_id"')
+        entries = c.fetchall()
+        self.assertEqual(
+            set(entries),
+            set([('bus', '1'), ('car', '0'), ('??+', '-1'), ('dog', '-1')]))
 
 
 if __name__ == '__main__':

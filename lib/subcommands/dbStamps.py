@@ -466,38 +466,57 @@ def setNumStampOccurancies(c, args):
 def encodeNamesParser(subparsers):
     parser = subparsers.add_parser(
         'encodeNames',
-        description='Encode names to integers. Write encoding to json.')
+        description='Encode names to integers. Either encode by frequency and '
+        'write encoding to json, or use an existing json to get the encoding. '
+        'Assume "pages" objects have been filtered out.')
     parser.set_defaults(func=encodeNames)
-    parser.add_argument('--encoding_json_file',
-                        required=True,
-                        help='Mapping from name to label.')
+    encoding_group = parser.add_mutually_exclusive_group()
+    encoding_group.add_argument('--out_encoding_json_file',
+                                help='Mapping from name to label.')
+    encoding_group.add_argument('--in_encoding_json_file',
+                                help='Mapping from name to label.')
 
 
 def encodeNames(c, args):
-    c.execute('SELECT name FROM objects WHERE name NOT LIKE "%??%" AND '
-              'name NOT LIKE "page%" GROUP BY name ORDER BY COUNT(1) DESC')
-    name_list = [x for x, in c.fetchall()]
-    name_to_id = {name: name_id for name_id, name in enumerate(name_list)}
+    kUnknownName = -1
+
+    # In this case, figure out encoding, and write the json file.
+    if args.out_encoding_json_file is not None:
+
+        c.execute('SELECT name FROM objects WHERE name NOT LIKE "%??%" '
+                  'GROUP BY name ORDER BY COUNT(1) DESC')
+        name_list = [x for x, in c.fetchall()]
+        name_to_id = {name: name_id for name_id, name in enumerate(name_list)}
+
+        # Add the special case to the encoding.
+        c.execute('SELECT name FROM objects WHERE name LIKE "%??%"')
+        name_list = [x for x, in c.fetchall()]
+        for name in name_list:
+            name_to_id[name] = kUnknownName
+
+        logging.info('Writing encoding to "%s"', args.out_encoding_json_file)
+        with open(args.out_encoding_json_file, 'w') as f:
+            json.dump(name_to_id, f, indent=4)
+
+    # In this case, use the existing encoding file.
+    elif args.in_encoding_json_file is not None:
+
+        logging.info('Reading encoding from "%s"', args.in_encoding_json_file)
+        with open(args.in_encoding_json_file, 'r') as f:
+            name_to_id = json.loads(f.read())
 
     # First, remove whatever is in there.
     c.execute('DELETE FROM properties WHERE key="name_id"')
-
-    # Add the special case to the encoding.
-    c.execute('SELECT name FROM objects WHERE name LIKE "%??%"')
-    name_list = [x for x, in c.fetchall()]
-    for name in name_list:
-        name_to_id[name] = -1
-
-    with open(args.encoding_json_file, 'w') as f:
-        json.dump(name_to_id, f, indent=4)
 
     c.execute('SELECT objectid,name FROM objects')
     for objectid, name in c.fetchall():
         if name in name_to_id:
             name_id = name_to_id[name]
-        else:
-            logging.debug('Skip objectid %d with name "%s"', objectid, name)
-            continue
+        else:  # If a name is absent in_encoding_json_file.
+            name_id = kUnknownName
+            logging.debug(
+                'name_id for objectid %d with name "%s" is not found',
+                objectid, name)
         logging.debug('Writing name "%s" under id %d for objectid %d.', name,
                       name_id, objectid)
         c.execute(
