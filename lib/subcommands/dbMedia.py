@@ -113,7 +113,8 @@ def cropObjectsParser(subparsers):
         description=
         'Crops object patches to pictures or video and saves their info as a db. '
         'All imagefiles and maskfiles in the db will be replaced with crops, '
-        'one frame/image per object.')
+        'one frame/image per object. Mapping from the new to the original objectids '
+        'will be written to properties under key "original_objectid"')
     parser.set_defaults(func=cropObjects)
     parser.add_argument(
         '--media',
@@ -172,6 +173,13 @@ def cropObjects(c, args):
                                         image_media=args.image_path,
                                         mask_media=args.mask_path,
                                         overwrite=args.overwrite)
+
+    # Check to see if necessary properties are already taken.
+    c.execute('SELECT COUNT(1) FROM properties '
+              'WHERE key IN ("cropped", "original_objectid")')
+    if c.fetchone()[0] > 0:
+        raise ValueError('property "cropped" or "original_objectid" are '
+                         'already in use. Delete if not needed and repeat.')
 
     backendDb.retireTables(c)
 
@@ -277,11 +285,15 @@ def cropObjects(c, args):
                 'INSERT INTO matches(match,objectid) '
                 'SELECT match,? FROM matches_old WHERE objectid=?',
                 (new_im_objectid, old_im_objectid))
+            # Add a property to to link each object to its original objectid.
+            c.execute(
+                'INSERT INTO properties(objectid,key,value) VALUES (?,?,?)',
+                (new_im_objectid, 'original_objectid', str(old_im_objectid)))
             # Add a property to the actual cropped object that says it is cropped.
             if old_im_objectid == old_objectid:
                 c.execute(
                     'INSERT INTO properties(objectid,key,value) VALUES (?,?,?)',
-                    (old_objectid, 'cropped', 'true'))
+                    (new_im_objectid, 'cropped', 'true'))
 
     backendDb.dropRetiredTables(c)
     imwriter.close()
