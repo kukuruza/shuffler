@@ -36,7 +36,7 @@ def add_parsers(subparsers):
     mergeIntersectingObjectsParser(subparsers)
     renameObjectsParser(subparsers)
     resizeAnnotationsParser(subparsers)
-    propertyToNameParser(subparsers)
+    propertyToObjectsFieldParser(subparsers)
     syncObjectidsWithDbParser(subparsers)
     syncObjectsDataWithDbParser(subparsers)
     revertObjectTransformsParser(subparsers)
@@ -476,8 +476,8 @@ def _moveRootDir(c, oldrootdir, newrootdir):
         if oldfile is not None:
             path = op.normpath(op.abspath(op.join(oldrootdir, oldfile)))
             newfile = op.relpath(path, newrootdir)
-            logging.debug('Abs path "%s" has a relative path "%s".',
-                          path, newfile)
+            logging.debug('Abs path "%s" has a relative path "%s".', path,
+                          newfile)
             c.execute('UPDATE images SET imagefile=? WHERE imagefile=?',
                       (newfile, oldfile))
             c.execute('UPDATE objects SET imagefile=? WHERE imagefile=?',
@@ -1239,40 +1239,108 @@ def _resizeImageAnnotations(c, imagefile, old_width, old_height, target_width,
         c.execute('UPDATE polygons SET x=?,y=? WHERE id=?', (x, y, id_))
 
 
-def propertyToNameParser(subparsers):
-    parser = subparsers.add_parser('propertyToName',
-                                   description='Assigns names to propert')
-    parser.set_defaults(func=propertyToName)
-    parser.add_argument('--property',
+def propertyToObjectsFieldParser(subparsers):
+    parser = subparsers.add_parser(
+        'propertyToObjectsField',
+        description='Assign property values to the "objects" table field. '
+        'Provide the source "properties" key and the target "objects" field.')
+    parser.set_defaults(func=propertyToObjectsField)
+    parser.add_argument(
+        '--target_objects_field',
+        required=True,
+        help='The column in "objects" table to update. '
+        'In the case of "objectid", the values must satisfy the uniqueness '
+        'constraint, that is, values must be different and not match those '
+        'objectids that are not updated.')
+    parser.add_argument('--properties_key',
                         required=True,
-                        help='Property name to assign to objects.')
-    parser.add_argument('--assign_null',
-                        action='store_true',
-                        help='When specifies, the name is assigned null '
-                        'when property is absent for that object.')
-    parser.add_argument('--delete_property_after',
-                        action='store_true',
-                        help='When specifies, deletes that property when done')
+                        help='The property key to use.')
+    # TODO: Should there be a boolean argument --expect_to_update_all_objectids,
+    #       that would raise an error if target_objects_field is "objectid" and
+    #       some objectids are not updated.
 
 
-def propertyToName(c, args):
-    if args.assign_null:
+def propertyToObjectsField(c, args):
+    # Check that such key exists in properties.
+    c.execute('SELECT COUNT(1) FROM properties WHERE key=?',
+              (args.properties_key, ))
+    if c.fetchone()[0] == 0:
+        raise ValueError('Entries with key "%s" are not found in properties.' %
+                         args.properties_key)
+
+    # The special of target_objects_field being objectid.
+    if args.target_objects_field == 'objectid':
+        # Check that values of the property are unique.
+        # NOTE: Sqlite will check it, but we want a clear error meesage.
+        c.execute('SELECT COUNT() FROM properties '
+                  'WHERE key="objectid" GROUP BY value')
+        num_entries_by_value = c.fetchone()
+        if num_entries_by_value is not None and num_entries_by_value[0] > 1:
+            raise ValueError(
+                'Multiple "properties" entries have the same value '
+                '(corresponding to the new objectid).')
+
+        # Check that values of the property do not match any non-updated objectid.
+        # NOTE: Sqlite will check it, but we want a clear error meesage.
         c.execute(
-            'UPDATE objects SET name = ('
-            'SELECT value FROM properties '
-            'WHERE objects.objectid = properties.objectid AND key=?'
-            ')', (args.property, ))
+            'SELECT CAST(value AS INT) FROM properties WHERE properties.key="%s"'
+            % args.properties_key)
+        new_objectids = c.fetchall()
+        c.execute(
+            'SELECT objectid FROM objects WHERE objectid NOT IN ('
+            'SELECT objectid FROM properties WHERE properties.key="%s")' %
+            args.properties_key)
+        non_updated_objectids = c.fetchall()
+        conflict = set(new_objectids).intersection(set(non_updated_objectids))
+        if len(conflict) > 0:
+            logging.error('Conflicting objectids: %s', str(conflict))
+            raise ValueError(
+                '%d new values of objectids are already present in existing '
+                'non-updated objectids.' % len(conflict))
+
+        # Will replace the "objects" table.
+        backendDb.retireTables(c, names=['objects'])
+        # Insert updated objects.
+        c.execute(
+            'INSERT INTO objects(objectid,imagefile,x1,y1,width,height,name,score) '
+            'SELECT CAST(properties.value AS INT),o.imagefile,o.x1,o.y1,o.width,o.height,o.name,o.score '
+            'FROM objects_old o JOIN properties ON o.objectid = properties.objectid '
+            'WHERE properties.key="%s"' % args.properties_key)
+        # Insert non-updated objects.
+        c.execute(
+            'INSERT INTO objects SELECT * FROM objects_old WHERE objectid NOT IN ('
+            'SELECT objectid FROM properties WHERE properties.key="%s")' %
+            args.properties_key)
+        backendDb.dropRetiredTables(c)
+
+        # "s" is executed for "polygons", "matches", "properties" in that order.
+        s = ('UPDATE {{table}} SET objectid=('
+             'SELECT CAST(properties.value AS INT) FROM properties '
+             'WHERE {{table}}.objectid = properties.objectid '
+             'AND properties.key="{key}") WHERE objectid IN ('
+             'SELECT objectid FROM properties WHERE key="{key}")').format(
+                 key=args.properties_key)
+        c.execute(s.format(table='polygons'))
+        c.execute(s.format(table='matches'))
+        c.execute(s.format(table='properties'))
+
     else:
-        c.execute(
-            'UPDATE objects SET name = ('
-            'SELECT value FROM properties '
-            'WHERE objects.objectid = properties.objectid AND key=?'
-            ') WHERE objectid IN ('
-            'SELECT objectid FROM properties WHERE key=?'
-            ')', (args.property, args.property))
+        # Find the type to cast data to.
+        c.execute('PRAGMA table_info(objects)')
+        # Index 1 is for the name and index 2 is for the type.
+        col_type = next(x[2] for x in c.fetchall()
+                        if x[1] == args.target_objects_field)
+        logging.info('Will cast properties to type "%s"', col_type)
 
-    if args.delete_property_after:
-        c.execute('DELETE FROM properties WHERE key=?', (args.property, ))
+        s = ('UPDATE objects SET %s=('
+             'SELECT CAST(properties.value AS %s) FROM properties '
+             'WHERE objects.objectid = properties.objectid '
+             'AND properties.key="%s") WHERE objectid IN ('
+             'SELECT objectid FROM properties WHERE key="%s")' %
+             (args.target_objects_field, col_type, args.properties_key,
+              args.properties_key))
+        logging.debug('Will update objects with query "%s"', s)
+        c.execute(s)
 
 
 def revertObjectTransformsParser(subparsers):

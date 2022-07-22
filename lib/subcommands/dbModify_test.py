@@ -109,6 +109,141 @@ class Test_moveRootdir_SyntheticDb(unittest.TestCase):
         self._assertResult(rootdir='.', newrootdir='c', expected='../a/b')
 
 
+class Test_propertyToObjectsField_SyntheticDb(unittest.TestCase):
+    def setUp(self):
+        self.conn = sqlite3.connect(':memory:')
+        backendDb.createDb(self.conn)
+        c = self.conn.cursor()
+        c.execute('INSERT INTO images(imagefile) VALUES ("a"), ("b"), ("c")')
+        c.execute('INSERT INTO objects(imagefile,objectid,x1,name,score) '
+                  'VALUES ("a",0,10,"cat",0.1), ("b",1,20,"dog",0.2)')
+        c.execute('INSERT INTO properties(objectid,key,value) '
+                  'VALUES (0,"color","gray"), (1,"breed","poodle")')
+        c.execute('INSERT INTO polygons(objectid,x) VALUES (0,25), (1,35)')
+        c.execute('INSERT INTO matches(objectid,match) VALUES (0,0), (1,0)')
+
+    def testTrivial(self):
+        ''' Test on the empty database. '''
+        self.conn.close()
+        conn = sqlite3.connect(':memory:')
+        backendDb.createDb(conn)
+        c = conn.cursor()
+        c.execute('INSERT INTO properties(objectid,key,value) '
+                  'VALUES (0,"newval","dummy")')
+        args = argparse.Namespace(rootdir='.',
+                                  target_objects_field='name',
+                                  properties_key='newval')
+        dbModify.propertyToObjectsField(c, args)
+
+    def testBadField(self):
+        c = self.conn.cursor()
+        args = argparse.Namespace(rootdir='.',
+                                  target_objects_field='bad_field',
+                                  properties_key='newval')
+        with self.assertRaises(ValueError):
+            dbModify.propertyToObjectsField(c, args)
+
+    def testAbsentKey(self):
+        c = self.conn.cursor()
+        args = argparse.Namespace(rootdir='.',
+                                  target_objects_field='objectid',
+                                  properties_key='absent_key')
+        with self.assertRaises(ValueError):
+            dbModify.propertyToObjectsField(c, args)
+
+    def testObjectidField(self):
+        c = self.conn.cursor()
+        c.execute('INSERT INTO properties(objectid,key,value) '
+                  'VALUES (0,"newval","2")')
+        args = argparse.Namespace(rootdir='.',
+                                  target_objects_field='objectid',
+                                  properties_key='newval')
+        dbModify.propertyToObjectsField(c, args)
+
+        # Verify the "objects" table.
+        c.execute('SELECT imagefile,objectid FROM objects')
+        expected = [("a", 2), ("b", 1)]
+        self.assertEqual(set(c.fetchall()), set(expected))
+
+        # Verify the "polygons" table (the newval 0 is replaced with 2).
+        c.execute('SELECT objectid,x FROM polygons')
+        expected = [(2, 25), (1, 35)]
+        self.assertEqual(set(c.fetchall()), set(expected))
+
+        # Verify the "matches" table (the newval 0 is replaced with 2).
+        c.execute('SELECT objectid,match FROM matches')
+        expected = [(2, 0), (1, 0)]
+        self.assertEqual(set(c.fetchall()), set(expected))
+
+        # Verify the "properties" table (the newval 0 is replaced with 2).
+        c.execute('SELECT objectid,key,value FROM properties')
+        expected = [(2, "color", "gray"), (1, "breed", "poodle"),
+                    (2, "newval", "2")]
+        self.assertEqual(set(c.fetchall()), set(expected))
+
+    def testObjectidField_NonUniqueValues(self):
+        c = self.conn.cursor()
+        c.execute('INSERT INTO properties(objectid,key,value) '
+                  'VALUES (0,"newval","2"), (1,"newval","2")')
+        args = argparse.Namespace(rootdir='.',
+                                  target_objects_field='objectid',
+                                  properties_key='newval')
+        with self.assertRaises(Exception):
+            dbModify.propertyToObjectsField(c, args)
+
+    def testObjectidField_ValueMatchesNotUpdatedEntry(self):
+        c = self.conn.cursor()
+        c.execute('INSERT INTO properties(objectid,key,value) '
+                  'VALUES (0,"newval","1")')
+        args = argparse.Namespace(rootdir='.',
+                                  target_objects_field='objectid',
+                                  properties_key='newval')
+        with self.assertRaises(Exception):
+            dbModify.propertyToObjectsField(c, args)
+
+    def testNameField(self):
+        c = self.conn.cursor()
+        c.execute('INSERT INTO properties(objectid,key,value) '
+                  'VALUES (0,"newval","sheep")')
+        args = argparse.Namespace(rootdir='.',
+                                  target_objects_field='name',
+                                  properties_key='newval')
+        dbModify.propertyToObjectsField(c, args)
+
+        # Verify the "objects" table.
+        c.execute('SELECT objectid,name FROM objects')
+        expected = [(0, "sheep"), (1, "dog")]
+        self.assertEqual(set(c.fetchall()), set(expected))
+
+    def testX1Field(self):
+        c = self.conn.cursor()
+        c.execute('INSERT INTO properties(objectid,key,value) '
+                  'VALUES (0,"newval","50")')
+        args = argparse.Namespace(rootdir='.',
+                                  target_objects_field='x1',
+                                  properties_key='newval')
+        dbModify.propertyToObjectsField(c, args)
+
+        # Verify the "objects" table.
+        c.execute('SELECT objectid,x1 FROM objects')
+        expected = [(0, 50), (1, 20)]
+        self.assertEqual(set(c.fetchall()), set(expected))
+
+    def testScoreField(self):
+        c = self.conn.cursor()
+        c.execute('INSERT INTO properties(objectid,key,value) '
+                  'VALUES (0,"newval","0.5")')
+        args = argparse.Namespace(rootdir='.',
+                                  target_objects_field='score',
+                                  properties_key='newval')
+        dbModify.propertyToObjectsField(c, args)
+
+        # Verify the "objects" table.
+        c.execute('SELECT objectid,score FROM objects')
+        expected = [(0, 0.5), (1, 0.2)]
+        self.assertEqual(set(c.fetchall()), set(expected))
+
+
 if __name__ == '__main__':
     progressbar.streams.wrap_stdout()
     nose.runmodule()

@@ -141,29 +141,39 @@ def createDb(conn):
     createTableMatches(cursor)
 
 
-def retireTables(cursor):
+def retireTables(cursor, names=None):
     ''' Changes names of tables to ***_old, and recreates brand-new tables. '''
 
-    cursor.execute('ALTER TABLE images RENAME TO images_old')
-    cursor.execute('ALTER TABLE objects RENAME TO objects_old')
-    cursor.execute('ALTER TABLE properties RENAME TO properties_old')
-    cursor.execute('ALTER TABLE matches RENAME TO matches_old')
-    cursor.execute('ALTER TABLE polygons RENAME TO polygons_old')
-    createTableImages(cursor)
-    createTableObjects(cursor)
-    createTableProperties(cursor)
-    createTablePolygons(cursor)
-    createTableMatches(cursor)
+    if names is None or 'images' in names:
+        cursor.execute('ALTER TABLE images RENAME TO images_old')
+        createTableImages(cursor)
+    if names is None or 'objects' in names:
+        cursor.execute('ALTER TABLE objects RENAME TO objects_old')
+        createTableObjects(cursor)
+    if names is None or 'properties' in names:
+        cursor.execute('ALTER TABLE properties RENAME TO properties_old')
+        createTableProperties(cursor)
+    if names is None or 'matches' in names:
+        cursor.execute('ALTER TABLE matches RENAME TO matches_old')
+        createTableMatches(cursor)
+    if names is None or 'polygons' in names:
+        cursor.execute('ALTER TABLE polygons RENAME TO polygons_old')
+        createTablePolygons(cursor)
 
 
 def dropRetiredTables(cursor):
     ''' Drops tables with names ***_old. To be used after retireTables. '''
 
-    cursor.execute('DROP TABLE images_old;')
-    cursor.execute('DROP TABLE objects_old;')
-    cursor.execute('DROP TABLE properties_old;')
-    cursor.execute('DROP TABLE matches_old;')
-    cursor.execute('DROP TABLE polygons_old;')
+    if doesTableExist(cursor, 'images_old'):
+        cursor.execute('DROP TABLE images_old;')
+    if doesTableExist(cursor, 'objects_old'):
+        cursor.execute('DROP TABLE objects_old;')
+    if doesTableExist(cursor, 'properties_old'):
+        cursor.execute('DROP TABLE properties_old;')
+    if doesTableExist(cursor, 'matches_old'):
+        cursor.execute('DROP TABLE matches_old;')
+    if doesTableExist(cursor, 'polygons_old'):
+        cursor.execute('DROP TABLE polygons_old;')
 
 
 def makeTimeString(time):
