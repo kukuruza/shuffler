@@ -204,6 +204,7 @@ def _evaluateDetectionForClassSklearn(c, c_gt, class_name, args, sklearn):
         imagefile = backendDb.objectField(entry_det, 'imagefile')
         name = backendDb.objectField(entry_det, 'name')
         score = backendDb.objectField(entry_det, 'score')
+        logging.debug('Detected object: %s', entry_det)
 
         y_score[idet] = score
 
@@ -217,6 +218,8 @@ def _evaluateDetectionForClassSklearn(c, c_gt, class_name, args, sklearn):
         bboxes_gt = np.array(
             [backendDb.objectField(entry, 'bbox') for entry in entries_gt],
             dtype=float)
+        logging.debug('- GT objects with the same imagefile and name: %s',
+                      entries_gt)
 
         # Separately manage the case of no GT boxes in this image.
         if bboxes_gt.size == 0:
@@ -233,15 +236,18 @@ def _evaluateDetectionForClassSklearn(c, c_gt, class_name, args, sklearn):
         iw = np.maximum(ixmax - ixmin, 0.)
         ih = np.maximum(iymax - iymin, 0.)
         intersection = iw * ih
+        logging.debug('- Intersections with GT objects: %s' % intersection)
 
         # Union between bbox_det and all bboxes_gt.
         union = (bbox_det[2] * bbox_det[3] +
                  bboxes_gt[:, 2] * bboxes_gt[:, 3] - intersection)
+        logging.debug('- Unions with GT objects: %s' % union)
 
         # Compute the best IoU between the bbox_det and all bboxes_gt.
         IoUs = intersection / union
         max_IoU = np.max(IoUs)
         objectid_gt = objectids_gt[np.argmax(IoUs)]
+        logging.debug('- IoUs with GT objects: %s' % IoUs)
         logging.debug('max_IoU=%.3f for idet %d with objectid_gt %d.', max_IoU,
                       idet, objectid_gt)
 
