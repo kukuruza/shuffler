@@ -3,7 +3,6 @@ import sqlite3
 from datetime import datetime
 import io
 import numpy as np
-import pprint
 
 
 def _load_db_to_memory(in_db_path):
@@ -37,13 +36,6 @@ def doesTableExist(cursor, table):
         '''SELECT count(*) FROM sqlite_master
                     WHERE name=? AND type='table';''', (table, ))
     return cursor.fetchone()[0] != 0
-
-
-def isColumnInTable(cursor, table, column):
-    if not doesTableExist(cursor, table):
-        raise IOError('table %s does not exist' % table)
-    cursor.execute('PRAGMA table_info(%s)' % table)
-    return column in [x[1] for x in cursor.fetchall()]
 
 
 def createTableImages(cursor):
@@ -184,6 +176,8 @@ def parseTimeString(timestring):
 
 
 def getColumnsInTable(c, table):
+    if not doesTableExist(c, table):
+        raise IOError('table %s does not exist' % table)
     c.execute('PRAGMA table_info(%s);' % table)
     # Get the first column from the result.
     return [c[1] for c in c.fetchall()]

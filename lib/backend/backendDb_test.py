@@ -1,7 +1,6 @@
 import os
 import sqlite3
 import shutil
-import unittest
 import tempfile
 import numpy as np
 import progressbar
@@ -11,38 +10,33 @@ from lib.backend import backendDb
 from lib.utils import testUtils
 
 
-class TestCars(unittest.TestCase):
+class TestFieldGetters_Cars(testUtils.Test_carsDb):
+    def test_objectField(self):
+        c = self.conn.cursor()
+        c.execute('SELECT * FROM objects WHERE objectid=1')
+        entry = c.fetchone()
 
-    CARS_DB_PATH = 'testdata/cars/micro1_v5.db'
-
-    def setUp(self):
-        self.temp_db_path = tempfile.NamedTemporaryFile().name
-        shutil.copyfile(TestCars.CARS_DB_PATH, self.temp_db_path)
-
-        self.conn = sqlite3.connect(self.temp_db_path)
-        self.cursor = self.conn.cursor()
-
-    def tearDown(self):
-        self.conn.close()
-        os.remove(self.temp_db_path)
-
-    def test_objectFields(self):
-        cursor = self.conn.cursor()
-        cursor.execute('SELECT * FROM objects WHERE objectid=1')
-        entry = cursor.fetchone()
-
-        self.assertEqual(backendDb.objectField(entry, 'objectid'), 1,
-                         str(entry))
+        self.assertEqual(backendDb.objectField(entry, 'objectid'),
+                         1,
+                         msg=str(entry))
         self.assertEqual(backendDb.objectField(entry, 'imagefile'),
-                         'images/000000.jpg', str(entry))
-        self.assertEqual(backendDb.objectField(entry, 'x1'), 225.1, str(entry))
-        self.assertEqual(backendDb.objectField(entry, 'y1'), 134.2, str(entry))
-        self.assertEqual(backendDb.objectField(entry, 'width'), 356.3,
-                         str(entry))
-        self.assertEqual(backendDb.objectField(entry, 'height'), 377.4,
-                         str(entry))
-        self.assertEqual(backendDb.objectField(entry, 'name'), 'car',
-                         str(entry))
+                         'images/000000.jpg',
+                         msg=str(entry))
+        self.assertEqual(backendDb.objectField(entry, 'x1'),
+                         225.1,
+                         msg=str(entry))
+        self.assertEqual(backendDb.objectField(entry, 'y1'),
+                         134.2,
+                         msg=str(entry))
+        self.assertEqual(backendDb.objectField(entry, 'width'),
+                         356.3,
+                         msg=str(entry))
+        self.assertEqual(backendDb.objectField(entry, 'height'),
+                         377.4,
+                         msg=str(entry))
+        self.assertEqual(backendDb.objectField(entry, 'name'),
+                         'car',
+                         msg=str(entry))
         self.assertAlmostEqual(backendDb.objectField(entry, 'score'),
                                0.606193,
                                msg=str(entry))
@@ -62,17 +56,26 @@ class TestCars(unittest.TestCase):
         entry = cursor.fetchone()
 
         self.assertEqual(backendDb.imageField(entry, 'imagefile'),
-                         'images/000000.jpg', str(entry))
-        self.assertEqual(backendDb.imageField(entry, 'width'), 800, str(entry))
-        self.assertEqual(backendDb.imageField(entry, 'height'), 700,
-                         str(entry))
+                         'images/000000.jpg',
+                         msg=str(entry))
+        self.assertEqual(backendDb.imageField(entry, 'width'),
+                         800,
+                         msg=str(entry))
+        self.assertEqual(backendDb.imageField(entry, 'height'),
+                         700,
+                         msg=str(entry))
         self.assertEqual(backendDb.imageField(entry, 'maskfile'),
-                         'masks/000000.png', str(entry))
+                         'masks/000000.png',
+                         msg=str(entry))
         self.assertEqual(backendDb.imageField(entry, 'timestamp'),
-                         '2018-09-24 12:22:48.534685', str(entry))
-        self.assertEqual(backendDb.imageField(entry, 'name'), None, str(entry))
-        self.assertEqual(backendDb.imageField(entry, 'score'), None,
-                         str(entry))
+                         '2018-09-24 12:22:48.534685',
+                         msg=str(entry))
+        self.assertEqual(backendDb.imageField(entry, 'name'),
+                         None,
+                         msg=str(entry))
+        self.assertEqual(backendDb.imageField(entry, 'score'),
+                         None,
+                         msg=str(entry))
         with self.assertRaises(KeyError):
             backendDb.imageField(entry, 'dummy')
 
@@ -87,13 +90,21 @@ class TestCars(unittest.TestCase):
         cursor.execute('SELECT * FROM polygons WHERE id=1')
         entry = cursor.fetchone()
 
-        self.assertEqual(backendDb.polygonField(entry, 'id'), 1, str(entry))
-        self.assertEqual(backendDb.polygonField(entry, 'objectid'), 2,
-                         str(entry))
-        self.assertEqual(backendDb.polygonField(entry, 'x'), 97.1, str(entry))
-        self.assertEqual(backendDb.polygonField(entry, 'y'), 296.0, str(entry))
-        self.assertEqual(backendDb.polygonField(entry, 'name'), None,
-                         str(entry))
+        self.assertEqual(backendDb.polygonField(entry, 'id'),
+                         1,
+                         msg=str(entry))
+        self.assertEqual(backendDb.polygonField(entry, 'objectid'),
+                         2,
+                         msg=str(entry))
+        self.assertEqual(backendDb.polygonField(entry, 'x'),
+                         97.1,
+                         msg=str(entry))
+        self.assertEqual(backendDb.polygonField(entry, 'y'),
+                         296.0,
+                         msg=str(entry))
+        self.assertEqual(backendDb.polygonField(entry, 'name'),
+                         None,
+                         msg=str(entry))
         with self.assertRaises(KeyError):
             backendDb.polygonField(entry, 'dummy')
 
@@ -104,95 +115,106 @@ class TestCars(unittest.TestCase):
             self.assertEqual(backendDb.polygonFields(entry, ['id', 'dummy']))
 
     def test_getColumnsInTable(self):
-        result = backendDb.getColumnsInTable(self.cursor, 'objects')
+        c = self.conn.cursor()
+        result = backendDb.getColumnsInTable(c, 'objects')
         self.assertEqual(result, [
             'objectid', 'imagefile', 'x1', 'y1', 'width', 'height', 'name',
             'score'
         ])
 
+
+class TestDeleteImage_Cars(testUtils.Test_carsDb):
     def test_delete_imagefile_nonexistent(self):
+        c = self.conn.cursor()
         with self.assertRaises(KeyError):
-            backendDb.deleteImage(self.cursor, imagefile='not_existent')
+            backendDb.deleteImage(c, imagefile='not_existent')
 
     def test_delete_imagefile000000(self):
-        backendDb.deleteImage(self.cursor, imagefile='images/000000.jpg')
+        c = self.conn.cursor()
+        backendDb.deleteImage(c, imagefile='images/000000.jpg')
 
-        self.cursor.execute('SELECT imagefile FROM images')
-        imagefiles = self.cursor.fetchall()
+        c.execute('SELECT imagefile FROM images')
+        imagefiles = c.fetchall()
         self.assertEqual(imagefiles, [('images/000001.jpg', ),
                                       ('images/000002.jpg', )],
                          str(imagefiles))
 
-        self.cursor.execute('SELECT objectid FROM objects')
-        objectids = self.cursor.fetchall()
+        c.execute('SELECT objectid FROM objects')
+        objectids = c.fetchall()
         self.assertEqual(objectids, [(2, ), (3, )], str(objectids))
 
-        self.cursor.execute('SELECT DISTINCT(objectid) FROM properties')
-        self.assertEqual(self.cursor.fetchall(), [(2, ), (3, )])
+        c.execute('SELECT DISTINCT(objectid) FROM properties')
+        self.assertEqual(c.fetchall(), [(2, ), (3, )])
 
-        self.cursor.execute('SELECT DISTINCT(objectid) FROM matches')
-        self.assertEqual(self.cursor.fetchall(), [(2, )])
+        c.execute('SELECT DISTINCT(objectid) FROM matches')
+        self.assertEqual(c.fetchall(), [(2, )])
 
-        self.cursor.execute('SELECT DISTINCT(objectid) FROM polygons')
-        self.assertEqual(self.cursor.fetchall(), [(2, )])
+        c.execute('SELECT DISTINCT(objectid) FROM polygons')
+        self.assertEqual(c.fetchall(), [(2, )])
 
     def test_delete_imagefile000001(self):
-        backendDb.deleteImage(self.cursor, imagefile='images/000001.jpg')
+        c = self.conn.cursor()
+        backendDb.deleteImage(c, imagefile='images/000001.jpg')
 
-        self.cursor.execute('SELECT imagefile FROM images')
-        imagefiles = self.cursor.fetchall()
+        c.execute('SELECT imagefile FROM images')
+        imagefiles = c.fetchall()
         self.assertEqual(imagefiles, [('images/000000.jpg', ),
                                       ('images/000002.jpg', )],
                          str(imagefiles))
 
-        self.cursor.execute('SELECT objectid FROM objects')
-        objectids = self.cursor.fetchall()
+        c.execute('SELECT objectid FROM objects')
+        objectids = c.fetchall()
         self.assertEqual(objectids, [(1, )], str(objectids))
 
-        self.cursor.execute('SELECT DISTINCT(objectid) FROM properties')
-        self.assertEqual(self.cursor.fetchall(), [(1, )])
+        c.execute('SELECT DISTINCT(objectid) FROM properties')
+        self.assertEqual(c.fetchall(), [(1, )])
 
-        self.cursor.execute('SELECT DISTINCT(objectid) FROM matches')
-        self.assertEqual(self.cursor.fetchall(), [(1, )])
+        c.execute('SELECT DISTINCT(objectid) FROM matches')
+        self.assertEqual(c.fetchall(), [(1, )])
 
-        self.cursor.execute('SELECT DISTINCT(objectid) FROM polygons')
-        self.assertEqual(self.cursor.fetchall(), [])
+        c.execute('SELECT DISTINCT(objectid) FROM polygons')
+        self.assertEqual(c.fetchall(), [])
 
+
+class TestDeleteObject_Cars(testUtils.Test_carsDb):
     def test_deleteObject0(self):
+        c = self.conn.cursor()
         with self.assertRaises(KeyError):
-            backendDb.deleteObject(self.cursor, objectid=0)
+            backendDb.deleteObject(c, objectid=0)
 
     def test_deleteObject1(self):
-        backendDb.deleteObject(self.cursor, objectid=1)
+        c = self.conn.cursor()
+        backendDb.deleteObject(c, objectid=1)
 
-        self.cursor.execute('SELECT objectid FROM objects')
-        objectids = self.cursor.fetchall()
+        c.execute('SELECT objectid FROM objects')
+        objectids = c.fetchall()
         self.assertEqual(objectids, [(2, ), (3, )], str(objectids))
 
-        self.cursor.execute('SELECT DISTINCT(objectid) FROM properties')
-        self.assertEqual(self.cursor.fetchall(), [(2, ), (3, )])
+        c.execute('SELECT DISTINCT(objectid) FROM properties')
+        self.assertEqual(c.fetchall(), [(2, ), (3, )])
 
-        self.cursor.execute('SELECT DISTINCT(objectid) FROM matches')
-        self.assertEqual(self.cursor.fetchall(), [(2, )])
+        c.execute('SELECT DISTINCT(objectid) FROM matches')
+        self.assertEqual(c.fetchall(), [(2, )])
 
-        self.cursor.execute('SELECT DISTINCT(objectid) FROM polygons')
-        self.assertEqual(self.cursor.fetchall(), [(2, )])
+        c.execute('SELECT DISTINCT(objectid) FROM polygons')
+        self.assertEqual(c.fetchall(), [(2, )])
 
     def test_deleteObject2(self):
-        backendDb.deleteObject(self.cursor, objectid=2)
+        c = self.conn.cursor()
+        backendDb.deleteObject(c, objectid=2)
 
-        self.cursor.execute('SELECT objectid FROM objects')
-        objectids = self.cursor.fetchall()
+        c.execute('SELECT objectid FROM objects')
+        objectids = c.fetchall()
         self.assertEqual(objectids, [(1, ), (3, )], str(objectids))
 
-        self.cursor.execute('SELECT DISTINCT(objectid) FROM properties')
-        self.assertEqual(self.cursor.fetchall(), [(1, ), (3, )])
+        c.execute('SELECT DISTINCT(objectid) FROM properties')
+        self.assertEqual(c.fetchall(), [(1, ), (3, )])
 
-        self.cursor.execute('SELECT DISTINCT(objectid) FROM matches')
-        self.assertEqual(self.cursor.fetchall(), [(1, )])
+        c.execute('SELECT DISTINCT(objectid) FROM matches')
+        self.assertEqual(c.fetchall(), [(1, )])
 
-        self.cursor.execute('SELECT DISTINCT(objectid) FROM polygons')
-        self.assertEqual(self.cursor.fetchall(), [])
+        c.execute('SELECT DISTINCT(objectid) FROM polygons')
+        self.assertEqual(c.fetchall(), [])
 
 
 class Test_updateObjectTransform_emptyDb(testUtils.Test_emptyDb):
@@ -247,7 +269,7 @@ class Test_updateObjectTransform_emptyDb(testUtils.Test_emptyDb):
                                       transform2)
 
 
-class TestUpgradeV4toV5Cars(testUtils.Test_emptyDb):
+class TestUpgradeV4toV5_Cars(testUtils.Test_emptyDb):
 
     CARS_DB_V4_PATH = 'testdata/cars/micro1_v5.db'
     CARS_DB_V5_PATH = 'testdata/cars/micro1_v5.db'
