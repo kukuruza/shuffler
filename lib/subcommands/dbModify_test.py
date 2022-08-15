@@ -13,15 +13,80 @@ from lib.subcommands import dbModify
 from lib.utils import testUtils
 
 
-class Test_bboxesToPolygons_carsDb(testUtils.Test_carsDb):
+class Test_bboxesToPolygons_SyntheticDb(testUtils.Test_DB):
+    def setUp(self):
+        self.conn = sqlite3.connect(':memory:')
+        backendDb.createDb(self.conn)
+
     def test_general(self):
         c = self.conn.cursor()
-        args = argparse.Namespace(
-            rootdir=testUtils.Test_carsDb.CARS_DB_ROOTDIR)
+        c.execute(
+            'INSERT INTO images(imagefile) VALUES ("image0"), ("image1")')
+        # Two objects in image0, no objects in image1.
+        c.execute(
+            'INSERT INTO objects(imagefile,objectid,x1,y1,width,height) '
+            'VALUES ("image0",0,40,20,10,10), ("image0",1,20.5,30.5,20.5,10.5)'
+        )
+
+        args = argparse.Namespace(rootdir='')
         dbModify.bboxesToPolygons(c, args)
-        self.assert_images_count(c, expected=3)
-        self.assert_objects_count_by_imagefile(c, expected=[1, 2, 0])
-        self.assert_polygons_count_by_object(c, expected=[4, 5, 4])
+
+        self.assert_objects_count_by_imagefile(c, expected=[2, 0])
+        self.assert_polygons_count_by_object(c, expected=[4, 4])
+
+        c.execute('SELECT objectid,x,y FROM polygons ORDER BY objectid')
+        actual = c.fetchall()
+        expected = [(0, 40, 20), (0, 50, 20), (0, 50, 30), (0, 40, 30),
+                    (1, 20.5, 30.5), (1, 41, 30.5), (1, 41, 41), (1, 20.5, 41)]
+        self.assertEqual(set(actual), set(expected))
+
+
+class Test_polygonsToBboxes_SyntheticDb(testUtils.Test_DB):
+    def setUp(self):
+        self.conn = sqlite3.connect(':memory:')
+        backendDb.createDb(self.conn)
+
+    def test_general(self):
+        c = self.conn.cursor()
+        c.execute(
+            'INSERT INTO images(imagefile) VALUES ("image0"), ("image1")')
+        c.execute('INSERT INTO objects(imagefile,objectid) '
+                  'VALUES ("image0",0), ("image0",1), ("image0",2)')
+        # A triangular polygon for object0, a rectangular one - for object1,
+        # and no polygons for object2.
+        c.execute('INSERT INTO polygons(objectid,x,y) VALUES'
+                  '(0,40.5,20.5), (0,50,20.5), (0,50,30), '
+                  '(1,40,20), (1,50,20), (1,50,30), (1,40,30)')
+
+        args = argparse.Namespace(rootdir='')
+        dbModify.polygonsToBboxes(c, args)
+
+        c.execute('SELECT objectid,x1,y1,width,height FROM objects')
+        actual = c.fetchall()
+        expected = [(0, 40.5, 20.5, 9.5, 9.5), (1, 40.0, 20.0, 10.0, 10.0),
+                    (2, None, None, None, None)]
+        self.assertEqual(set(actual), set(expected))
+
+    def test_multiplePolygonsPerObjectNotSupported(self):
+        '''
+        Object with multiple polygons should trigger an error.
+        If an object has polygons with different names (multiple polygons),
+        the behavior is undetermined and thus not allowed. 
+        '''
+        c = self.conn.cursor()
+        c.execute(
+            'INSERT INTO images(imagefile) VALUES ("image0"), ("image1")')
+        c.execute('INSERT INTO objects(imagefile,objectid) '
+                  'VALUES ("image0",0)')
+        # A rectangular & triangular polygons for object0.
+        c.execute(
+            'INSERT INTO polygons(objectid,x,y,name) VALUES'
+            '(0,40.5,20.5,"p0"), (0,50,20.5,"p0"), (0,50,30,"p0"), '
+            '(0,40,20,"p1"), (0,50,20,"p1"), (0,50,30,"p1"), (0,40,30,"p1")')
+
+        args = argparse.Namespace(rootdir='')
+        with self.assertRaises(ValueError):
+            dbModify.polygonsToBboxes(c, args)
 
 
 class Test_revertObjectTransforms_SyntheticDb(unittest.TestCase):
@@ -32,20 +97,12 @@ class Test_revertObjectTransforms_SyntheticDb(unittest.TestCase):
         c.execute('INSERT INTO images(imagefile) VALUES ("image0")')
         c.execute('INSERT INTO objects(imagefile,objectid,x1,y1,width,height) '
                   'VALUES ("image0",0,45,25,10,10)')
-        c.execute('INSERT INTO polygons(objectid,x,y) VALUES (0,45,25)')
-        c.execute('INSERT INTO polygons(objectid,x,y) VALUES (0,55,25)')
-        c.execute('INSERT INTO polygons(objectid,x,y) VALUES (0,55,35)')
-        c.execute('INSERT INTO polygons(objectid,x,y) VALUES (0,45,35)')
+        c.execute('INSERT INTO polygons(objectid,x,y) VALUES '
+                  '(0,45,25), (0,55,25), (0,55,35), (0,45,35)')
         # transform = [[2., 0.,   5.]
         #              [0., 0.5, -5.]]
-        c.execute(
-            'INSERT INTO properties(objectid,key,value) VALUES (0,"kx","2.")')
-        c.execute(
-            'INSERT INTO properties(objectid,key,value) VALUES (0,"ky","0.5")')
-        c.execute(
-            'INSERT INTO properties(objectid,key,value) VALUES (0,"bx","5")')
-        c.execute(
-            'INSERT INTO properties(objectid,key,value) VALUES (0,"by","-5.")')
+        c.execute('INSERT INTO properties(objectid,key,value) VALUES '
+                  '(0,"kx","2"), (0,"ky","0.5"), (0,"bx","5"), (0,"by","-5.")')
         # The original bbox (x1, y1, width, height).
         self.original_bbox_gt = (20, 60, 5, 20)
         # The original polygon [(x, y)] * N.

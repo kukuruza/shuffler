@@ -335,11 +335,19 @@ def polygons2bboxes(cursor, objectid):
     A bounding box is created around objects that don't have it
     via enclosing the polygon. The polygon is assumed to be present.
     '''
-    cursor.execute('SELECT COUNT(1) FROM polygons WHERE objectid=?',
-                   (objectid, ))
-    if cursor.fetchone()[0] == 0:
+    cursor.execute(
+        'SELECT COUNT(1) FROM polygons WHERE objectid=? GROUP BY name',
+        (objectid, ))
+    num_distinct_polygons = len(cursor.fetchall())
+    if num_distinct_polygons == 0:
         logging.debug('Objectid %d does not have polygons.', objectid)
         return
+    if num_distinct_polygons > 1:
+        raise ValueError(
+            'Object %d has %d polygons (polygons with different names). '
+            'Merging them is not supported.' %
+            (objectid, num_distinct_polygons))
+
     cursor.execute(
         'UPDATE objects SET x1=(SELECT MIN(x) FROM polygons '
         'WHERE objectid=?) WHERE objectid=?', (objectid, objectid))

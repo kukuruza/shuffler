@@ -48,8 +48,9 @@ def add_parsers(subparsers):
 def bboxesToPolygonsParser(subparsers):
     parser = subparsers.add_parser(
         'bboxesToPolygons',
-        description='If polygons dont exist for an object, '
-        'create a rectangular polygon from the bounding box.')
+        description='If polygon entries do not exist for an object, '
+        'create a rectangular polygon from the bounding box, if exists, '
+        'and write it into the "polygons" table.')
     parser.set_defaults(func=bboxesToPolygons)
 
 
@@ -63,23 +64,21 @@ def bboxesToPolygons(c, args):
 def polygonsToBboxesParser(subparsers):
     parser = subparsers.add_parser(
         'polygonsToBboxes',
-        description='Update bounding box in the "objects" table '
-        'with values from "polygons".')
+        description='Update bounding box in the "objects" table with values '
+        'from "polygons", if exist. The bounding box of a polygon is written. '
+        'Throws an exception if an object has polygons with different names.')
     parser.set_defaults(func=polygonsToBboxes)
 
 
 def polygonsToBboxes(c, args):
-    c.execute('SELECT objectid FROM objects WHERE objectid NOT IN '
+    c.execute('SELECT objectid FROM objects WHERE objectid IN '
               '(SELECT DISTINCT(objectid) FROM polygons)')
     for objectid, in progressbar(c.fetchall()):
         util.polygons2bboxes(c, objectid)
 
 
 def sqlParser(subparsers):
-    parser = subparsers.add_parser(
-        'sql',
-        description='Run SQL commands.'
-        'Recorded paths will be made relative to "rootdir" argument.')
+    parser = subparsers.add_parser('sql', description='Run SQL commands.')
     parser.add_argument('--sql', nargs='+', help='A list of SQL statements.')
     parser.set_defaults(func=sql)
 
