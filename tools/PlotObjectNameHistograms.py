@@ -26,8 +26,8 @@ def get_parser():
         type=int,
         help='If specififed, will only display classes with at_least instences.'
     )
-    parser.add_argument('--title', 
-        help='If specified, will add this text as caption.')
+    parser.add_argument('--title',
+                        help='If specified, will add this text as caption.')
     parser.add_argument('--fig_width', type=int, default=60)
     parser.add_argument('--fig_height', type=int, default=10)
     parser.add_argument('--no_xticks', action='store_true')
@@ -46,7 +46,7 @@ def get_parser():
 def plot_object_name_histograms(args):
     # Process empty and non-empty legend_entries.
     if args.legend_entries is None:
-        legend_entries = [name for name in args.campaign_names]
+        legend_entries = ['campaign %s' % name for name in args.campaign_names]
     elif len(args.legend_entries) != len(args.campaign_names):
         raise ValueError(
             'Number of elements in legend_entries (%d) and campaign_names '
@@ -98,8 +98,8 @@ def plot_object_name_histograms(args):
     print(df)
 
     # Plot.
-    matplotlib.rc('legend', fontsize=args.fontsize-2, handlelength=2)
-    matplotlib.rc('legend', title_fontsize=args.fontsize-2)
+    matplotlib.rc('legend', fontsize=args.fontsize - 2, handlelength=2)
+    matplotlib.rc('legend', title_fontsize=args.fontsize - 2)
     matplotlib.rc('ytick', labelsize=args.fontsize)
     figsize = (args.fig_width, args.fig_height)
     df.loc[:, legend_entries].plot.bar(stacked=True, figsize=figsize)
