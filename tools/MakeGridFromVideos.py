@@ -1,19 +1,17 @@
 #! /usr/bin/env python3
-import sys, os, os.path as op
+import sys, os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import numpy as np
 import cv2
-from glob import glob
-from argparse import ArgumentParser
+import argparse
 import progressbar
 import logging
 import imageio
-
 from lib.backend import backendMedia
 
 
 def MakeGridFromVideos_parser():
-    parser = ArgumentParser(
+    parser = argparse.ArgumentParser(
         'Take a list of video files, and make a new one, '
         'where each frame is a grid of frames from the input videos.')
     parser.add_argument('-i', '--in_video_paths', nargs='+', required=True)
@@ -33,9 +31,9 @@ def MakeGridFromVideos_parser():
 
 def MakeGridFromVideos(args):
     num_videos = len(args.in_video_paths)
-    gridY = int(sqrt(num_videos)) if args.gridY is None else args.gridY
+    gridY = int(np.sqrt(num_videos)) if args.gridY is None else args.gridY
     gridX = (num_videos - 1) // gridY + 1
-    logging.info('Will use grid %d x %d' % (gridY, gridX))
+    logging.info('Will use [gridY x gridX] = [%d x %d].' % (gridY, gridX))
 
     if not args.dryrun:
         writer = backendMedia.VideoWriter(vmaskfile=args.out_video_path,
@@ -50,23 +48,17 @@ def MakeGridFromVideos(args):
         return image
 
     handles = [imageio.get_reader(path) for path in args.in_video_paths]
-    #for handle, path in zip(handles, args.in_video_paths):
-    #    logging.info('%d frames in video %s.' % (handle.get_length(), path))
-    num_frames = 26 #min([handle.get_length() for handle in handles])
+    grid = None
 
-    print ('gridX, gridY', gridX, gridY)
-
-    for i in progressbar.progressbar(range(num_frames)):
-        images = [handle.get_data(i) for handle in handles]
-
-        images = [processImage(image) for image in images]
-        height, width = images[0].shape[0:2]
+    for frames in progressbar.progressbar(zip(*handles)):
+        frames = [processImage(frame) for frame in frames]
+        height, width = frames[0].shape[0:2]
 
         # Lazy initialization.
-        if 'grid' not in locals():
+        if grid is None:
             grid = np.zeros((height * gridY, width * gridX, 3), dtype=np.uint8)
 
-        for gridid, image in enumerate(images):
+        for gridid, image in enumerate(frames):
             grid[height * (gridid // gridX):height * (gridid // gridX + 1),
                  width * (gridid % gridX):width *
                  (gridid % gridX + 1), :] = image.copy()
