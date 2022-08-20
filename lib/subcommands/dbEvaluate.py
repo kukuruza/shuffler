@@ -179,7 +179,7 @@ def _evaluateDetectionForClassSklearn(c, c_gt, class_name, args, sklearn):
     ''' Helper function for evaluateDetection. '''
 
     # Detected objects sorted by descending score (confidence).
-    if class_name is None:
+    if class_name in ['any', 'ignore']:
         c.execute('SELECT * FROM objects ORDER BY score DESC')
     else:
         c.execute('SELECT * FROM objects WHERE name=? ORDER BY score DESC',
@@ -209,8 +209,12 @@ def _evaluateDetectionForClassSklearn(c, c_gt, class_name, args, sklearn):
         y_score[idet] = score
 
         # Get all GT boxes from the same imagefile and of the same class.
-        c_gt.execute('SELECT * FROM objects WHERE imagefile=? AND name=?',
-                     (imagefile, name))
+        if class_name == 'ignore':
+            c_gt.execute('SELECT * FROM objects WHERE imagefile=?',
+                         (imagefile, ))
+        else:
+            c_gt.execute('SELECT * FROM objects WHERE imagefile=? AND name=?',
+                         (imagefile, name))
         entries_gt = c_gt.fetchall()
         objectids_gt = [
             backendDb.objectField(entry, 'objectid') for entry in entries_gt
@@ -252,9 +256,14 @@ def _evaluateDetectionForClassSklearn(c, c_gt, class_name, args, sklearn):
                       idet, objectid_gt)
 
         # Get all GT objects that are of interest.
-        c_gt.execute(
-            'SELECT * FROM objects WHERE imagefile=? AND name=? AND %s' %
-            args.where_object_gt, (imagefile, name))
+        if class_name == 'ignore':
+            c_gt.execute(
+                'SELECT * FROM objects WHERE imagefile=? AND (%s)' %
+                args.where_object_gt, (imagefile, ))
+        else:
+            c_gt.execute(
+                'SELECT * FROM objects WHERE imagefile=? AND name=? AND (%s)' %
+                args.where_object_gt, (imagefile, name))
         entries_gt = c_gt.fetchall()
         objectids_gt_of_interest = [
             backendDb.objectField(entry, 'objectid') for entry in entries_gt
@@ -270,18 +279,19 @@ def _evaluateDetectionForClassSklearn(c, c_gt, class_name, args, sklearn):
             y_true[idet] = True
         else:
             y_true[idet] = False
+        logging.debug('already_detected %d objects.', len(already_detected))
 
     # It doesn't matter if y_ignore'd GT fall into TP or FP. Kick them out.
     y_score = y_score[np.bitwise_not(y_ignored)]
     y_true = y_true[np.bitwise_not(y_ignored)]
 
     # Find the number of GT of interest.
-    if class_name is None:
-        c_gt.execute('SELECT COUNT(1) FROM objects WHERE %s' %
+    if class_name in ['any', 'ignore']:
+        c_gt.execute('SELECT COUNT(1) FROM objects WHERE (%s)' %
                      args.where_object_gt)
     else:
         c_gt.execute(
-            'SELECT COUNT(1) FROM objects WHERE %s AND name=?' %
+            'SELECT COUNT(1) FROM objects WHERE (%s) AND name=?' %
             args.where_object_gt, (class_name, ))
     num_gt = c_gt.fetchone()[0]
     logging.info('Number of ground truth "%s": %d', class_name, num_gt)
@@ -330,7 +340,7 @@ def _evaluateDetectionForClassSklearn(c, c_gt, class_name, args, sklearn):
     # Compute all metrics for this class.
     aps = sklearn.metrics.average_precision_score(y_true=y_true,
                                                   y_score=y_score)
-    if class_name is None:
+    if class_name in ['any', 'ignore']:
         print('Average precision: %.4f' % aps)
     else:
         print('Average precision for class "%s": %.4f' % (class_name, aps))
@@ -363,7 +373,10 @@ def evaluateDetectionParser(subparsers):
     )
     parser.add_argument(
         '--evaluation_backend',
-        choices=['sklearn', 'pascal-voc', 'sklearn-all-classes'],
+        choices=[
+            'sklearn', 'pascal-voc', 'sklearn-all-classes',
+            'sklearn-ignore-classes'
+        ],
         default='sklearn',
         help='Detection evaluation is different across papers and methods. '
         'PASCAL VOC produces average-precision score a bit different '
@@ -382,16 +395,12 @@ def evaluateDetection(c, args):
     conn_gt = backendDb.connect(args.gt_db_file, 'load_to_memory')
     c_gt = conn_gt.cursor()
 
-    # Some info for logging.
-    c.execute('SELECT COUNT(1) FROM objects')
-    logging.info('The evaluated database has %d objects.', c.fetchone()[0])
-    c_gt.execute('SELECT COUNT(1) FROM objects WHERE %s' %
+    c_gt.execute('SELECT DISTINCT(name) FROM objects WHERE (%s)' %
                  args.where_object_gt)
-    logging.info('The ground truth database has %d objects of interest.',
-                 c_gt.fetchone()[0])
-
-    c_gt.execute('SELECT DISTINCT(name) FROM objects')
     names = c_gt.fetchall()
+    logging.info('The ground truth database has %d objects of interest.',
+                 len(names))
+
     if args.evaluation_backend == 'sklearn':
         for name, in names:
             _evaluateDetectionForClassSklearn(c, c_gt, name, args, sklearn)
@@ -402,7 +411,10 @@ def evaluateDetection(c, args):
             _evaluateDetectionForClassPascal(c, c_gt, name, args)
     elif args.evaluation_backend == 'sklearn-all-classes':
         # This method does not separate results by classes.
-        _evaluateDetectionForClassSklearn(c, c_gt, None, args, sklearn)
+        _evaluateDetectionForClassSklearn(c, c_gt, 'any', args, sklearn)
+    elif args.evaluation_backend == 'sklearn-ignore-classes':
+        # This method does not separate results by classes.
+        _evaluateDetectionForClassSklearn(c, c_gt, 'ignore', args, sklearn)
     else:
         assert False
     conn_gt.close()
