@@ -976,6 +976,10 @@ def syncObjectidsWithDb(c, args):
     # Works only on the intersection of imagefiles.
     imagefiles = list(set(imagefiles_this) & set(imagefiles_ref))
     if not len(imagefiles):
+        if len(imagefiles_this) > 0 and len(imagefiles_ref) > 0:
+            logging.error(
+                'The first imagefile in the open db is: %s,\nand in '
+                'the ref db is: %s', imagefiles_this[0], imagefiles_ref[0])
         raise ValueError('No matching imagefiles in between the open db with '
                          '%d images and the reference db with %d images.' %
                          (len(imagefiles_this), len(imagefiles_ref)))
