@@ -223,6 +223,10 @@ def objectField(entry, field):
     raise KeyError('No field "%s" in object entry %s' % (field, entry))
 
 
+def objectFields(entry, fields):
+    return [objectField(entry, field) for field in fields]
+
+
 def setObjectField(entry, field, value):
     ''' Setter for object entry fields. '''
 
@@ -267,6 +271,10 @@ def imageField(entry, field):
     raise KeyError('No field "%s" in image entry %s' % (field, entry))
 
 
+def imageFields(entry, fields):
+    return [imageField(entry, field) for field in fields]
+
+
 def setImageField(entry, field, value):
     ''' Setter for image entry fields. '''
 
@@ -291,6 +299,10 @@ def polygonField(entry, field):
     if field == 'y': return entry[3]
     if field == 'name': return entry[4]
     raise KeyError('No field "%s" in polygon entry %s' % (field, entry))
+
+
+def polygonFields(entry, fields):
+    return [polygonField(entry, field) for field in fields]
 
 
 def deleteObject(cursor, objectid):

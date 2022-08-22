@@ -50,6 +50,12 @@ class TestCars(unittest.TestCase):
         with self.assertRaises(KeyError):
             backendDb.objectField(entry, 'dummy')
 
+        # Multiple fields.
+        self.assertEqual(backendDb.objectFields(entry, ['objectid', 'x1']),
+                         [1, 225], str(entry))
+        with self.assertRaises(KeyError):
+            self.assertEqual(backendDb.objectFields(entry, ['x1', 'dummy']))
+
     def test_imageFields(self):
         cursor = self.conn.cursor()
         cursor.execute(
@@ -71,6 +77,12 @@ class TestCars(unittest.TestCase):
         with self.assertRaises(KeyError):
             backendDb.imageField(entry, 'dummy')
 
+        # Multiple fields.
+        self.assertEqual(backendDb.imageFields(entry, ['name', 'width']),
+                         [None, 800], str(entry))
+        with self.assertRaises(KeyError):
+            self.assertEqual(backendDb.imageFields(entry, ['name', 'dummy']))
+
     def test_polygonFields(self):
         cursor = self.conn.cursor()
         cursor.execute('SELECT * FROM polygons WHERE id=1')
@@ -85,6 +97,12 @@ class TestCars(unittest.TestCase):
                          str(entry))
         with self.assertRaises(KeyError):
             backendDb.polygonField(entry, 'dummy')
+
+        # Multiple fields.
+        self.assertEqual(backendDb.polygonFields(entry, ['id', 'x']), [1, 97],
+                         str(entry))
+        with self.assertRaises(KeyError):
+            self.assertEqual(backendDb.polygonFields(entry, ['id', 'dummy']))
 
     def test_getColumnsInTable(self):
         result = backendDb.getColumnsInTable(self.cursor, 'objects')
