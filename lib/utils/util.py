@@ -443,3 +443,16 @@ def getIntersectingObjects(objects1, objects2, IoU_threshold, same_id_ok=True):
                       objectid1, name1, objectid2, name2, IoU)
 
     return pairs_to_merge
+
+
+def makeExportedImageName(tgt_dir, imagefile, full_imagefile_as_name):
+    if full_imagefile_as_name:
+        tgt_path = op.join(tgt_dir, imagefile.replace("/", "_"))
+    else:
+        tgt_path = op.join(tgt_dir, op.basename(imagefile))
+    logging.debug('The target path is %s' % tgt_path)
+    if op.exists(tgt_path):
+        raise FileExistsError(
+            'File %s was already exported. There must be images with the same '
+            'names in several dirs. Use --full_imagefile_as_name.' % tgt_path)
+    return tgt_path
