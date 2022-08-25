@@ -54,6 +54,8 @@ def filterImagesOfAnotherDb(c, args):
 
     # Get all the imagefiles from the reference db.
     ref_file = args.keep_db_file if args.keep_db_file else args.delete_db_file
+    if not op.exists(ref_file):
+        raise FileNotFoundError('Reference db does not exist: %s' % ref_file)
     conn_ref = sqlite3.connect('file:%s?mode=ro' % ref_file, uri=True)
     c_ref = conn_ref.cursor()
     c_ref.execute('SELECT imagefile FROM images')
