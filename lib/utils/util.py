@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 import pprint
 import matplotlib.pyplot as plt
+import re
 
 from lib.backend import backendDb
 from lib.utils import utilBoxes
@@ -445,14 +446,30 @@ def getIntersectingObjects(objects1, objects2, IoU_threshold, same_id_ok=True):
     return pairs_to_merge
 
 
-def makeExportedImageName(tgt_dir, imagefile, full_imagefile_as_name):
+def makeExportedImageName(tgt_dir,
+                          imagefile,
+                          full_imagefile_as_name=False,
+                          fix_invalid_image_names=False):
     if full_imagefile_as_name:
-        tgt_path = op.join(tgt_dir, imagefile.replace("/", "_"))
+        tgt_name = imagefile.replace("/", "_")
     else:
-        tgt_path = op.join(tgt_dir, op.basename(imagefile))
+        tgt_name = op.basename(imagefile)
+
+    if fix_invalid_image_names:
+        tgt_name_fixed = re.sub(r'[^a-zA-Z0-9_.-]', '_', tgt_name)
+        if tgt_name_fixed != tgt_name:
+            logging.info(
+                'Replaced invalid characters in image name "%s" to "%s"',
+                tgt_name, tgt_name_fixed)
+            tgt_name = tgt_name_fixed
+
+    tgt_path = op.join(tgt_dir, tgt_name)
+
     logging.debug('The target path is %s' % tgt_path)
     if op.exists(tgt_path):
-        raise FileExistsError(
-            'File %s was already exported. There must be images with the same '
-            'names in several dirs. Use --full_imagefile_as_name.' % tgt_path)
+        message = 'File with this name %s already exists. ' % tgt_path
+        if not full_imagefile_as_name:
+            message += 'There may be images with the same names in '
+            'several dirs. Use --full_imagefile_as_name. '
+        raise FileExistsError(message)
     return tgt_path

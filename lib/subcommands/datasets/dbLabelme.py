@@ -1,12 +1,9 @@
-import os, sys, os.path as op
-import numpy as np
+import os, os.path as op
+import sqlite3
 import cv2
 from lxml import etree as ET
-import collections
 import logging
 from glob import glob
-import shutil
-import sqlite3
 from progressbar import progressbar
 from pprint import pformat
 import re
@@ -53,12 +50,43 @@ def importLabelmeParser(subparsers):
                         action='store_true',
                         help='Will replace objects with the same objectid'
                         ' as the id in the xml, but keep the same imagefile.')
-    parser.add_argument('--with_display', action='store_true')
+    parser.add_argument(
+        '--ref_db_file',
+        help='If export to labelme was made with shuffler, the original '
+        '"imagefile" entries were saved to the "name" field of the database. '
+        'Specify ref_db_file to load imagefiles from the "name" field.')
 
 
 def importLabelme(c, args):
-    if args.with_display:
-        imreader = backendMedia.MediaReader(args.rootdir)
+    if args.ref_db_file:
+        if not op.exists(args.ref_db_file):
+            raise FileNotFoundError('Ref db does not exist: %s',
+                                    args.ref_db_file)
+        conn_ref = sqlite3.connect('file:%s?mode=ro' % args.ref_db_file,
+                                   uri=True)
+        c_ref = conn_ref.cursor()
+
+        # Get imagefiles.
+        c_ref.execute('SELECT imagefile,name FROM images')
+        image_entries_ref = c_ref.fetchall()
+        logging.info('Ref db has %d imagefiles.', len(image_entries_ref))
+        labelme_to_original_imagefile_map = {
+            imagefile: name
+            for (imagefile, name) in image_entries_ref
+        }
+    else:
+        labelme_to_original_imagefile_map = None
+
+    def get_original_imagefile(labelme_imagefile,
+                               labelme_to_original_imagefile_map):
+        if labelme_to_original_imagefile_map is not None:
+            if labelme_imagefile not in labelme_to_original_imagefile_map:
+                raise KeyError(
+                    'Can not find key "%s" in "name" field in ref_db_file.' %
+                    labelme_imagefile)
+            return labelme_to_original_imagefile_map[labelme_imagefile]
+        else:
+            return labelme_imagefile
 
     # Adding images.
     image_paths = (glob(op.join(args.images_dir, '*.jpg')) +
@@ -67,41 +95,42 @@ def importLabelme(c, args):
     imagefiles = []
     for image_path in progressbar(image_paths):
         height, width = backendMedia.getPictureSize(image_path)
-        imagefile = op.relpath(op.abspath(image_path), args.rootdir)
+        labelme_imagefile = op.relpath(op.abspath(image_path), args.rootdir)
+        original_imagefile = get_original_imagefile(
+            labelme_imagefile, labelme_to_original_imagefile_map)
         timestamp = backendDb.makeTimeString(datetime.now())
         if not args.replace:
             c.execute(
                 'INSERT INTO images('
                 'imagefile, width, height, timestamp) VALUES (?,?,?,?)',
-                (imagefile, width, height, timestamp))
-        imagefiles.append(imagefile)
+                (original_imagefile, width, height, timestamp))
+        imagefiles.append((labelme_imagefile, original_imagefile))
     logging.info('Found %d new imagefiles.' % len(imagefiles))
 
     # Adding annotations.
     annotations_paths = os.listdir(args.annotations_dir)
 
-    for imagefile in progressbar(imagefiles):
-        logging.info('Processing imagefile: "%s"' % imagefile)
+    for labelme_imagefile, original_imagefile in progressbar(imagefiles):
+        logging.info(
+            'Processing imagefile: "%s", which has original name "%s"',
+            labelme_imagefile, original_imagefile)
 
         # Find annotation files that match the imagefile.
         # There may be 1 or 2 dots in the extension because of some
         # bug/feature in LabelMe.
         regex = re.compile('0*%s[\.]{1,2}xml' %
-                           op.splitext(op.basename(imagefile))[0])
+                           op.splitext(op.basename(labelme_imagefile))[0])
         logging.debug('Will try to match %s' % regex)
         matches = [f for f in annotations_paths if re.match(regex, f)]
         if len(matches) == 0:
             logging.debug('Annotation file does not exist: "%s". Skip image.' %
-                          imagefile)
+                          labelme_imagefile)
             continue
         elif len(matches) > 1:
             logging.warning('Found multiple files: %s' % pformat(matches))
         # FIXME: pick the latest as opposed to just one of those.
         annotation_file = op.join(args.annotations_dir, matches[0])
         logging.debug('Got a match %s' % annotation_file)
-
-        if args.with_display:
-            img = imreader.imread(imagefile)
 
         tree = ET.parse(annotation_file)
         for object_ in tree.getroot().findall('object'):
@@ -140,7 +169,7 @@ def importLabelme(c, args):
                 logging.info('Updated objectid %d.', objectid)
             else:
                 c.execute('INSERT INTO objects(imagefile,name) VALUES (?,?)',
-                          (imagefile, name))
+                          (original_imagefile, name))
                 objectid = c.lastrowid
                 logging.debug('Will assign a new objectid %d.', objectid)
 
@@ -162,16 +191,6 @@ def importLabelme(c, args):
                     (objectid, attrib.text, 'true'))
 
             util.polygons2bboxes(c, objectid)  # Generate a bounding box.
-
-            if args.with_display:
-                pts = np.array([xs, ys], dtype=np.int32).transpose()
-                util.drawScoredPolygon(img, pts, name, score=1)
-
-        if args.with_display:
-            cv2.imshow('importLabelmeImages', img[:, :, ::-1])
-            if cv2.waitKey(-1) == 27:
-                args.with_display = False
-                cv2.destroyWindow('importLabelmeImages')
 
 
 def exportLabelmeParser(subparsers):
@@ -201,10 +220,16 @@ def exportLabelmeParser(subparsers):
                         default='LabelMe Webtool',
                         help='Optional field to fill in the annotation files.')
     parser.add_argument(
+        '--full_imagefile_as_name',
+        action='store_true',
+        help='If specified, imagefile entries will be made into the new file '
+        'names by replacing "/" with "_". Otherwise, the last part of '
+        'imagefile (imagename) will be used as new file names. '
+        'Useful when files are from different dirs with duplicate names.')
+    parser.add_argument(
         '--fix_invalid_image_names',
         action='store_true',
-        help='Some symbols are invalid in image names for Labelme. '
-        'They will be replaced with "_".')
+        help='Replace invalid symbols with "_" in image names.')
     parser.add_argument(
         '--overwrite',
         action='store_true',
@@ -249,8 +274,11 @@ def exportLabelme(c, args):
         ET.SubElement(el_imagesize, 'nrows').text = str(imheight)
         ET.SubElement(el_imagesize, 'ncols').text = str(imwidth)
 
-        time = backendDb.parseTimeString(timestamp)
-        timestamp = datetime.strftime(time, '%Y-%m-%d %H:%M:%S')
+        if timestamp is not None:
+            time = backendDb.parseTimeString(timestamp)
+            timestamp = datetime.strftime(time, '%Y-%m-%d %H:%M:%S')
+        else:
+            timestamp = ''
 
         c.execute('SELECT * FROM objects WHERE imagefile=?', (imagefile, ))
         for object_entry in c.fetchall():
@@ -328,40 +356,39 @@ def exportLabelme(c, args):
                 logging.debug('Polygon %s has %d points.' %
                               (pol_name, len(xy_entries)))
 
-        # Get and maybe fix imagename.
-        imagename = op.basename(imagefile)
-        if args.fix_invalid_image_names:
-            imagename_fixed = re.sub(r'[^a-zA-Z0-9_.-]', '_', imagename)
-            if imagename_fixed != imagename:
-                imagename = imagename_fixed
-                logging.warning('Replaced invalid characters in image name %s',
-                                imagename)
-        # Labelme supports only JPG.
-        if op.splitext(imagename)[1] != '.jpg':
-            logging.info('Changing the file extension to JPG: %s', imagefile)
-            imagename = op.splitext(imagename)[0] + '.jpg'
+        c.execute('UPDATE images SET name=? WHERE imagefile=?',
+                  (imagefile, imagefile))
 
-        logging.debug('Writing imagefile %s as:\n%s', imagefile,
-                      ET.tostring(el_root, pretty_print=True).decode("utf-8"))
+        # Write image.
+        if args.images_dir is not None:
+            image_path = util.makeExportedImageName(
+                args.images_dir,
+                imagefile,
+                full_imagefile_as_name=args.full_imagefile_as_name,
+                fix_invalid_image_names=args.fix_invalid_image_names)
+            # Labelme supports only JPG.
+            if op.splitext(image_path)[1] != '.jpg':
+                image_path = op.splitext(image_path)[0] + '.jpg'
+                logging.info('Changing the extension to "jpg": %s', image_path)
+            logging.debug('Writing imagefile to: %s', image_path)
+            image_name = op.basename(image_path)
+
+            image = imreader.imread(imagefile)
+            new_imagefile = imwriter.imwrite(image, namehint=image_name)
+            c.execute('UPDATE images SET imagefile=? WHERE imagefile=?',
+                      (new_imagefile, imagefile))
+            c.execute('UPDATE objects SET imagefile=? WHERE imagefile=?',
+                      (new_imagefile, imagefile))
 
         # Write annotation.
-        annotation_name = '%s.xml' % op.splitext(imagename)[0]
+        annotation_name = '%s.xml' % op.splitext(image_name)[0]
         annotation_path = op.join(args.annotations_dir, annotation_name)
-        logging.debug('Will write annotation to "%s"' % annotation_path)
+        logging.debug('Writing annotation to %s' % annotation_path)
         if op.exists(annotation_path) and not args.overwrite:
             raise FileExistsError('Annotation file "%s" already exists. '
                                   'Maybe pass "overwrite" argument.')
         with open(annotation_path, 'wb') as f:
             f.write(ET.tostring(el_root, pretty_print=True))
-
-        # Write image.
-        if args.images_dir is not None:
-            image = imreader.imread(imagefile)
-            new_imagefile = imwriter.imwrite(image, namehint=imagename)
-            c.execute('UPDATE images SET imagefile=? WHERE imagefile=?',
-                      (new_imagefile, imagefile))
-            c.execute('UPDATE objects SET imagefile=? WHERE imagefile=?',
-                      (new_imagefile, imagefile))
 
     if print_warning_for_multiple_polygons_in_the_end:
         logging.warning(

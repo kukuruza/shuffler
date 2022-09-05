@@ -48,6 +48,10 @@ def exportYoloParser(subparsers):
         'names by replacing "/" with "_". Otherwise, the last part of '
         'imagefile (imagename) will be used as new file names. '
         'Useful when files are from different dirs with duplicate names.')
+    parser.add_argument(
+        '--fix_invalid_image_names',
+        action='store_true',
+        help='Replace invalid symbols with "_" in image names .')
 
 
 def exportYolo(c, args):
@@ -114,7 +118,8 @@ def exportYolo(c, args):
 
         if len(lines):
             labels_path = util.makeExportedImageName(
-                labels_dir, imagefile, args.full_imagefile_as_name)
+                labels_dir, imagefile, args.full_imagefile_as_name,
+                args.fix_invalid_image_names)
             labels_path = op.splitext(labels_path)[0] + '.txt'
             logging.debug('Writing labels to file: %s', labels_path)
             with open(labels_path, 'w') as f:

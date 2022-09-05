@@ -128,6 +128,38 @@ class Test_getIntersectingObjects(unittest.TestCase):
         self.assertEqual(set(pairs_to_merge), set([(1, 3), (2, 5)]))
 
 
+class Test_makeExportedImageName(unittest.TestCase):
+    def setUp(self):
+        self.work_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.work_dir)
+
+    def test_regular(self):
+        tgt_path = util.makeExportedImageName(self.work_dir,
+                                              'src_dir/filename')
+        self.assertEqual(tgt_path, op.join(self.work_dir, 'filename'))
+
+        # Make it exist.
+        with open(tgt_path, 'w') as f:
+            f.write('')
+
+        with self.assertRaises(FileExistsError):
+            util.makeExportedImageName(self.work_dir, 'src_dir/filename')
+
+    def test_fullImagefileAsName(self):
+        tgt_path = util.makeExportedImageName('tgt_dir',
+                                              'src_dir/filename',
+                                              full_imagefile_as_name=True)
+        self.assertEqual(tgt_path, 'tgt_dir/src_dir_filename')
+
+    def test_fixInvalidImageNames(self):
+        tgt_path = util.makeExportedImageName('tgt_dir',
+                                              'src_dir/file(?)name',
+                                              fix_invalid_image_names=True)
+        self.assertEqual(tgt_path, 'tgt_dir/file___name')
+
+
 if __name__ == '__main__':
     progressbar.streams.wrap_stdout()
     nose.runmodule()
