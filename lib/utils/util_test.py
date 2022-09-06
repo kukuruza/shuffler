@@ -2,6 +2,7 @@ import os.path as op
 import shutil
 import unittest
 import tempfile
+import argparse
 import progressbar
 import nose
 
@@ -147,11 +148,23 @@ class Test_makeExportedImageName(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             util.makeExportedImageName(self.work_dir, 'src_dir/filename')
 
-    def test_fullImagefileAsName(self):
+    def test_dirtreeLevelForName_eq2(self):
         tgt_path = util.makeExportedImageName('tgt_dir',
-                                              'src_dir/filename',
-                                              full_imagefile_as_name=True)
-        self.assertEqual(tgt_path, 'tgt_dir/src_dir_filename')
+                                              'my/fancy/filename',
+                                              dirtree_level_for_name=2)
+        self.assertEqual(tgt_path, 'tgt_dir/fancy_filename')
+
+    def test_dirtreeLevelForName_eq3(self):
+        tgt_path = util.makeExportedImageName('tgt_dir',
+                                              'my/fancy/filename',
+                                              dirtree_level_for_name=3)
+        self.assertEqual(tgt_path, 'tgt_dir/my_fancy_filename')
+
+    def test_dirtreeLevelForName_eqALot(self):
+        tgt_path = util.makeExportedImageName('tgt_dir',
+                                              'my/fancy/filename',
+                                              dirtree_level_for_name=42)
+        self.assertEqual(tgt_path, 'tgt_dir/my_fancy_filename')
 
     def test_fixInvalidImageNames(self):
         tgt_path = util.makeExportedImageName('tgt_dir',

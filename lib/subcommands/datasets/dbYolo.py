@@ -41,17 +41,7 @@ def exportYoloParser(subparsers):
         required=True,
         help='Classes of interest in order. Will look at object names for them.'
     )
-    parser.add_argument(
-        '--full_imagefile_as_name',
-        action='store_true',
-        help='If specified, imagefile entries will be made into the new file '
-        'names by replacing "/" with "_". Otherwise, the last part of '
-        'imagefile (imagename) will be used as new file names. '
-        'Useful when files are from different dirs with duplicate names.')
-    parser.add_argument(
-        '--fix_invalid_image_names',
-        action='store_true',
-        help='Replace invalid symbols with "_" in image names .')
+    util.addParserArguments_MakeExportedImageName(parser)
 
 
 def exportYolo(c, args):
@@ -88,7 +78,8 @@ def exportYolo(c, args):
                 (src_image_path, args.rootdir))
 
         image_path = util.makeExportedImageName(image_dir, imagefile,
-                                                args.full_imagefile_as_name)
+                                                args.dirtree_level_for_name,
+                                                args.fix_invalid_image_names)
         if args.copy_images:
             shutil.copyfile(src_image_path, image_path)
         elif args.symlink_images:

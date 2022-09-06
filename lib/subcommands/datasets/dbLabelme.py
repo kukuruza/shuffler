@@ -220,20 +220,10 @@ def exportLabelmeParser(subparsers):
                         default='LabelMe Webtool',
                         help='Optional field to fill in the annotation files.')
     parser.add_argument(
-        '--full_imagefile_as_name',
-        action='store_true',
-        help='If specified, imagefile entries will be made into the new file '
-        'names by replacing "/" with "_". Otherwise, the last part of '
-        'imagefile (imagename) will be used as new file names. '
-        'Useful when files are from different dirs with duplicate names.')
-    parser.add_argument(
-        '--fix_invalid_image_names',
-        action='store_true',
-        help='Replace invalid symbols with "_" in image names.')
-    parser.add_argument(
         '--overwrite',
         action='store_true',
         help='overwrite image and/or annotation files if they exist.')
+    util.addParserArguments_MakeExportedImageName(parser)
 
 
 def exportLabelme(c, args):
@@ -362,10 +352,8 @@ def exportLabelme(c, args):
         # Write image.
         if args.images_dir is not None:
             image_path = util.makeExportedImageName(
-                args.images_dir,
-                imagefile,
-                full_imagefile_as_name=args.full_imagefile_as_name,
-                fix_invalid_image_names=args.fix_invalid_image_names)
+                args.images_dir, imagefile, args.dirtree_level_for_name,
+                args.fix_invalid_image_names)
             # Labelme supports only JPG.
             if op.splitext(image_path)[1] != '.jpg':
                 image_path = op.splitext(image_path)[0] + '.jpg'

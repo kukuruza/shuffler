@@ -6,6 +6,7 @@ import numpy as np
 import pprint
 import matplotlib.pyplot as plt
 import re
+import argparse
 
 from lib.backend import backendDb
 from lib.utils import utilBoxes
@@ -446,14 +447,32 @@ def getIntersectingObjects(objects1, objects2, IoU_threshold, same_id_ok=True):
     return pairs_to_merge
 
 
+def addParserArguments_MakeExportedImageName(parser):
+    parser.add_argument(
+        '--dirtree_level_for_name',
+        type=int,
+        default=1,
+        help='How many levels of the directory structure to use as a filename. '
+        'E.g. imagefile "my/fancy/image.jpg" would result in output name '
+        '"image.jpg" when --dirtree_level_for_name=1, '
+        '"fancy_image.jpg" when =2, and my_fancy_image.jpg with >=3. '
+        'Useful when images in different dirs have the same filename.')
+    parser.add_argument(
+        '--fix_invalid_image_names',
+        action='store_true',
+        help='Replace invalid symbols with "_" in image names.')
+
+
 def makeExportedImageName(tgt_dir,
                           imagefile,
-                          full_imagefile_as_name=False,
-                          fix_invalid_image_names=False):
-    if full_imagefile_as_name:
-        tgt_name = imagefile.replace("/", "_")
-    else:
-        tgt_name = op.basename(imagefile)
+                          dirtree_level_for_name=1,
+                          fix_invalid_image_names=True):
+    # Keep dirtree_level_for_name - 1 directories in tgt_name.
+    # Replace the directory delimeter with "_".
+    tgt_name = imagefile[::-1]
+    tgt_name = tgt_name.replace(op.sep, "_", dirtree_level_for_name - 1)
+    tgt_name = tgt_name[::-1]
+    tgt_name = op.basename(tgt_name)
 
     if fix_invalid_image_names:
         tgt_name_fixed = re.sub(r'[^a-zA-Z0-9_.-]', '_', tgt_name)
@@ -468,7 +487,7 @@ def makeExportedImageName(tgt_dir,
     logging.debug('The target path is %s' % tgt_path)
     if op.exists(tgt_path):
         message = 'File with this name %s already exists. ' % tgt_path
-        if not full_imagefile_as_name:
+        if dirtree_level_for_name == 1:
             message += 'There may be images with the same names in '
             'several dirs. Use --full_imagefile_as_name. '
         raise FileExistsError(message)

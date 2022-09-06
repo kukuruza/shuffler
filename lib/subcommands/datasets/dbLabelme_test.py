@@ -20,11 +20,11 @@ class Test_exportLabelme_importLabelme_synthetic(unittest.TestCase):
         self.work_dir = tempfile.mkdtemp()
         self.rootdir = self.work_dir  # rootdir is defined for readability.
         # Image dir is another layer of directories in order to check option
-        # "--full_imagefile_as_name".
-        self.image_dir = op.join(self.work_dir, 'images')
+        # "--dirtree_level_for_name".
+        self.image_dir = op.join(self.work_dir, 'my/images')
         os.makedirs(self.image_dir)
         # Image format is png in order to check that it changes at export.
-        self.imagefile = 'images/image().png'
+        self.imagefile = 'my/images/image().png'
 
         self.imwidth, self.imheight = 400, 30
         image = np.zeros((self.imheight, self.imwidth, 3), np.uint8)
@@ -44,7 +44,7 @@ class Test_exportLabelme_importLabelme_synthetic(unittest.TestCase):
         c.execute('INSERT INTO polygons(objectid,x,y) '
                   'VALUES (123,40,20), (123,70,20), (123,70,30)')
 
-    def test_noPolygons(self):
+    def test_regular(self):
         #
         # Export.
         #
@@ -57,7 +57,7 @@ class Test_exportLabelme_importLabelme_synthetic(unittest.TestCase):
                                   folder='',
                                   source_image='',
                                   source_annotation='',
-                                  full_imagefile_as_name=True,
+                                  dirtree_level_for_name=2,
                                   fix_invalid_image_names=True,
                                   overwrite=False)
         dbLabelme.exportLabelme(c_old, args)
