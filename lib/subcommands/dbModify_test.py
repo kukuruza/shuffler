@@ -116,7 +116,8 @@ class Test_propertyToObjectsField_SyntheticDb(unittest.TestCase):
         c = self.conn.cursor()
         c.execute('INSERT INTO images(imagefile) VALUES ("a"), ("b"), ("c")')
         c.execute('INSERT INTO objects(imagefile,objectid,x1,name,score) '
-                  'VALUES ("a",0,10,"cat",0.1), ("b",1,20,"dog",0.2)')
+                  'VALUES ("a",0,10,"cat",0.1), ("b",1,20,"dog",0.2), '
+                  '("c",2,30,"pig",0.3)')
         c.execute('INSERT INTO properties(objectid,key,value) '
                   'VALUES (0,"color","gray"), (1,"breed","poodle")')
         c.execute('INSERT INTO polygons(objectid,x) VALUES (0,25), (1,35)')
@@ -154,7 +155,7 @@ class Test_propertyToObjectsField_SyntheticDb(unittest.TestCase):
     def testObjectidField(self):
         c = self.conn.cursor()
         c.execute('INSERT INTO properties(objectid,key,value) '
-                  'VALUES (0,"newval","2")')
+                  'VALUES (0,"newval","2"), (2,"newval","6")')
         args = argparse.Namespace(rootdir='.',
                                   target_objects_field='objectid',
                                   properties_key='newval')
@@ -162,7 +163,7 @@ class Test_propertyToObjectsField_SyntheticDb(unittest.TestCase):
 
         # Verify the "objects" table.
         c.execute('SELECT imagefile,objectid FROM objects')
-        expected = [("a", 2), ("b", 1)]
+        expected = [("a", 2), ("b", 1), ("c", 6)]
         self.assertEqual(set(c.fetchall()), set(expected))
 
         # Verify the "polygons" table (the newval 0 is replaced with 2).
@@ -178,7 +179,7 @@ class Test_propertyToObjectsField_SyntheticDb(unittest.TestCase):
         # Verify the "properties" table (the newval 0 is replaced with 2).
         c.execute('SELECT objectid,key,value FROM properties')
         expected = [(2, "color", "gray"), (1, "breed", "poodle"),
-                    (2, "newval", "2")]
+                    (2, "newval", "2"), (6, "newval", "6")]
         self.assertEqual(set(c.fetchall()), set(expected))
 
     def testObjectidField_NonUniqueValues(self):
@@ -212,7 +213,7 @@ class Test_propertyToObjectsField_SyntheticDb(unittest.TestCase):
 
         # Verify the "objects" table.
         c.execute('SELECT objectid,name FROM objects')
-        expected = [(0, "sheep"), (1, "dog")]
+        expected = [(0, "sheep"), (1, "dog"), (2, "pig")]
         self.assertEqual(set(c.fetchall()), set(expected))
 
     def testX1Field(self):
@@ -226,7 +227,7 @@ class Test_propertyToObjectsField_SyntheticDb(unittest.TestCase):
 
         # Verify the "objects" table.
         c.execute('SELECT objectid,x1 FROM objects')
-        expected = [(0, 50), (1, 20)]
+        expected = [(0, 50), (1, 20), (2, 30)]
         self.assertEqual(set(c.fetchall()), set(expected))
 
     def testScoreField(self):
@@ -240,7 +241,7 @@ class Test_propertyToObjectsField_SyntheticDb(unittest.TestCase):
 
         # Verify the "objects" table.
         c.execute('SELECT objectid,score FROM objects')
-        expected = [(0, 0.5), (1, 0.2)]
+        expected = [(0, 0.5), (1, 0.2), (2, 0.3)]
         self.assertEqual(set(c.fetchall()), set(expected))
 
 

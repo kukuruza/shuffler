@@ -421,6 +421,14 @@ def moveMedia(c, args):
 
             newfile = op.join(args.image_path,
                               getPathBase(oldfile, args.level))
+            c.execute('SELECT COUNT(1) FROM images WHERE imagefile=?',
+                      (newfile, ))
+            newfile_exists = c.fetchone()[0] > 0
+            if newfile_exists:
+                logging.error('File already exists: %s', newfile)
+                backendDb.deleteImage(c, oldfile)
+                continue
+
             c.execute('UPDATE images SET imagefile=? WHERE imagefile=?',
                       (newfile, oldfile))
             c.execute('UPDATE objects SET imagefile=? WHERE imagefile=?',
@@ -1313,11 +1321,10 @@ def propertyToObjectsField(c, args):
         # Insert non-updated objects.
         c.execute(
             'INSERT INTO objects SELECT * FROM objects_old WHERE objectid NOT IN ('
-            'SELECT objectid FROM properties WHERE properties.key="%s")' %
-            args.properties_key)
-        backendDb.dropRetiredTables(c)
+            'SELECT DISTINCT objectid FROM properties WHERE properties.key="%s")'
+            % args.properties_key)
 
-        # "s" is executed for "polygons", "matches", "properties" in that order.
+        # "s" is executed for "polygons" and "matches".
         s = ('UPDATE {{table}} SET objectid=('
              'SELECT CAST(properties.value AS INT) FROM properties '
              'WHERE {{table}}.objectid = properties.objectid '
@@ -1326,7 +1333,25 @@ def propertyToObjectsField(c, args):
                  key=args.properties_key)
         c.execute(s.format(table='polygons'))
         c.execute(s.format(table='matches'))
-        c.execute(s.format(table='properties'))
+
+        # Execute a similar request for properties.
+        backendDb.retireTables(c, names=['properties'])
+        # Insert updated objects.
+        c.execute(
+            'INSERT INTO properties(objectid,key,value) '
+            'SELECT CAST(p1.value AS INT), p2.key, p2.value '
+            'FROM properties_old p1 JOIN properties_old p2 ON p1.objectid = p2.objectid '
+            'WHERE p1.key="%s" AND p1.objectid = p2.objectid' %
+            args.properties_key)
+        # Insert non-updated objects.
+        c.execute(
+            'INSERT INTO properties(objectid,key,value) '
+            'SELECT objectid, key, value '
+            'FROM properties_old WHERE objectid NOT IN ('
+            'SELECT DISTINCT objectid FROM properties_old WHERE key="%s")' %
+            args.properties_key)
+
+        backendDb.dropRetiredTables(c)
 
     else:
         # Find the type to cast data to.
