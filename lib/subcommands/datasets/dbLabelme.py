@@ -201,6 +201,7 @@ def exportLabelmeParser(subparsers):
     )
     parser.set_defaults(func=exportLabelme)
     parser.add_argument('--images_dir',
+                        required=True,
                         help='Directory to write jpg files to. '
                         'If not specified, will not write jpg. '
                         'Normally, it will be "/path/to/labelme/Images".')
@@ -252,7 +253,6 @@ def exportLabelme(c, args):
     for imagefile, imheight, imwidth, timestamp in progressbar(c.fetchall()):
 
         el_root = ET.Element("annotation")
-        ET.SubElement(el_root, "filename").text = os.path.basename(imagefile)
         ET.SubElement(el_root, "folder").text = args.folder
 
         el_source = ET.SubElement(el_root, "source")
@@ -350,23 +350,24 @@ def exportLabelme(c, args):
                   (imagefile, imagefile))
 
         # Write image.
-        if args.images_dir is not None:
-            image_path = util.makeExportedImageName(
-                args.images_dir, imagefile, args.dirtree_level_for_name,
-                args.fix_invalid_image_names)
-            # Labelme supports only JPG.
-            if op.splitext(image_path)[1] != '.jpg':
-                image_path = op.splitext(image_path)[0] + '.jpg'
-                logging.info('Changing the extension to "jpg": %s', image_path)
-            logging.debug('Writing imagefile to: %s', image_path)
-            image_name = op.basename(image_path)
+        image_path = util.makeExportedImageName(args.images_dir, imagefile,
+                                                args.dirtree_level_for_name,
+                                                args.fix_invalid_image_names)
+        # Labelme supports only JPG.
+        if op.splitext(image_path)[1] != '.jpg':
+            image_path = op.splitext(image_path)[0] + '.jpg'
+            logging.info('Changing the extension to "jpg": %s', image_path)
+        logging.debug('Writing imagefile to: %s', image_path)
+        image_name = op.basename(image_path)
 
-            image = imreader.imread(imagefile)
-            new_imagefile = imwriter.imwrite(image, namehint=image_name)
-            c.execute('UPDATE images SET imagefile=? WHERE imagefile=?',
-                      (new_imagefile, imagefile))
-            c.execute('UPDATE objects SET imagefile=? WHERE imagefile=?',
-                      (new_imagefile, imagefile))
+        # Write image.
+        image = imreader.imread(imagefile)
+        new_imagefile = imwriter.imwrite(image, namehint=image_name)
+        c.execute('UPDATE images SET imagefile=? WHERE imagefile=?',
+                  (new_imagefile, imagefile))
+        c.execute('UPDATE objects SET imagefile=? WHERE imagefile=?',
+                  (new_imagefile, imagefile))
+        ET.SubElement(el_root, "filename").text = os.path.basename(image_name)
 
         # Write annotation.
         annotation_name = '%s.xml' % op.splitext(image_name)[0]
