@@ -41,15 +41,83 @@ def exportYoloParser(subparsers):
         required=True,
         help='Classes of interest in order. Will look at object names for them.'
     )
+    parser.add_argument(
+        '--as_polygons',
+        action='store_true',
+        help=
+        'Save in the format of https://github.com/XinzeLee/PolygonObjectDetection'
+    )
     util.addParserArguments_MakeExportedImageName(parser)
 
 
-def exportYolo(c, args):
+# Truncates numbers to N decimals
+def _truncate(n, decimals=0):
+    multiplier = 10**decimals
+    return int(n * multiplier) / multiplier
 
-    # Truncates numbers to N decimals
-    def truncate(n, decimals=0):
-        multiplier = 10**decimals
-        return int(n * multiplier) / multiplier
+
+def _exportImage(c, imagefile, imwidth, imheight, classes):
+    lines = []
+    c.execute('SELECT name,x1,y1,width,height FROM objects WHERE imagefile=?',
+              (imagefile, ))
+    for name, x1, y1, width, height in c.fetchall():
+        try:
+            label_id = classes.index(name)
+        except ValueError:
+            continue
+
+        xn = (x1 + width / 2.) / imwidth
+        yn = (y1 + height / 2.) / imheight
+        wn = width / imwidth
+        hn = height / imheight
+
+        line = (f'{label_id} {_truncate(xn, 7)} {_truncate(yn, 7)} ' +
+                f'{_truncate(wn, 7)} {_truncate(hn, 7)}\n')
+        logging.debug('label entry: %s', line)
+        lines.append(line)
+    return lines
+
+
+def _exportImageAsPolygons(c, imagefile, imwidth, imheight, classes):
+    lines = []
+    c.execute('SELECT objectid,name FROM objects WHERE imagefile=?',
+              (imagefile, ))
+    for objectid, name in c.fetchall():
+        # In case bboxes were not recorded as polygons.
+        util.bboxes2polygons(c, objectid)
+
+        try:
+            label_id = classes.index(name)
+        except ValueError:
+            continue
+
+        c.execute('SELECT x,y FROM polygons WHERE objectid=?', (objectid, ))
+        polygon = c.fetchall()
+        if len(polygon) != 4:
+            logging.warning(
+                'Polygon for objectid has %d points instead of 4. Skip.',
+                len(polygon))
+            continue
+
+        x1 = polygon[0][0] / imwidth
+        x2 = polygon[1][0] / imwidth
+        x3 = polygon[2][0] / imwidth
+        x4 = polygon[3][0] / imwidth
+        y1 = polygon[0][1] / imheight
+        y2 = polygon[1][1] / imheight
+        y3 = polygon[2][1] / imheight
+        y4 = polygon[3][1] / imheight
+
+        line = (f'{label_id} ' + f'{_truncate(x1, 7)} {_truncate(y1, 7)} ' +
+                f'{_truncate(x2, 7)} {_truncate(y2, 7)} ' +
+                f'{_truncate(x3, 7)} {_truncate(y3, 7)} ' +
+                f'{_truncate(x4, 7)} {_truncate(y4, 7)}\n')
+        logging.debug('label entry: %s', line)
+        lines.append(line)
+    return lines
+
+
+def exportYolo(c, args):
 
     # Images dir.
     image_dir = op.join(args.yolo_dir, 'images', args.subset)
@@ -88,28 +156,16 @@ def exportYolo(c, args):
                        target_is_directory=False)
 
         # Objects.
-        lines = []
-        c.execute(
-            'SELECT name,x1,y1,width,height FROM objects WHERE imagefile=?',
-            (imagefile, ))
-        for name, x1, y1, width, height in c.fetchall():
-            try:
-                label_id = args.classes.index(name)
-            except ValueError:
-                continue
+        if args.as_polygons:
+            lines = _exportImageAsPolygons(c, imagefile, imwidth, imheight,
+                                           args.classes)
+        else:
+            lines = _exportImage(c, imagefile, imwidth, imheight, args.classes)
 
-            xn = (x1 + width / 2.) / imwidth
-            yn = (y1 + height / 2.) / imheight
-            wn = width / imwidth
-            hn = height / imheight
-
-            line = f'{label_id} {truncate(xn, 7)} {truncate(yn, 7)} {truncate(wn, 7)} {truncate(hn, 7)}\n'
-            logging.debug('label entry: %s', line)
-            lines.append(line)
-
+        # Write to labels file.
         if len(lines):
             labels_path = util.makeExportedImageName(
-                labels_dir, imagefile, args.full_imagefile_as_name,
+                labels_dir, imagefile, args.dirtree_level_for_name,
                 args.fix_invalid_image_names)
             labels_path = op.splitext(labels_path)[0] + '.txt'
             logging.debug('Writing labels to file: %s', labels_path)

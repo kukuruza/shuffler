@@ -70,6 +70,7 @@ class Test_dbExportYolo_carsDb(testUtils.Test_carsDb):
             symlink_images=False,
             subset='car',
             classes=['car'],
+            as_polygons=False,
             dirtree_level_for_name=1,
             fix_invalid_image_names=False)
         dbYolo.exportYolo(c, args)
@@ -84,6 +85,7 @@ class Test_dbExportYolo_carsDb(testUtils.Test_carsDb):
             symlink_images=False,
             subset='car_and_bus',
             classes=['car', 'bus'],
+            as_polygons=False,
             dirtree_level_for_name=1,
             fix_invalid_image_names=False)
         dbYolo.exportYolo(c, args)
@@ -99,6 +101,7 @@ class Test_dbExportYolo_carsDb(testUtils.Test_carsDb):
             symlink_images=True,
             subset='car',
             classes=['car'],
+            as_polygons=False,
             dirtree_level_for_name=1,
             fix_invalid_image_names=False)
         dbYolo.exportYolo(c, args)
@@ -125,7 +128,8 @@ class Test_dbExportYolo_carsDb(testUtils.Test_carsDb):
             symlink_images=True,
             subset='car',
             classes=['car'],
-            dirtree_level_for_name=1,
+            as_polygons=False,
+            dirtree_level_for_name=2,
             fix_invalid_image_names=False)
         dbYolo.exportYolo(c, args)
 
@@ -134,11 +138,50 @@ class Test_dbExportYolo_carsDb(testUtils.Test_carsDb):
         labels_dir = op.join(self.temp_dir, 'labels/car')
         logging.debug('Contents of images_dir: %s', os.listdir(images_dir))
         logging.debug('Contents of labels_dir: %s', os.listdir(labels_dir))
-        self.assertTrue(op.exists(op.join(images_dir, 'images_000000.jpg')))
+        self.assertTrue(op.exists(op.join(images_dir, 'images_000000.jpg')),
+                        'Instead have: %s' % os.listdir(images_dir))
         self.assertTrue(op.exists(op.join(images_dir, 'images_000001.jpg')))
         self.assertTrue(op.exists(op.join(images_dir, 'images_000002.jpg')))
         self.assertTrue(op.exists(op.join(labels_dir, 'images_000000.txt')))
         self.assertTrue(op.exists(op.join(labels_dir, 'images_000001.txt')))
+
+    def test_carsOnlyPolygons(self):
+        ''' Eval only label files. They are written in the Polygon format. '''
+
+        c = self.conn.cursor()
+        args = argparse.Namespace(
+            rootdir=testUtils.Test_carsDb.CARS_DB_ROOTDIR,
+            yolo_dir=op.join(self.temp_dir),
+            copy_images=True,
+            symlink_images=False,
+            subset='car_as_polygons',
+            classes=['car'],
+            as_polygons=True,
+            dirtree_level_for_name=1,
+            fix_invalid_image_names=False)
+        dbYolo.exportYolo(c, args)
+
+        # Check files.
+        logging.debug('Contents of temp_dir: %s', os.listdir(self.temp_dir))
+        labels_subset_dir = op.join(self.temp_dir, 'labels/car_as_polygons')
+        logging.debug('Contents of labels_subset_dir: %s',
+                      os.listdir(labels_subset_dir))
+        self.assertTrue(op.exists(op.join(labels_subset_dir, '000000.txt')))
+
+        # Actual labels.
+        labels_actual0 = np.loadtxt(op.join(labels_subset_dir, '000000.txt'))
+
+        # Expected labels.
+        test_data_dir = 'testdata/cars/dbYolo'
+        expected_labels_subset_dir = op.join(test_data_dir,
+                                             'labels/car_as_polygons')
+        assert op.exists(op.join(expected_labels_subset_dir, '000000.txt'))
+        labels_expected0 = np.loadtxt(
+            op.join(expected_labels_subset_dir, '000000.txt'))
+
+        np.testing.assert_array_almost_equal(labels_actual0,
+                                             labels_expected0,
+                                             decimal=3)
 
 
 if __name__ == '__main__':
