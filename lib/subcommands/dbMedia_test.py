@@ -86,9 +86,9 @@ class Test_cropObjects_carsDb(testUtils.Test_carsDb):
         self.assert_objects_count_by_imagefile(c, expected=[1, 1, 1])
         self.assert_polygons_count_by_object(c, expected=[0, 5, 0])
         self.assert_objects_count_by_match(c, expected=[2])
-        # +1 is for the new property "crop" and "kx","ky","bx","by".
+        # +6 for 6 new properties "original_objectid","crop","kx","ky","bx","by"
         self.assert_properties_count_by_object(c,
-                                               expected=[3 + 5, 3 + 5, 1 + 5])
+                                               expected=[3 + 6, 3 + 6, 1 + 6])
         # Check that maskfiles were written
         c.execute(
             'SELECT COUNT(maskfile) FROM images WHERE maskfile IS NOT NULL')
@@ -176,8 +176,8 @@ class Test_cropObjects_carsDb(testUtils.Test_carsDb):
         self.assert_objects_count_by_imagefile(c, expected=[1])
         self.assert_polygons_count_by_object(c, expected=[0])
         self.assert_objects_count_by_match(c, expected=[])
-        # +5 is for the new property "crop" and "kx, ky, bx, by".
-        self.assert_properties_count_by_object(c, expected=[5])
+        # +6 for 6 new properties "original_objectid","crop","kx","ky","bx","by"
+        self.assert_properties_count_by_object(c, expected=[1 + 6])
 
     def test_keep_all_other_objects(self):
         c = self.conn.cursor()
@@ -451,7 +451,6 @@ class Test_tileObjects_carsDb(testUtils.Test_carsDb):
 
     def test_consistency5(self):
         self._test_consistency(1, 1, False, True)
-
 
 
 if __name__ == '__main__':

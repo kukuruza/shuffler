@@ -70,7 +70,8 @@ class Test_dbExportYolo_carsDb(testUtils.Test_carsDb):
             symlink_images=False,
             subset='car',
             classes=['car'],
-            full_imagefile_as_name=False)
+            dirtree_level_for_name=1,
+            fix_invalid_image_names=False)
         dbYolo.exportYolo(c, args)
         self.helper('car')
 
@@ -83,7 +84,8 @@ class Test_dbExportYolo_carsDb(testUtils.Test_carsDb):
             symlink_images=False,
             subset='car_and_bus',
             classes=['car', 'bus'],
-            full_imagefile_as_name=False)
+            dirtree_level_for_name=1,
+            fix_invalid_image_names=False)
         dbYolo.exportYolo(c, args)
         self.helper('car_and_bus')
 
@@ -97,7 +99,8 @@ class Test_dbExportYolo_carsDb(testUtils.Test_carsDb):
             symlink_images=True,
             subset='car',
             classes=['car'],
-            full_imagefile_as_name=False)
+            dirtree_level_for_name=1,
+            fix_invalid_image_names=False)
         dbYolo.exportYolo(c, args)
 
         logging.debug('Contents of temp_dir: %s', os.listdir(self.temp_dir))
@@ -122,7 +125,8 @@ class Test_dbExportYolo_carsDb(testUtils.Test_carsDb):
             symlink_images=True,
             subset='car',
             classes=['car'],
-            full_imagefile_as_name=True)
+            dirtree_level_for_name=1,
+            fix_invalid_image_names=False)
         dbYolo.exportYolo(c, args)
 
         logging.debug('Contents of temp_dir: %s', os.listdir(self.temp_dir))
