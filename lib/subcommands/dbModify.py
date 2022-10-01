@@ -110,19 +110,21 @@ def addVideo(c, args):
         raise FileNotFoundError('Mask video does not exist at: %s' %
                                 args.mask_video_path)
 
-    # Check the length of image video with imageio
+    # Get the length of image video and frame size.
     image_video = imageio.get_reader(args.image_video_path)
-    image_length = image_video.get_length()
+    image_length = image_video.count_frames()
     image = image_video.get_data(0)
+    height, width = image.shape[0:2]
     image_video.close()
-    logging.info('Video has %d frames', image_length)
+    logging.info('Video length = %d frames, dimensions [WxH] = [%dx%d]',
+                 image_length, width, height)
     if image_length == 0:
         raise ValueError('The image video is empty.')
 
-    # Check if masks agree with images.
+    # Check that the mask video agrees with image video.
     if args.mask_video_path is not None:
         mask_video = imageio.get_reader(args.image_video_path)
-        mask_length = mask_video.get_length()
+        mask_length = mask_video.count_frames()
         mask = mask_video.get_data(0)
         mask_video.close()
         if image_length != mask_length:
@@ -141,11 +143,10 @@ def addVideo(c, args):
         mask_video_rel_path = op.relpath(op.abspath(args.mask_video_path),
                                          args.rootdir)
 
-    # Write to db.
+    # Write to db without actually reading the video
     for iframe in progressbar(range(image_length)):
-        height, width = image.shape[0:2]
-        imagefile = op.join(image_video_rel_path, '%06d' % iframe)
-        maskfile = op.join(mask_video_rel_path, '%06d' %
+        imagefile = op.join(image_video_rel_path, '%d' % iframe)
+        maskfile = op.join(mask_video_rel_path, '%d' %
                            iframe) if args.mask_video_path else None
         timestamp = backendDb.makeTimeString(datetime.now())
         c.execute(
@@ -166,7 +167,6 @@ def addPicturesParser(subparsers):
         'Escape "*" with quotes or backslash.')
     parser.add_argument(
         '--mask_pattern',
-        default='/dummy',
         help='Wildcard pattern for image files. E.g. "my/path/masks-\\*.png"'
         'Escape "*" with quotes or backslash.')
     parser.add_argument(
@@ -184,21 +184,26 @@ def addPicturesParser(subparsers):
 
 def addPictures(c, args):
 
-    # Collect a list of paths.
+    # Collect a list of paths for images.
     image_paths = sorted(glob(args.image_pattern))
     logging.debug('image_paths:\n%s', pformat(image_paths, indent=2))
     if not image_paths:
         logging.error('Image files do not exist for the frame pattern: %s',
                       args.image_pattern)
         return
-    mask_paths = sorted(glob(args.mask_pattern))
-    logging.debug('mask_paths:\n%s', pformat(mask_paths, indent=2))
+
+    # Collect a list of paths for masks, if mask_pattern is passed.
+    if args.mask_pattern is not None:
+        mask_paths = sorted(glob(args.mask_pattern))
+        logging.debug('mask_paths:\n%s', pformat(mask_paths, indent=2))
+    else:
+        mask_paths = [None] * len(image_paths)
 
     def _nameWithoutExtension(x):
         '''
         File name without extension is the shared part between images and masks.
         '''
-        return op.splitext(op.basename(x))[0]
+        return op.splitext(op.basename(x))[0] if x is not None else None
 
     def _matchPaths(A, B):
         '''
@@ -224,7 +229,7 @@ def addPictures(c, args):
             height, width = backendMedia.getPictureSize(image_path)
         imagefile = op.relpath(op.abspath(image_path), args.rootdir)
         maskfile = op.relpath(op.abspath(mask_path),
-                              args.rootdir) if mask_path else None
+                              args.rootdir) if mask_path is not None else None
         timestamp = backendDb.makeTimeString(datetime.now())
         c.execute(
             'INSERT INTO images('

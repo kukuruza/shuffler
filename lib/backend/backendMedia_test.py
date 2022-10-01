@@ -41,24 +41,24 @@ class TestVideoReader(unittest.TestCase):
 
     def test_imread_same(self):
         img_gt = skimage.io.imread('testdata/cars/images/000000.jpg')
-        img = self.reader.imread('testdata/cars/images.avi/000000')
+        img = self.reader.imread('testdata/cars/images.avi/0')
         # This next one should be from cache.
-        img = self.reader.imread('testdata/cars/images.avi/000000')
+        img = self.reader.imread('testdata/cars/images.avi/0')
         self.assertEqual(img.shape, img_gt.shape)
         self.assertLess(_diff(img, img_gt), 0.02)
 
     def test_imread_sequence(self):
-        img = self.reader.imread('testdata/cars/images.avi/000000')
-        img = self.reader.imread('testdata/cars/images.avi/000001')
-        img = self.reader.imread('testdata/cars/images.avi/000002')
+        img = self.reader.imread('testdata/cars/images.avi/0')
+        img = self.reader.imread('testdata/cars/images.avi/1')
+        img = self.reader.imread('testdata/cars/images.avi/2')
         img_gt = skimage.io.imread('testdata/cars/images/000002.jpg')
         self.assertEqual(img.shape, img_gt.shape)
         self.assertLess(_diff(img, img_gt), 0.02)
 
     def test_imread_inverse_sequence(self):
-        img = self.reader.imread('testdata/cars/images.avi/000002')
-        img = self.reader.imread('testdata/cars/images.avi/000001')
-        img = self.reader.imread('testdata/cars/images.avi/000000')
+        img = self.reader.imread('testdata/cars/images.avi/2')
+        img = self.reader.imread('testdata/cars/images.avi/1')
+        img = self.reader.imread('testdata/cars/images.avi/0')
         img_gt = skimage.io.imread('testdata/cars/images/000000.jpg')
         self.assertEqual(img.shape, img_gt.shape)
         self.assertLess(_diff(img, img_gt), 0.05)
@@ -71,27 +71,27 @@ class TestVideoReader(unittest.TestCase):
         self.assertLess(_diff(img1, img1_gt), 0.05)
         # Second video.
         img2_gt = skimage.io.imread('testdata/moon/images/000000.jpg')
-        img2 = self.reader.imread('testdata/moon/images.avi/000000')
+        img2 = self.reader.imread('testdata/moon/images.avi/0')
         self.assertEqual(img2.shape, img2_gt.shape)
         self.assertLess(_diff(img2, img2_gt), 0.05)
         # First video.
         img1_gt = skimage.io.imread('testdata/cars/images/000002.jpg')
-        img1 = self.reader.imread('testdata/cars/images.avi/000002')
+        img1 = self.reader.imread('testdata/cars/images.avi/2')
         self.assertEqual(img1.shape, img1_gt.shape)
         self.assertLess(_diff(img1, img1_gt), 0.05)
         # Second video.
         img2_gt = skimage.io.imread('testdata/moon/images/000002.jpg')
-        img2 = self.reader.imread('testdata/moon/images.avi/000002')
+        img2 = self.reader.imread('testdata/moon/images.avi/2')
         self.assertEqual(img2.shape, img2_gt.shape)
         self.assertLess(_diff(img2, img2_gt), 0.05)
 
     def test_imread_out_of_range_frameid(self):
         with self.assertRaises(IndexError):
-            self.reader.imread('testdata/cars/images.avi/000010')
+            self.reader.imread('testdata/cars/images.avi/10')
 
     def test_imread_negative_frameid(self):
         with self.assertRaises(ValueError):
-            self.reader.imread('testdata/cars/images.avi/-000001')
+            self.reader.imread('testdata/cars/images.avi/-1')
 
     def test_imread_bad_frameid(self):
         with self.assertRaises(ValueError):
@@ -99,19 +99,19 @@ class TestVideoReader(unittest.TestCase):
 
     def test_imread_non_exist(self):
         with self.assertRaises(ValueError):
-            self.reader.imread('testdata/cars/images/dummy.avi/000000')
+            self.reader.imread('testdata/cars/images/dummy.avi/0')
 
     def test_maskread(self):
         mask_gt = skimage.io.imread('testdata/cars/masks/000000.png',
                                     as_gray=True)
-        mask = self.reader.maskread('testdata/cars/masks.avi/000000')
+        mask = self.reader.maskread('testdata/cars/masks.avi/0')
         self.assertEqual(len(mask.shape), 2)
         self.assertEqual(mask.shape, mask_gt.shape)
         self.assertLess(_diff(mask, mask_gt), 0.01)
 
     def test_maskreadNonExist(self):
         with self.assertRaises(ValueError):
-            self.reader.maskread('testdata/cars/dummy.avi/000000')
+            self.reader.maskread('testdata/cars/dummy.avi/0')
 
     def test_maskreadBadImage(self):
         with self.assertRaises(Exception):
@@ -297,7 +297,7 @@ class TestPictureWriter(unittest.TestCase):
         self.assertFalse(op.exists(op.join(mask_media, 'myfile')))
 
     def test_imwrite(self):
-        img_path = op.join(self.work_dir, 'testdata/cars/images/000000.jpg')
+        img_path = op.join(self.work_dir, 'testdata/cars/images/0.jpg')
         self.writer = backendMedia.PictureWriter(imagedir=op.dirname(img_path))
         img_gt = skimage.io.imread('testdata/cars/images/000000.jpg')
         self.writer.imwrite(img_gt)
@@ -347,7 +347,7 @@ class TestPictureWriter(unittest.TestCase):
         self.assertLess(_diff(img, img_gt), 0.01)
 
     def test_imwrite_jpg_quality(self):
-        img_path = op.join(self.work_dir, 'testdata/cars/images/000000.jpg')
+        img_path = op.join(self.work_dir, 'testdata/cars/images/0.jpg')
         self.writer = backendMedia.PictureWriter(imagedir=op.dirname(img_path),
                                                  jpg_quality=100)
         img_gt = skimage.io.imread('testdata/cars/images/000000.jpg')
@@ -356,7 +356,7 @@ class TestPictureWriter(unittest.TestCase):
         self.assertLess(_diff(img, img_gt), 0.001)
 
     def test_maskwrite(self):
-        mask_path = op.join(self.work_dir, 'testdata/cars/masks/000000.png')
+        mask_path = op.join(self.work_dir, 'testdata/cars/masks/0.png')
         self.writer = backendMedia.PictureWriter(maskdir=op.dirname(mask_path))
         mask_gt = skimage.io.imread('testdata/cars/masks/000000.png')
         self.writer.maskwrite(mask_gt)
@@ -491,7 +491,7 @@ class TestMediaWriter(unittest.TestCase):
                                           image_media=image_media)
         writer.imwrite(np.zeros((100, 100, 3), dtype=np.uint8))
         writer.close()
-        self.assertTrue(op.exists(op.join(image_media, '000000.jpg')))
+        self.assertTrue(op.exists(op.join(image_media, '0.jpg')))
 
     def test_pictures_imwrite_namehint(self):
         image_media = op.join(self.work_dir, 'images')
@@ -508,7 +508,7 @@ class TestMediaWriter(unittest.TestCase):
                                           mask_media=mask_media)
         writer.maskwrite(np.zeros((100, 100), dtype=np.uint8))
         writer.close()
-        self.assertTrue(op.exists(op.join(mask_media, '000000.png')))
+        self.assertTrue(op.exists(op.join(mask_media, '0.png')))
 
     def test_pictures_maskwrite_namehint(self):
         mask_media = op.join(self.work_dir, 'masks')

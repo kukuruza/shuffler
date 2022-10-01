@@ -216,7 +216,7 @@ class VideoWriter:
         self.image_writer.append_data(image)
         # Return recorded imagefile.
         self.image_current_frame += 1
-        return '%s/%06d' % (self.vimagefile, self.image_current_frame)
+        return '%s/%d' % (self.vimagefile, self.image_current_frame)
 
     def maskwrite(self, mask):
         # Multiple checks and lazy init.
@@ -233,7 +233,7 @@ class VideoWriter:
         self.mask_writer.append_data(mask)
         # Return recorded maskfile.
         self.mask_current_frame += 1
-        return '%s/%06d' % (self.vmaskfile, self.mask_current_frame)
+        return '%s/%d' % (self.vmaskfile, self.mask_current_frame)
 
     def close(self):
         if self.image_writer is not None:
@@ -331,7 +331,7 @@ class PictureWriter:
         # If "namehint" is not specified, compute name as the next frame.
         if namehint is None:
             self.image_current_frame += 1
-            name = '%06d.jpg' % self.image_current_frame
+            name = '%d.jpg' % self.image_current_frame
         else:
             name = namehint
             # Add extension if not specified in "name"
@@ -367,7 +367,7 @@ class PictureWriter:
         # If "namehint" is not specified, compute name as the next frame.
         if namehint is None:
             self.mask_current_frame += 1
-            name = '%06d.png' % self.mask_current_frame
+            name = '%d.png' % self.mask_current_frame
         else:
             name = namehint
             # Add extension if not specified in "name"

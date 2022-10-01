@@ -1,7 +1,5 @@
 import os, os.path as op
-import logging
 import sqlite3
-import shutil
 import progressbar
 import unittest
 import argparse
@@ -87,6 +85,146 @@ class Test_polygonsToBboxes_SyntheticDb(testUtils.Test_DB):
         args = argparse.Namespace(rootdir='')
         with self.assertRaises(ValueError):
             dbModify.polygonsToBboxes(c, args)
+
+
+class Test_addVideo_SyntheticDb(testUtils.Test_DB):
+    def setUp(self):
+        self.conn = sqlite3.connect(':memory:')
+        backendDb.createDb(self.conn)
+        # Add 2 images.
+        c = self.conn.cursor()
+        c.execute(
+            'INSERT INTO images(imagefile) VALUES ("image0"), ("image1")')
+
+    def test_ImagesAndMasks(self):
+        c = self.conn.cursor()
+        args = argparse.Namespace(rootdir='testdata',
+                                  image_video_path='testdata/moon/images.avi',
+                                  mask_video_path='testdata/moon/masks.avi')
+        dbModify.addVideo(c, args)
+
+        c.execute('SELECT imagefile,maskfile,width,height FROM images')
+        actual = c.fetchall()
+        expected = [
+            ("image0", None, None, None),
+            ("image1", None, None, None),
+            ("moon/images.avi/0", "moon/masks.avi/0", 120, 80),
+            ("moon/images.avi/1", "moon/masks.avi/1", 120, 80),
+            ("moon/images.avi/2", "moon/masks.avi/2", 120, 80),
+        ]
+        self.assertEqual(actual, expected)
+
+    def test_NoMasks(self):
+        c = self.conn.cursor()
+        args = argparse.Namespace(rootdir='testdata',
+                                  image_video_path='testdata/moon/images.avi',
+                                  mask_video_path=None)
+        dbModify.addVideo(c, args)
+
+        c.execute('SELECT imagefile,maskfile,width,height FROM images')
+        actual = c.fetchall()
+        expected = [
+            ("image0", None, None, None),
+            ("image1", None, None, None),
+            ("moon/images.avi/0", None, 120, 80),
+            ("moon/images.avi/1", None, 120, 80),
+            ("moon/images.avi/2", None, 120, 80),
+        ]
+        self.assertEqual(actual, expected)
+
+
+class Test_addPictures_SyntheticDb(testUtils.Test_DB):
+    def setUp(self):
+        self.conn = sqlite3.connect(':memory:')
+        backendDb.createDb(self.conn)
+        # Add 2 images.
+        c = self.conn.cursor()
+        c.execute(
+            'INSERT INTO images(imagefile) VALUES ("image0"), ("image1")')
+
+    def test_ImagesAndMasks(self):
+        ''' Add 3 images with masks. '''
+        c = self.conn.cursor()
+        args = argparse.Namespace(rootdir='testdata',
+                                  image_pattern='testdata/moon/images/*.jpg',
+                                  mask_pattern='testdata/moon/masks/*.png',
+                                  width_hint=None,
+                                  height_hint=None)
+        dbModify.addPictures(c, args)
+
+        c.execute('SELECT imagefile,maskfile,width,height FROM images')
+        actual = c.fetchall()
+        expected = [
+            ("image0", None, None, None),
+            ("image1", None, None, None),
+            ('moon/images/000000.jpg', 'moon/masks/000000.png', 120, 80),
+            ('moon/images/000001.jpg', 'moon/masks/000001.png', 120, 80),
+            ('moon/images/000002.jpg', 'moon/masks/000002.png', 120, 80),
+        ]
+        self.assertEqual(actual, expected)
+
+    def test_NoMasks(self):
+        ''' Add 3 images without masks. '''
+        c = self.conn.cursor()
+        args = argparse.Namespace(rootdir='testdata',
+                                  image_pattern='testdata/moon/images/*.jpg',
+                                  mask_pattern=None,
+                                  width_hint=None,
+                                  height_hint=None)
+        dbModify.addPictures(c, args)
+
+        c.execute('SELECT imagefile,maskfile,width,height FROM images')
+        actual = c.fetchall()
+        expected = [
+            ("image0", None, None, None),
+            ("image1", None, None, None),
+            ('moon/images/000000.jpg', None, 120, 80),
+            ('moon/images/000001.jpg', None, 120, 80),
+            ('moon/images/000002.jpg', None, 120, 80),
+        ]
+        self.assertEqual(actual, expected)
+
+    def test_ImagesAndMasks_WidthHint(self):
+        ''' Add 3 pictures with only width hint. Should still query height. '''
+        c = self.conn.cursor()
+        args = argparse.Namespace(rootdir='testdata',
+                                  image_pattern='testdata/moon/images/*.jpg',
+                                  mask_pattern='testdata/moon/masks/*.png',
+                                  width_hint=120,
+                                  height_hint=None)
+        dbModify.addPictures(c, args)
+
+        c.execute('SELECT imagefile,maskfile,width,height FROM images')
+        actual = c.fetchall()
+        expected = [
+            ("image0", None, None, None),
+            ("image1", None, None, None),
+            ('moon/images/000000.jpg', 'moon/masks/000000.png', 120, 80),
+            ('moon/images/000001.jpg', 'moon/masks/000001.png', 120, 80),
+            ('moon/images/000002.jpg', 'moon/masks/000002.png', 120, 80),
+        ]
+        self.assertEqual(actual, expected)
+
+    def test_ImagesAndMasks_WidthAndHeightHint(self):
+        ''' Add 3 pictures, with height and width hint. '''
+        c = self.conn.cursor()
+        args = argparse.Namespace(rootdir='testdata',
+                                  image_pattern='testdata/moon/images/*.jpg',
+                                  mask_pattern='testdata/moon/masks/*.png',
+                                  width_hint=120,
+                                  height_hint=80)
+        dbModify.addPictures(c, args)
+
+        c.execute('SELECT imagefile,maskfile,width,height FROM images')
+        actual = c.fetchall()
+        expected = [
+            ("image0", None, None, None),
+            ("image1", None, None, None),
+            ('moon/images/000000.jpg', 'moon/masks/000000.png', 120, 80),
+            ('moon/images/000001.jpg', 'moon/masks/000001.png', 120, 80),
+            ('moon/images/000002.jpg', 'moon/masks/000002.png', 120, 80),
+        ]
+        self.assertEqual(actual, expected)
 
 
 class Test_revertObjectTransforms_SyntheticDb(unittest.TestCase):

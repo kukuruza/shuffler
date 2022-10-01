@@ -144,9 +144,9 @@ class TestDatasetWriter(unittest.TestCase):
         c.execute('SELECT imagefile,maskfile FROM images')
         image_entries = c.fetchall()
         self.assertEqual(len(image_entries), 2)
-        self.assertEqual(image_entries[0][0], 'images/000000.jpg')
-        self.assertEqual(image_entries[1][0], 'images/000001.jpg')
-        self.assertEqual(image_entries[0][1], 'masks/000000.png')
+        self.assertEqual(image_entries[0][0], 'images/0.jpg')
+        self.assertEqual(image_entries[1][0], 'images/1.jpg')
+        self.assertEqual(image_entries[0][1], 'masks/0.png')
         self.assertEqual(image_entries[1][1], None)
 
     def test_record_imagefile_maskfile_and_fields(self):
