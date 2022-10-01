@@ -1,6 +1,7 @@
 from shuffler.operations import evaluate, filtering, gui, info, media, modify
 from shuffler.operations import matplotlib
 from shuffler.operations.datasets import bdd, cityscapes, coco, pascal, detrac, kitti, labelme, yolo
+from shuffler.operations import stamps
 
 
 def add_subparsers(parser):
@@ -22,3 +23,4 @@ def add_subparsers(parser):
     coco.add_parsers(subparsers)
     yolo.add_parsers(subparsers)
     matplotlib.add_parsers(subparsers)
+    stamps.add_parsers(subparsers)
