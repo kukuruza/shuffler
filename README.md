@@ -1,66 +1,72 @@
 # Shuffler
 
-Toolbox for playing with data when preparing to train a model in computer vision.
+Shuffler is a Python library for data engineering in computer vision. It simplifies building, maintaining, and inspection of datasets for machine learning.
 
-- [Motivation](#motivation)
-- [Functionality](#functionality)
+For example, you are building a dataset to train a vehicle classifier. You may start by downloading the public [BDD dataset](https://bair.berkeley.edu/blog/2018/05/30/bdd). Then you (1) remove annotations of everything but vehicles, (2) filter out all tiny vehicles, (3) expand bounding boxes by 20% to include some context, (4) crop out the bounding boxes, (5) save annotations in the [ImageNet format](https://www.tensorflow.org/datasets/catalog/imagenet2012) to be further fed to [TensorFlow](https://www.tensorflow.org/). Shuffler allows to do that by running a single command in the terminal ([see use case #1](#crop-vehicles-from-bdd)).
+
+![crop-from-bdd](https://habrastorage.org/webt/ee/wt/yq/eewtyqqk4sh_m-r7-a8mx8a8mlw.gif)
+
+## Table of contents
+
+- [Why data engineering](#why-data-engineering)
+- [Why Shuffler](#why-shuffler)
+- [Author](#author)
 - [Installation](#installation)
-- [Gentle introduction](#gentle-introduction)
+- [Getting started](#getting-started)
+  - [A simple example](#a-simple-example)
+  - [Operations](#operations)
+  - [Chaining operations](#chaining-operations)
+  - [Pytorch and Keras API](#pytorch-and-keras-api)
+- [FAQ](#faq)
+  - [What can I do with Shuffler](#what-can-i-do-with-shuffler)
+  - [I just want to convert one dataset format to another](#i-just-want-to-convert-one-dataset-format-to-another)
+  - [I want to use Shuffler with a deep learning framework](#i-want-to-use-shuffler-with-a-deep-learning-framework)
+  - [What ML tasks does Shuffler support](#what-ml-tasks-does-shuffler-support)
+  - [How does Shuffler compare to package N](#how-does-shuffler-compare-to-package-n)
+  - [Is there dataset versioning](#is-there-dataset-versioning)
+  - [How is a dataset stored](#how-is-a-dataset-stored)
 - [Example use cases](#example-use-cases)
-- [Running unittests](#running-unittests)
+- [SQL schema](#sql-schema)
+- [Contributing](#contributing)
+- [Citing](#citing)
 
-![data preparation pipeline](fig/data-preparation-pipeline.png)
+--------------------------------------
 
+## Why data engineering
 
+Data engineering for machine learning means building and maintaining datasets.
 
-## Motivation
+Research groups in academia compare their algorithms on publicly available datasets, such as [KITTI](http://www.cvlibs.net/datasets/kitti). In order to allow comparison, public datasets must be static. On the other hand, a data scientist in industry enhances both algorithms AND datasets in order to achieve the best performance on a task. That includes collecting data, cleaning data, and fitting data for a task. Some even treat [data as code](https://towardsdatascience.com/data-as-code-principles-what-it-is-and-why-now-aaf1e24fa732). This is data engineering.
 
-Preparing training data for ML is easy, you may think. You just take your dataset and export it into a format used by Tensorflow/PyTorch.
+You may need a data engineering package if you find yourself writing multiple scripts with of lot of boilerplate code for simple operations with data, if your scripts are becoming [write-only code](https://encyclopedia2.thefreedictionary.com/write-only+code), if you have multiple modifications of the same dataset, e.g. folders named "KITTI", "KITTI-only-vans", "KITTI-inspected", etc.
 
-But what if you have many experiments, your data is updated every so often, and new ML architectures are built daily? What if new labels need to be created out of old labels? What if, in addition, the data is a mix of several public and private datasets? This is how chaos develops, gradually consuming all the developer time in maintaining data processing scripts.
+## Why Shuffler
 
-Shuffler solves these problems, organizing data processing into convenient data flow pipelines.
-
-For example, in order to [merge public self-driving datasets](https://medium.com/safety-pool/the-very-first-standard-we-need-for-autonomous-vehicles-449821f08a20), we need to filter out some labels and to bring the rest of them to a common set of classes.
-
-## Functionality
-
-Shuffler is a command line tool. It receives a dataset on input, performs a number of operations, and then records the output, like this:
-
-```bash
-./shuffler.py -i allObjects.db -o onlyWide.db \
-  filterObjectsSQL "SELECT objectid WHERE width > 20"
-```
-
-Operations fall under these categories:
-
-- [Import](https://github.com/kukuruza/shuffler/blob/master/doc/Subcommands.md#import) most common computer vision datasets. The list of supported datasets is growing.
-- [Aggregate information](#info) about a dataset. Print basic statistics, plot histograms, and scatter plots.
-- [GUI](https://github.com/kukuruza/shuffler/blob/master/doc/Subcommands.md#gui) lets a user to manually loop through a dataset, visualize, modify, and delete entries.
-- [Filter](https://github.com/kukuruza/shuffler/blob/master/doc/Subcommands.md#filter) annotations, e.g. small objects, objects at image boundary, or objects without a color.
-- [Modify](https://github.com/kukuruza/shuffler/blob/master/doc/Subcommands.md#modify) a dataset, e.g. increase bounding boxes by 20%, split a dataset into "train" and "test" subsets
-- [Evaluate](https://github.com/kukuruza/shuffler/blob/master/doc/Subcommands.md#evaluate). Given ground truth and predictions, evaluate performance of object detection or semantic segmentation.
-- Export. We provide a [PyTorch Dataset class](https://pytorch.org/tutorials/beginner/data_loading_tutorial.html#dataset-class) to directly load data from PyTorch. I plan to implement [Keras Dataset class](https://keras.io/utils/#sequence) and export to popular formats such as PASCAL.
+- Supports of the most [common computer vision tasks](#what-ml-tasks-does-shuffler-support).
+- Shuffler is easy to [set up and use](#getting-started), and suits datasets of up to millions of annotated images.
+- Shuffler [allows](#operations) to import/export popular formats, filter and modify annotations, evaluate ML results, inspect and visualize a dataset.
+- All metadata (annotations and paths to images/videos) is stored [in a single SQLite file](#sql-schema), which can be manually inspected and modified.
+- Shuffler provides an [API for Pytorch and Keras](#pytorch-and-keras-api).
+- Written with practical usage in mind. Shuffler has been evolving according to the needs of real projects.
+- [Easily extendable](doc/Extending-functionality.md) for your needs.
 
 
+## Author
 
-## Installation with Conda
+[Evgeny Toropov](https://www.linkedin.com/in/evgeny-toropov-9bb14210b/)
 
-### Shuffler package
+--------------------------------------
+
+## Installation
 
 Shuffler requires Python3. The installation instructions assume Conda package management system.
 
 Install dependencies:
 
 ```bash
-conda create -n shuffler python=3.7
-conda activate shuffler
-
 conda install -c conda-forge imageio ffmpeg=4 opencv matplotlib
 conda install lxml simplejson progressbar2 pillow scipy
-
-# If desired, add support for plotting commands
-conda install pandas seaborn
+conda install pandas seaborn  # If desired, add support for plotting commands
 ```
 
 Clone this project:
@@ -69,77 +75,155 @@ Clone this project:
 git clone https://github.com/kukuruza/shuffler
 ```
 
-To test the installation, run the following commands. The installation succeeded if an image opens up. Press Esc to close the window.
+To test the installation, run the following command. The installation succeeded if an image opens up. Press Esc to close the window.
 
 ```bash
 cd shuffler
-./shuffler.py -i 'testdata/cars/micro1_v5.db' --rootdir 'test' examineImages
-```
-
-### Only the interface to Keras, Pytorch, and DatasetWriter
-
-The `shuffler.py` tool requires Python3, but the Keras generators, Pytorch datasets, and Shuffler Dataset Writer can be run in Python2 or Python3.
-
-The commands below will install the dependencies necessary for using them. Conda environment may be using Python2 or Python3
-
-```bash
-conda install -c conda-forge ffmpeg=4 imageio opencv
-conda install progressbar2 pillow numpy
+./shuffler.py -i 'testdata/cars/micro1_v5.db' --rootdir 'testdata/cars' examineImages
 ```
 
 
+## Getting started
 
-## Gentle introduction
+### A simple example
 
-### Shuffler's format for annotations
-
-Shuffler introduces a new format to store annotations. Annotations and path to images are stored in a relational database. Two database files `dataset1.db` and `dataset2.db` may have different annotations for the same image set.
-
-In practice, you play with a dataset, and save the result as `dataset1.db`. Then you play a bit more and save the result as `dataset2.db`. Without Shuffler, you would probably have to copy and change the whole folder with annotations, and perhaps also with images.
-
-You can import most well-known formats and save them in Shuffler's format. For example, importing Pascal VOC looks like this (we assume you have downloaded Pascal VOC to `${VOC_DIR}`):
+Shuffler is a command line tool. It chains operations, such as `importKitti` to import a dataset from [KITTI](http://www.cvlibs.net/datasets/kitti) format and `exportCoco` to export it in [COCO format](https://cocodataset.org/#home).
 
 ```bash
-./shuffler.py -o myPascal.db \
-  importPascalVoc2012 ${VOC_DIR} --annotations
+./shuffler.py \
+  importKitti --images_dir ${IMAGES_DIR} --detection_dir ${OBJECT_LABELS_DIR} '|' \
+  exportCoco --coco_dir ${OUTPUT_DIR} --subset 'train'
+```
+
+### Operations
+
+`importKitti` and `exportCoco` above are examples of operations. There are over 60 operations that fall under the following broad categories:
+
+- [Import/export](doc/Subcommands.md#import) most common computer vision datasets.
+- Aggregate information about a dataset. Print statistics, plot histograms and scatter plots.
+- [GUI](doc/Subcommands.md#gui) to manually loop through a dataset, visualize, modify, and delete entries.
+- [Filter](doc/Subcommands.md#filter) annotations, e.g. small objects, objects at image boundary, objects without a color, etc.
+- [Modify](doc/Subcommands.md#modify) a dataset, e.g. increase bounding boxes by 20%, split a dataset into "train" and "test" subsets, etc.
+- [Evaluate](doc/Subcommands.md#evaluate) the performance of an object detection or semantic segmentation task, given the ground truth and predictions.
+
+
+### Chaining operations
+
+Sub-commands can be chained via the vertical bar `|`, similar to pipes in Unix. The vertical bar should be quoted or escaped. Using single quotes `'|'` works in Windows, Linux, and Mac. Alternatively, in Unix, you can escape the vertical bar as `\|`.
+
+The next example (1) opens a database, (2) converts polygon labels to pixel-by-pixel image masks (3) adds more images with their masks to the database, and (4) prints summary.
+
+```bash
+./shuffler.py --rootdir 'testdata/cars' -i 'testdata/cars/micro1_v5.db' \
+  polygonsToMask --media='pictures' --mask_path 'testdata/cars/mask_polygons' '|' \
+  addPictures --image_pattern 'testdata/moon/images/*.jpg' --mask_pattern 'testdata/moon/masks/*.png' '|' \
+  examineImages --mask_alpha 0.5 \
+  printInfo
+```
+
+### Pytorch and Keras API
+
+Shuffler has an interface to Pytorch: classes [ImageDataset and ObjectDataset](interface/pytorch/datasets.py) implement `torch.utils.data.Dataset`.
+A [demo](interface/pytorch/datasets_demo.py) provides an example of using a Shuffler database as a Dataset in Pytorch inference.
+
+Shuffler also has an interface to Keras: classes [Imaginterface/keras/generetors.py) implement `keras.utils.Sequence`.
+A [demo](interface/keras/generators_demo.py) provides an example of using a Shuffler database as a Generator in Keras inference.
+
+Alternatively, data can be exported to one of the popular formats, e.g. [COCO](https://cocodataset.org/#home), if your deep learning project already has a loader for it.
+
+--------------------------------------
+
+## FAQ
+
+### What can I do with Shuffler
+Shuffler is for inspecting and modifying your datasets. Check out some [use cases](#example-use-cases).
+
+### I just want to convert one dataset format to another
+You can convert one format to another, like in the [example below](#a-simple-example). Check out the [dataset IO] tutorial.
+
+### I want to use Shuffler with a deep learning framework
+Shuffler provides an [API to Pytorch and Keras](#pytorch-and-keras-api).
+
+### What ML tasks does Shuffler support?
+[Shuffler's database schema](#sql-schema) is designed to support computer vision tasks, in particular image classification, object and panoptic detection, image and instance segmentation, object tracking, object detection in video.
+
+### How does Shuffler compare to package N?
+- **Deep learning frameworks.** Shuffler prepares datasets for machine learning and has [an API to feed data into Keras and Pytorch](#pytorch-and-keras-api).
+- **ML workflow management services**, such as [wandb.ai](https://wandb.ai/), allow you to tag experiments and input data, but are not designed to work with datasets. Shuffler database filenames can be used as a dataset tag in these services.
+- **Data augmentation** libraries, such as [Albumentation](https://albumentations.ai/) or [Nvidia DALI](https://developer.nvidia.com/dali), let you modify data on the fly as it is fed into ML training. They can and should be used by Shuffler's [Pytorch and Keras API](#pytorch-and-keras-api).
+
+### Is there dataset versioning?
+Shuffler does not support versions inside the database SQL schema. The version can be a part of the database name, e.g. `dataset.v1.db` and `dataset.v2.db`.
+
+### How is a dataset stored?
+A dataset consists of (1) image data, stored as image and video files, and (2) metadata, stored as the SQLite database. [Shuffler's SQL schema](#sql-schema) is designed to [support popular machine learning tasks](#what-ml-tasks-does-shuffler-support) in computer vision.
+
+--------------------------------------
+
+## Example use cases
+
+#### Crop vehicles from BDD
+
+The public [BDD dataset](https://bair.berkeley.edu/blog/2018/05/30/bdd) includes 100K images taken from a moving car with various objects annotated in each image. If a researcher wants to train a classifier between "car", "truck", and "bus", they may start by using this dataset. First, annotations of all objects except for these three classes must be filtered out. Second, the dataset annotations for tons of tiny vehicles, which would not be good for a classifier. Third, it may be beneficial to expand bounding boxes to allow for [data augmentation](https://albumentations.ai/) during training. Fourth, the remaining objects need to be cropped out. The cropped images and the annotations are saved in ImageNet format, which is easily consumable by TensorFlow. The KITTI dataset is assumed to be downloaded to directories `${IMAGES_DIR}` and `${OBJECT_LABELS_DIR}`.
+
+```bash
+./shuffler.py \
+  importKitti --images_dir ${IMAGES_DIR} --detection_dir ${OBJECT_LABELS_DIR}  '|' \
+  filterObjectsByName --good_names 'car' 'truck' 'bus'  '|' \
+  filterObjectsSQL --sql "SELECT objectid FROM objects WHERE width < 64 OR height < 64"  '|' \
+  expandObjects --expand_perc 0.2  '|' \
+  cropObjects --media 'pictures' --image_path ${NEW_CROPPED_IMAGE_PATH} --target_width 224 --target_height 224  '|' \
+  exportImagenet2012 --imagenet_home ${NEW_IMAGENET_DIRECTORY} --symlink_images
+```
+
+#### Import and merge LabelMe annotations
+
+A researcher has collected a dataset of images with cars. Images were handed out to a team of annotators. Each image was annotated with polygons by several annotators using [LabelMeAnootationTool](http://labelme.csail.mit.edu/Release3.0). The researcher 1) imports all labels, 2) merges polygons corresponding to the same car made by all annotators, 3) gets objects masks, where the gray area marks the inconsistency across annotators. See the [tutorial](doc/use-cases/merge-annotations/merge-annotations.md).
+
+#### Combine several public datasets
+
+A user works on object detection in the autonomous vehicle setup, and would like to use as many annotated images as possible. In particular, they aim to combine certain classes from the public datasets [KITTI](http://www.cvlibs.net/datasets/kitti), [BDD](https://bair.berkeley.edu/blog/2018/05/30/bdd), and [PASCAL VOC 2012](http://host.robots.ox.ac.uk/pascal/VOC). The combined dataset is exported in [COCO](https://cocodataset.org/#home) format for training. See the [tutorial](doc/use-cases/combining-datasets/combining-datasets.md).
+
+#### Train and evaluate object detection with big objects
+
+We have a dataset with objects given as bounding boxes. We would like to remove objects on image boundary, expand bounding boxes by 10% for better training, remove objects of all types except "car", "bus", and "truck", and to remove objects smaller than 30 pixels wide. We would lile to use that subset for training.
+
+In the previous use case we removed some objects for our object detection training task. Now we want to evaluate the trained model. We expect our model to detect only big objects, but we don't want to count it as a false positive if it detects a tiny object either.
+
+#### Evaluate results of semantic segmentation
+
+A neural network was trained to perform a semantic segmentation of images. We have a directory with ground truth masks and a directory with predicted masks. We would like to 1) evaluate the results, 2) write a video with images and their predicted segmentation masks side-by-side.
+
+#### Write a dataset with image crops of individual objects
+
+We have images with objects. Images have masks with those objects. We would like to crop out objects with name "car" bigger than 32 pixels wide, stretch the crops to 64x64 pixels and write a new dataset of images (and the correspodning masks)
+
+#### Manually relabel objects
+
+A dataset contains objects of class "car", among other classes. We would like to additionally classify cars by type for more fine-grained detection. An image annotator needs to go through all the "car" objects, and assign one of the following types to them: "passenger", "truck", "van", "bus", "taxi". See the [tutorial](doc/use-cases/manual-labelling/manual-labelling.md).
+
+--------------------------------------
+
+## SQL schema
+
+Shuffler stores metadata as an SQLite database. Metadata includes image paths and annotations.
+
+You can import some well-known formats and save them in Shuffler's format. For example, importing [PASCAL VOC 2012](http://host.robots.ox.ac.uk/pascal/VOC) looks like this. We assume you have downloaded PASCAL VOC to `${VOC_DIR}`:
+
+```bash
+./shuffler.py -o 'myPascal.db' importPascalVoc2012 ${VOC_DIR} --annotations
 ```
 
 You can open `myPascal.db` with any SQLite3 editor/viewer and manually inspect data entries, or run some SQL on it.
 
-Once you dataset is ready for machine learning, you can export data to one of the well-known formats, or even better, feed it directly to Keras or PyTorch using provided data loader classes.
-
-```bash
-./shuffler.py -i myPascal.db \
-  exportCoco --coco_dir ${COCO_DIR} --subset myTrainSubset
-```
-
 The toolbox supports datasets consisting of 1) images and masks, 2) objects annotated with masks, polygons, and bounding boxes, and 3) matches between objects. It stores annotations as a SQL database of its custom format. This database can be viewed and edited manually with any SQL viewer.
 
 
-### Chaining sub-commands
+### Using 3rd party SQLite editors with Shuffler databases.
 
-Sub-commands can be chained via the special symbol `'|'`. Here, the vertical bar is quoted with single quotes, which works in Windows, Linux and Mac. (Alternatively, in Unix, you can  use `\|`, that is, a vertical bar escaped by a backslash.)
+The beauty of storing annotations in a relational SQLite database is that one can use any SQL editor to explore them. For example, Linux includes the command line tool `sqlite3`.
 
-```bash
-./shuffler.py --rootdir 'test' -i 'testdata/cars/micro1_v5.db' \
-  addVideo --image_video_path 'testdata/moon/images.avi' --mask_video_path 'testdata/moon/masks.avi' '|' \
-  printInfo '|' \
-  moveMedia --image_path 'testdata/cars/images' --where_image 'imagefile LIKE "cars/images/%"' '|' \
-  dumpDb --tables 'images' 'objects'
-
-./shuffler.py --rootdir 'test' -i 'testdata/cars/micro1_v5.db' \
-  addDb --db_file 'testdata/cars/micro1_v4_singleim.db' '|' \
-  mergeObjectDuplicates '|' \
-  polygonsToMask --media='pictures' --mask_path 'cars/mask_polygons' --skip_empty_masks '|' \
-  dumpDb --tables images '|' \
-  examineImages --mask_alpha 0.5
-```
-
-### Using standard SQLite commands with Shuffler annotations format.
-
-The beauty of storing annotations in a relational SQLite3 database is that one can use standard SQL editors to explore them. For example, UNIX has a command line tool `sqlite3`.
-
-The commands below illustrate using `sqlite3` to get some statistics about the database `testdata/cars/micro1_v5.db` bundled into this repository.
+The commands below illustrate using `sqlite3` to get some statistics and change `testdata/cars/micro1_v5.db` from this repository.
 
 ```bash
 # Find the total number of images:
@@ -153,69 +237,27 @@ sqlite3 testdata/cars/micro1_v5.db 'SELECT name, COUNT(1) FROM objects GROUP BY 
 
 # Print out dimensions of all objects of the class "car":
 sqlite3 testdata/cars/micro1_v5.db 'SELECT width, height FROM objects WHERE name="car"'
+
+# Change all names "car" to "vehicle".
+sqlite3 testdata/cars/micro1_v5.db 'UPDATE objects SET name="vehicle" WHERE name="car"'
 ```
 
+--------------------------------------
 
-### Interface to Pytorch and Keras.
+## Contributing
 
-Shuffler has an interface to Pytorch: classes [ImageDataset and ObjectDataset](https://github.com/kukuruza/shuffler/blob/master/interface/pytorch/datasets.py) that implement `torch.utils.data.Dataset`.
-A [demo](https://github.com/kukuruza/shuffler/blob/master/interface/pytorch/datasets_demo.py) provides an example of using a Shuffler database as a Dataset in Pytorch inference.
+Please submit a pull request or open an issue with a suggestion.
 
-Shuffler also has an interface to Keras: classes [ImageGenerator and ObjectGenerator](https://github.com/kukuruza/shuffler/blob/master/interface/keras/generetors.py) that implement `keras.utils.Sequence`.
-A [demo](https://github.com/kukuruza/shuffler/blob/master/interface/keras/generators_demo.py) provides an example of using a Shuffler database as a Generator in Keras inference.
+## Citing
 
-```bash
-python -m interface.pytorch.datasets_demo
-python -m interface.keras.generators_demo
+If you find this project useful for you, please consider citing:
+
 ```
-
-## Example use cases
-
-#### An image dataset has objects named "car". Need to manually assign label "type" to them ([link to the tutorial](https://github.com/kukuruza/shuffler/blob/master/doc/Usercase-labelling/Usercase-labelling.md)).
-
-An image dataset contains objects of class "car", among other classes. We would like to additionally classify cars by type for more fine-grained detection. An image annotator needs to go through all the "car" objects, and assign one of the following types to them: "passenger", "truck", "van", "bus", "taxi".
-
-#### Import annotations from [LabelMe](http://labelme.csail.mit.edu/Release3.0). Each image is labelled by multiple annotators ([link to the tutorial](https://github.com/kukuruza/shuffler/blob/master/doc/Usercase-merge-annotations/Usercase-merge-annotations.md)).
-
-A user has collected a dataset of images with objects. Images were handed out to annotators who use LabelMeAnootationTool. Each image was annotated with polygons by multiple annotators for the purposes of cross-validation. A user would like to to 1) import labels from all annotators, 2) merge polygons corresponding to the same object, 3) make black-gray-white image masks, where the gray area marks the inconsistency among annotators.
-
-#### Combine [KITTI](http://www.cvlibs.net/datasets/kitti), [BDD](https://bair.berkeley.edu/blog/2018/05/30/bdd), and [PASCAL VOC 2012](http://host.robots.ox.ac.uk/pascal/VOC) datasets into one ([link to the tutorial](https://github.com/kukuruza/shuffler/blob/master/doc/Usercase-combining-datasets/Usercase-combining-datasets.md)).
-
-A user works on object detection tasks for the autonomous car scenario, and would like to use as many annotated images as possible. In particular, they aim to combine certain classes from the datasets KITTI, BDD, and PASCAL VOC 2012. Then the combined dataset is exported in COCO format.
-
-#### Train object detection with only big objects. Then evaluate.
-
-We have a dataset with objects given as bounding boxes. We would like to remove objects on image boundary, expand bounding boxes by 10% for better training, remove objects of all types except "car", "bus", and "truck", and to remove objects smaller than 30 pixels wide. We would lile to use that subset for training.
-
-In the previous use case we removed some objects for our object detection training task. Now we want to evaluate the trained model. We expect our model to detect only big objects, but we don't want to count it as a false positive if it detects a tiny object either.
-
-#### Evaluate results of semantic segmentation
-
-A neural network was trained to perform a semantic segmentation of images. We have a directory with ground truth masks and a directory with predicted masks. We would like to 1) evaluate the results, 2) write a video with images and their predicted segmentation masks side-by-side.
-
-#### Write a dataset with image croppings of individual objects
-
-We have images with objects. Images have masks with those objects. We would like to crop out objects with name "car" bigger than 32 pixels wide, stretch the crops to 64x64 pixels and write a new dataset of images (and the correspodning masks)
-
-
-## Running unittests
-
-Most of the backend and utilities are covered in unit tests.
-
-First, install `nose` package to run tests and `scikit-image` for testing some image related functions:
-
-```bash
-conda install -y mock nose scikit-image
-```
-
-To run one test, got to the Shuffler repo dir and run:
-
-```bash
-python3 -m lib.utils.utilBoxes_test
-```
-
-To run all tests, got to the Shuffler repo dir and run:
-
-```bash
-nosetests
+@inproceedings{10.1145/3332186.3333046,
+  author = {Toropov, Evgeny and Buitrago, Paola A. and Moura, Jos\'{e} M. F.},
+  title = {Shuffler: A Large Scale Data Management Tool for Machine Learning in Computer Vision},
+  year = {2019},
+  isbn = {9781450372275},
+  series = {PEARC '19}
+}
 ```

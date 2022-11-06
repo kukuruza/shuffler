@@ -1,7 +1,5 @@
 # Combining data from multiple datasets to train an object detector.
 
-**(Tutorial level: advanced)**
-
 In this tutorial, we are going to make a dataset for an autonomous driving startup from multiple publicly available datasets.
 In particular, we will prepare data for training an object detector. The training data for such a task is a pool of pairs {image, bounding boxes}. Here, bounding boxes are essentially rectangles around each object of interest in the image.
 The common classes of interest for self-driving are pedestrians, vehicles, bikes, traffic lights, traffic signs.
@@ -24,12 +22,6 @@ Our goal is to combine all those objects, filter out unnecessary classes, and re
 - dont care (ambigouos things that may confuse an algorithm)
 
 
-### Install Shuffler.
-
-Please follow [Installation Instructions](https://github.com/kukuruza/shuffler#installation).
-
-Export the path to the Shuffler repo to an environmental variable `SHUFFLER_DIR`.
-
 ### Download datasets.
 
 Download datasets from their official websites. Put them all into a new directory, and let the path of this directory be recorded in an environmental variable `DATASETS_DIR`.
@@ -42,7 +34,7 @@ Download datasets from their official websites. Put them all into a new director
 
 ### Import each dataset. 
 
-The first step is to create a database for each of the datasets. More info at [Import Section](https://github.com/kukuruza/shuffler/blob/master/doc/Subcommands.md#import). The `rootdir` is set to the current directory by default, which means that image paths will be relative to the current directory. 
+The first step is to create a database for each of the datasets. More info at [Import Section](doc/operations.md#import). The `rootdir` is set to the current directory by default, which means that image paths will be relative to the current directory. 
 
 ```bash
 cd ${DATASETS_DIR}

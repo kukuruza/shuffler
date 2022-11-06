@@ -96,3 +96,31 @@ For example, that's how to get the help about the subcommand.
 ```bash
 ./shuffler.py propertyModulo360 -h
 ```
+
+```bash
+python -m interface.pytorch.datasets_demo
+python -m interface.keras.generators_demo
+```
+
+
+## Running unittests
+
+Most of the backend and utilities are covered in unit tests.
+
+First, install `nose` package to run tests and `scikit-image` for testing some image related functions:
+
+```bash
+conda install -y mock nose scikit-image
+```
+
+To run one test, got to the Shuffler repo dir and run:
+
+```bash
+python3 -m lib.utils.utilBoxes_test
+```
+
+To run all tests, got to the Shuffler repo dir and run:
+
+```bash
+nosetests
+```
