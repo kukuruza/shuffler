@@ -4,7 +4,7 @@ Shuffler is a Python library for data engineering in computer vision. It simplif
 
 For example, you are building a dataset to train a vehicle classifier. You may start by downloading the public [BDD dataset](https://bair.berkeley.edu/blog/2018/05/30/bdd). Then you (1) remove annotations of everything but vehicles, (2) filter out all tiny vehicles, (3) expand bounding boxes by 20% to include some context, (4) crop out the bounding boxes, (5) save annotations in the [ImageNet format](https://www.tensorflow.org/datasets/catalog/imagenet2012) to be further fed to [TensorFlow](https://www.tensorflow.org/). Shuffler allows to do that by running a single command in the terminal ([see use case #1](#crop-vehicles-from-bdd)).
 
-![crop-from-bdd](https://habrastorage.org/webt/ee/wt/yq/eewtyqqk4sh_m-r7-a8mx8a8mlw.gif)
+![crop-from-bdd](https://habrastorage.org/webt/ku/vt/1g/kuvt1g6zs42-st68cpyfqm9uqd0.gif)
 
 ## Table of contents
 
