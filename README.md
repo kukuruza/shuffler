@@ -79,7 +79,7 @@ To test the installation, run the following command. The installation succeeded 
 
 ```bash
 cd shuffler
-./shuffler.py -i 'testdata/cars/micro1_v5.db' --rootdir 'testdata/cars' examineImages
+python -m shuffler -i 'testdata/cars/micro1_v5.db' --rootdir 'testdata/cars' examineImages
 ```
 
 
@@ -90,7 +90,7 @@ cd shuffler
 Shuffler is a command line tool. It chains operations, such as `importKitti` to import a dataset from [KITTI](http://www.cvlibs.net/datasets/kitti) format and `exportCoco` to export it in [COCO format](https://cocodataset.org/#home).
 
 ```bash
-./shuffler.py \
+python -m shuffler \
   importKitti --images_dir ${IMAGES_DIR} --detection_dir ${OBJECT_LABELS_DIR} '|' \
   exportCoco --coco_dir ${OUTPUT_DIR} --subset 'train'
 ```
@@ -114,7 +114,7 @@ Sub-commands can be chained via the vertical bar `|`, similar to pipes in Unix. 
 The next example (1) opens a database, (2) converts polygon labels to pixel-by-pixel image masks (3) adds more images with their masks to the database, and (4) prints summary.
 
 ```bash
-./shuffler.py --rootdir 'testdata/cars' -i 'testdata/cars/micro1_v5.db' \
+python -m shuffler --rootdir 'testdata/cars' -i 'testdata/cars/micro1_v5.db' \
   polygonsToMask --media='pictures' --mask_path 'testdata/cars/mask_polygons' '|' \
   addPictures --image_pattern 'testdata/moon/images/*.jpg' --mask_pattern 'testdata/moon/masks/*.png' '|' \
   examineImages --mask_alpha 0.5 \
@@ -167,7 +167,7 @@ A dataset consists of (1) image data, stored as image and video files, and (2) m
 The public [BDD dataset](https://bair.berkeley.edu/blog/2018/05/30/bdd) includes 100K images taken from a moving car with various objects annotated in each image. If a researcher wants to train a classifier between "car", "truck", and "bus", they may start by using this dataset. First, annotations of all objects except for these three classes must be filtered out. Second, the dataset annotations for tons of tiny vehicles, which would not be good for a classifier. Third, it may be beneficial to expand bounding boxes to allow for [data augmentation](https://albumentations.ai/) during training. Fourth, the remaining objects need to be cropped out. The cropped images and the annotations are saved in ImageNet format, which is easily consumable by TensorFlow. The KITTI dataset is assumed to be downloaded to directories `${IMAGES_DIR}` and `${OBJECT_LABELS_DIR}`.
 
 ```bash
-./shuffler.py \
+python -m shuffler \
   importKitti --images_dir ${IMAGES_DIR} --detection_dir ${OBJECT_LABELS_DIR}  '|' \
   filterObjectsByName --good_names 'car' 'truck' 'bus'  '|' \
   filterObjectsSQL --sql "SELECT objectid FROM objects WHERE width < 64 OR height < 64"  '|' \
@@ -211,7 +211,7 @@ Shuffler stores metadata as an SQLite database. Metadata includes image paths an
 You can import some well-known formats and save them in Shuffler's format. For example, importing [PASCAL VOC 2012](http://host.robots.ox.ac.uk/pascal/VOC) looks like this. We assume you have downloaded PASCAL VOC to `${VOC_DIR}`:
 
 ```bash
-./shuffler.py -o 'myPascal.db' importPascalVoc2012 ${VOC_DIR} --annotations
+python -m shuffler -o 'myPascal.db' importPascalVoc2012 ${VOC_DIR} --annotations
 ```
 
 You can open `myPascal.db` with any SQLite3 editor/viewer and manually inspect data entries, or run some SQL on it.

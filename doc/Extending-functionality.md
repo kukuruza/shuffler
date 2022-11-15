@@ -94,7 +94,7 @@ That's all. Now you can invoke this sub-command.
 For example, that's how to get the help about the subcommand.
 
 ```bash
-./shuffler.py propertyModulo360 -h
+python -m shuffler propertyModulo360 -h
 ```
 
 ```bash
@@ -116,11 +116,13 @@ conda install -y mock nose scikit-image
 To run one test, got to the Shuffler repo dir and run:
 
 ```bash
-python3 -m lib.utils.utilBoxes_test
+cd shuffler
+python3 -m utils.utilBoxes_test
 ```
 
 To run all tests, got to the Shuffler repo dir and run:
 
 ```bash
+cd shuffler
 nosetests
 ```

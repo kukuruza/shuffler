@@ -64,7 +64,7 @@ a terminal via ssh.
 Navigate to the root directory of the Shuffler repo, and type:
 
 ```bash
-./shuffler.py -i "testdata/cars/micro1_v5.db" --rootdir "testdata/cars" examineImages
+python -m shuffler -i "testdata/cars/micro1_v5.db" --rootdir "testdata/cars" examineImages
 ```
 
 You should see the following image pop up in a new window on your screen.
@@ -77,7 +77,7 @@ When done, press "Esc".
 
 ![test cars micro db](Crash-course/cars-micro-image1-1500x500.png)
 
-You have just run the command line tool `./shuffler.py`. It loaded the database
+You have just run the command line tool `python -m shuffler`. It loaded the database
 `testdata/cars/micro1_v5.db`, and ran its sub-command `examineImages`.
 Note that the `rootdir` argument was specified to let Shuffler know the relative
 directory of images, in this case, folder `testdata/cars`. Either the absolute or
@@ -88,7 +88,7 @@ arguments. Run the following command to see not only the images, but also
 the labelled objects:
 
 ```bash
-./shuffler.py -i "testdata/cars/micro1_v5.db" --rootdir "testdata/cars" \
+python -m shuffler -i "testdata/cars/micro1_v5.db" --rootdir "testdata/cars" \
   examineImages --with_objects
 ```
 
@@ -110,7 +110,7 @@ Now examine images using the previous command but specify the new
 In my case the new image folder is at `$HOME/Desktop`.
 
 ```bash
-./shuffler.py -i "testdata/cars/micro1_v5.db" --rootdir $HOME"/Desktop" examineImages
+python -m shuffler -i "testdata/cars/micro1_v5.db" --rootdir $HOME"/Desktop" examineImages
 ```
 
 </details>

@@ -39,20 +39,20 @@ The first step is to create a database for each of the datasets. More info at [I
 ```bash
 cd ${DATASETS_DIR}
 
-${SHUFFLER_DIR}/shuffler.py -o 'kitti.db'  \
+${SHUFFLER_DIRpython -m shuffler -o 'kitti.db'  \
   importKitti \
   --images_dir=KITTI/data_object_image_2/training/image_2  \
   --detection_dir=KITTI/data_object_image_2/training/label_2
 
-${SHUFFLER_DIR}/shuffler.py -o 'pascal.db' \
+${SHUFFLER_DIRpython -m shuffler -o 'pascal.db' \
   importPascalVoc2012 --pascal_dir Pascal --segmentation_class
 
-${SHUFFLER_DIR}/shuffler.py -o 'bdd100k_train.db' \
+${SHUFFLER_DIRpython -m shuffler -o 'bdd100k_train.db' \
   importBdd \
   --images_dir BDD/bdd100k/images/100k/train \
   --detection_json BDD/bdd100k/labels/bdd100k_labels_images_train.json
 
-${SHUFFLER_DIR}/shuffler.py -o 'cityscapes_trainval_gtfine.db' \
+${SHUFFLER_DIRpython -m shuffler -o 'cityscapes_trainval_gtfine.db' \
   importCityscapes \
   --cityscapes_dir Cityscapes \
   --split train val --type "gtFine" --mask_type labelIds
@@ -64,7 +64,7 @@ ${SHUFFLER_DIR}/shuffler.py -o 'cityscapes_trainval_gtfine.db' \
 The following command combines all four datasets into one, called `combined.db`. We assume that the environmental variables such as `CITYSCAPES_DIR` were defined in the previous step. Argument `db_rootdir` specifies the directory image paths are considered to be relative to.
 
 ```bash
-${SHUFFLER_DIR}/shuffler.py -o combined.db \
+${SHUFFLER_DIRpython -m shuffler -o combined.db \
   addDb --db_file kitti_detection.db \| \
   addDb --db_file pascal.db \| \
   addDb --db_file bdd100k_detection_train.db \| \
@@ -118,7 +118,7 @@ motorcyclegroup|Cityscapes/leftImg8bit/train/strasbourg/strasbourg_000000_029915
 What does that `motorcyclegroup` mean? Cityscrapes docs tell us that this is a group of motorcycles where individual motocycles are not clearly seen. We can visually see it using Shuffler:
 
 ```bash
-${SHUFFLER_DIR}/shuffler.py -i combined.db \
+${SHUFFLER_DIRpython -m shuffler -i combined.db \
   examineObjects --where_object 'name="motorcyclegroup"' --shuffle
 ```
 
@@ -151,7 +151,7 @@ Van|2914
 In the output, you will not find anything for motorbikes. The reason is that there are few of them in KITTI, and they are all put into "Misc" class. Just go through "Misc" to see it for yourself:
 
 ```bash
-${SHUFFLER_DIR}/shuffler.py -i combined.db \
+${SHUFFLER_DIRpython -m shuffler -i combined.db \
   examineObjects --where_object 'name="Misc" AND imagefile LIKE "KITTI%"' --shuffle
 ```
 
@@ -159,12 +159,12 @@ We can classify those motorcycles in Misc. There are 973 objects in Misc, it tak
 
 ```bash
 # Label object by object using keyboard.
-${SHUFFLER_DIR}/shuffler.py -i combined.db -o combined.db \
+${SHUFFLER_DIRpython -m shuffler -i combined.db -o combined.db \
   labelObjects --property 'mylabel' \
     --key_dict '{"-": "previous", "=": "next", 27: "exit", " ": "Misc", "m": "motor", "p": "motorbiker"}' \
     --where_object 'name="Misc" AND imagefile LIKE "KITTI%"'
 # Copy labels to object names.
-${SHUFFLER_DIR}/shuffler.py -i combined.db -o combined.db \
+${SHUFFLER_DIRpython -m shuffler -i combined.db -o combined.db \
   propertyToName --property "mylabel" --delete_property_after
 ```
 
@@ -194,7 +194,7 @@ We will merge bike riders with their bikes in order to match KITTI format. That 
 Similarly, objects "motocycle"/"motor"/"motorbike" are merged with "rider" to make objects "motorbiker".
 
 ```bash
-${SHUFFLER_DIR}/shuffler.py -i combined.db -o combined.db \
+${SHUFFLER_DIRpython -m shuffler -i combined.db -o combined.db \
   mergeIntersectingObjects --IoU_threshold 0.01 --target_name 'cyclist' \
     --where_object1 'name == "rider"' --where_object2 'name IN ("bicycle", "bike")' \| \
   mergeIntersectingObjects --IoU_threshold 0.01 --target_name 'motorbiker' \
@@ -204,9 +204,9 @@ ${SHUFFLER_DIR}/shuffler.py -i combined.db -o combined.db \
 It is time examine the results:
 
 ```bash
-${SHUFFLER_DIR}/shuffler.py -i combined.db \
+${SHUFFLER_DIRpython -m shuffler -i combined.db \
   examineObjects --where_object 'name="cyclist"' --shuffle
-${SHUFFLER_DIR}/shuffler.py -i combined.db \
+${SHUFFLER_DIRpython -m shuffler -i combined.db \
   examineObjects --where_object 'name="motorbiker"' --shuffle
 ```
 
@@ -235,7 +235,7 @@ sqlite3 combined.db '
 We have to do this via Shuffler, not in `sqlite3` tool, because deleting an object also requires deleting its properties and polygons. Shuffler takes care of that.
 
 ```bash
-${SHUFFLER_DIR}/shuffler.py -i combined.db -o combined.db \
+${SHUFFLER_DIRpython -m shuffler -i combined.db -o combined.db \
   filterObjectsByName --good_names "vehicle" "pedestrian" "motorbiker" "motorbike" "cyclist" "bicycle" "traffic sign" "traffic light" "dont care"
 ```
 
@@ -263,7 +263,7 @@ vehicle|825371
 First, there are some objects with height=0 or width=0. Get rid of them:
 
 ```bash
-${SHUFFLER_DIR}/shuffler.py -i combined.db -o combined.db \
+${SHUFFLER_DIRpython -m shuffler -i combined.db -o combined.db \
   filterObjectsSQL 'SELECT objectid FROM objects WHERE width == 0 OR height == 0'
 ```
 
@@ -276,7 +276,7 @@ sqlite3 combined.db 'UPDATE objects SET name="dont care" WHERE width < 10 AND he
 BDD gets messy sometimes. For example, some of further "vehicle" objects are just barely visible behind ocluding objects. Traffic signs stand for both regulatory and informational signs (such as street names.) Just take a look at some of the vehicles in BDD:
 
 ```bash
-${SHUFFLER_DIR}/shuffler.py -i combined.db \
+${SHUFFLER_DIRpython -m shuffler -i combined.db \
   examineObjects --where_object 'name="vehicle" AND imagefile LIKE "%BDD%"' --shuffle
 ```
 
@@ -312,7 +312,7 @@ vehicle|719450
 Let's get rid of the empty PASCAL images, that don't have the road anyway:
 
 ```bash
-${SHUFFLER_DIR}/shuffler.py -i combined.db \
+${SHUFFLER_DIRpython -m shuffler -i combined.db \
   filterEmptyImages --where_image 'imagefile LIKE "PASCAL%"'
 ```
 
@@ -335,14 +335,14 @@ sqlite3 combined.db "SELECT COUNT(1) FROM images; SELECT COUNT(1) FROM objects;"
 Let's go through images with a visually see the result:
 
 ```bash
-${SHUFFLER_DIR}/shuffler.py -i combined.db \
+${SHUFFLER_DIRpython -m shuffler -i combined.db \
   examineImages --with_objects --shuffle
 ```
 
 Now we generate three plots: a histogram of objects by type, distribution of sizes of objects, the distribution of classes by dataset, and finally, the histogram of object width by dataset. The last two command have the expression `substr(imagefile,0,instr(imagefile, '/'))`. This is a SQLite syntax taking a substring of `imagefile` -- from its beginning up to the first `/` character.
 
 ```bash
-${SHUFFLER_DIR}/shuffler.py -i combined.db \
+${SHUFFLER_DIRpython -m shuffler -i combined.db \
   plotHistogram  --categorical --xlabel "class" --ylog --rotate_xlabels 90 \
     --sql "SELECT name FROM objects" \
     --out_path objects_by_class.eps \
@@ -369,7 +369,7 @@ ${SHUFFLER_DIR}/shuffler.py -i combined.db \
 Are you sure you want to export 92K images? An alternative is use a generator that is specially written for this project. The following command creates the COCO structure with the subset "combined", copies images there, and writes annotations.
 
 ```bash
-${SHUFFLER_DIR}/shuffler.py -i combined.db \
+${SHUFFLER_DIRpython -m shuffler -i combined.db \
   exportCoco --coco_dir COCO --subset combined --copy_images
 ```
 

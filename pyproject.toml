@@ -1,0 +1,42 @@
+[build-system]
+requires      = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dataset-shuffler"
+version = "0.1.0"
+description = "Data engineering tool for learning-based computer vision."
+readme = "README.md"
+authors = [{ name = "Evgeny Toropov", email = "toropov.evgeny@gmail.com" }]
+license = { file = "LICENSE" }
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+]
+keywords = ["dataset", "data engineering", 
+            "computer vision", "machine learning",
+            "classification", "detection", "segmentation", "tracking"]
+dependencies = [
+    "imageio-ffmpeg",
+    "imageio",
+    "opencv-python",
+    "matplotlib",
+    "lxml",
+    "simplejson",
+    "progressbar2",
+    "pillow",
+    "scipy",
+    "pandas",
+    "seaborn",
+]
+requires-python = ">=3.6"
+
+[project.optional-dependencies]
+dev = ["mock", "nose", "scikit-image", "torch", "tensorflow"]
+
+[project.urls]
+Homepage = "https://github.com/kukuruza/shuffler"
+
+[project.scripts]
+shuffler = "shuffler.shuffler_cli:main"
