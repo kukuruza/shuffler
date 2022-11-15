@@ -1,0 +1,24 @@
+An unordered list of TODO items.
+
+- ImageNet2012 io.
+- Publish to PyPI.
+  - Upgrade db should report the versions it upgrades through.
+  - Test which versions of each dependency pass all unit tests.
+  - "Thomas Kluyver’s lightning talk from EuroSciPy 2017".
+  - Write "pyproject.toml".
+    - "project.optional-dependencies".
+  - Why is Semantic Versioning "not perfect"?
+  - "register your account on PyPI" and TestPyPI.
+  - Build the wheel: "python -m build" 
+  - Check how package will look on PyPI with `twine check dist/*`.
+  - Upload the package to TestPyPI with `twine upload -r testpypi dist/*`.
+  - Check the installation in a virtual env: `(venv) $ python -m pip install your-package-name`
+- Cover all operations with unit tests.
+- "Filter images" operations should either remove images with objects or create new tables with filtered images with objects, and retire old tables, based on what is going to take less time.
+- https://github.com/kukuruza/shuffler/blob/mastepython -m shuffler#L68 should not load a database to memory for large databases, instead it should copy the database to a temp location.
+- Rework config.
+  - Add user config to ~/.shufflerrc.
+  - Add default config to "toml".
+  - Add default config file to MANIFEST.
+  - Use "importlib.resources" ro read the config file.
+  - Use rich for beatiuful terminal output.

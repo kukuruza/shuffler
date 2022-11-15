@@ -567,7 +567,7 @@ class TestGetTransformBetweenRois(unittest.TestCase):
 class TestApplyTransformToRoi(unittest.TestCase):
     def test_identity(self):
         transform = np.eye(3, 3, dtype=float)
-        roi = [10, 20, 30, 40]
+        roi = (10, 20, 30, 40)
         actual_roi = utilBoxes.applyTransformToRoi(transform, roi)
         self.assertEqual(actual_roi, roi)
 
@@ -576,7 +576,7 @@ class TestApplyTransformToRoi(unittest.TestCase):
         transform[0, 0] = 2
         transform[1, 1] = 2
         roi = [10, 20, 30, 40]
-        expected_roi = [20, 40, 60, 80]
+        expected_roi = (20, 40, 60, 80)
         actual_roi = utilBoxes.applyTransformToRoi(transform, roi)
         self.assertEqual(actual_roi, expected_roi)
 

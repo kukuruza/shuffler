@@ -27,6 +27,7 @@ dependencies = [
     "progressbar2",
     "pillow",
     "scipy",
+    "scikit-learn",
     "pandas",
     "seaborn",
 ]

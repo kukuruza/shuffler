@@ -107,22 +107,27 @@ python -m interface.keras.generators_demo
 
 Most of the backend and utilities are covered in unit tests.
 
-First, install `nose` package to run tests and `scikit-image` for testing some image related functions:
-
 ```bash
-conda install -y mock nose scikit-image
+pip install mock nose
 ```
 
-To run one test, got to the Shuffler repo dir and run:
+To run one test, go to the `shuffler` directory inside the shuffler repository and run:
 
 ```bash
-cd shuffler
+cd shuffler/shuffler
 python3 -m utils.utilBoxes_test
 ```
 
-To run all tests, got to the Shuffler repo dir and run:
+To run all unittests, install also the following:
+
+```
+pip install scikit-image tensorflow torch
+pip install 'git+https://github.com/facebookresearch/detectron2.git'
+```
+
+Then run:
 
 ```bash
-cd shuffler
+cd shuffler/shuffler
 nosetests
 ```
