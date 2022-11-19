@@ -126,6 +126,7 @@ def connect(in_db_path=None, out_db_path=None):
 
 def runSubcommand(cursor, args):
     print('=== %s ===' % args.func.__name__)
+    logging.debug('=== Subcommand args: %s', args)
     args.func(cursor, args)
 
 
@@ -152,6 +153,12 @@ if __name__ == '__main__':
 
     conn = connect(args.in_db_file, args.out_db_file)
     cursor = conn.cursor()
+
+    # in_db_file, out_db_file, and logging were aready used, remove them to
+    # avoid the first function accidentally using them.
+    del args.in_db_file
+    del args.out_db_file
+    del args.logging
 
     if not hasattr(args, 'func'):
         raise ValueError(

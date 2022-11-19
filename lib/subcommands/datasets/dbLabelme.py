@@ -23,17 +23,22 @@ def _pointsOfPolygon(annotation):
     xs = []
     ys = []
     for pt in pts:
-        # Labelme does not process float, so round to int.
-        xs.append(int(float(pt.find('x').text)))
-        ys.append(int(float(pt.find('y').text)))
+        try:
+            # Labelme does not process float, so round to int.
+            xs.append(int(float(pt.find('x').text)))
+            ys.append(int(float(pt.find('y').text)))
+        except ValueError:
+            logging.warning('Failed to parse x=%s or y=%s. Skip point.',
+                            pt.find('x').text,
+                            pt.find('y').text)
     logging.debug('Parsed polygon xs=%s, ys=%s.', xs, ys)
     return xs, ys
 
 
 def _isPolygonDegenerate(xs, ys):
     assert len(xs) == len(ys), (len(xs), len(ys))
-    return len(xs) == 1 or len(xs) == 2 or min(xs) == max(xs) or min(
-        ys) == max(ys)
+    return (len(xs) == 0 or len(ys) == 0 or len(xs) == 1 or len(xs) == 2
+            or min(xs) == max(xs) or min(ys) == max(ys))
 
 
 def importLabelmeParser(subparsers):

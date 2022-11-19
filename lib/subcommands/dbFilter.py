@@ -387,6 +387,12 @@ def filterObjectsInsideCertainObjectsParser(subparsers):
         default='TRUE',
         help='SQL "where" clause that queries for "objectid" to crop. '
         'Queries table "objects". Example: \'objects.name == "car"\'')
+    parser.add_argument(
+        '--invert',
+        action='store_true',
+        help=
+        'Use the INVERTED condition: delete objects OUTSIDE ALL shadow objects.'
+    )
 
 
 def filterObjectsInsideCertainObjects(c, args):
@@ -436,6 +442,7 @@ def filterObjectsInsideCertainObjects(c, args):
                 center_yx = (roi[0] + roi[2]) / 2, (roi[1] + roi[3]) / 2
             logging.debug('center_yx: %s', str(center_yx))
 
+            is_inside_any = False
             for shadow_object_entry, shadow_polygon in zip(
                     shadow_object_entries, shadow_object_polygons):
                 # Get the shadow roi, or polygon if it exists.
@@ -456,9 +463,12 @@ def filterObjectsInsideCertainObjects(c, args):
                                  and center_yx[1] < shadow_roi[3])
 
                 if is_inside:
-                    backendDb.deleteObject(c, objectid)
-                    # We do not need to check other shadow_object_entries.
-                    continue
+                    is_inside_any = True
+
+            if is_inside_any != args.invert:
+                backendDb.deleteObject(c, objectid)
+                # We do not need to check other shadow_object_entries.
+                continue
 
 
 def filterObjectsSQLParser(subparsers):
