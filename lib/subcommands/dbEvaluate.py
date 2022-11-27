@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import pprint
 import PIL
+import enum
 
 from lib.backend import backendDb
 from lib.backend import backendMedia
@@ -178,8 +179,11 @@ def _beautifyPlot(ax):
 def _evaluateDetectionForClassSklearn(c, c_gt, class_name, args, sklearn):
     ''' Helper function for evaluateDetection. '''
 
+    aggregate_classes = args.evaluation_backend == 'aggregate-classes'
+    class_agnostic = args.evaluation_backend == 'class-agnostic'
+
     # Detected objects sorted by descending score (confidence).
-    if class_name in ['any', 'ignore']:
+    if aggregate_classes or class_agnostic:
         c.execute('SELECT * FROM objects ORDER BY score DESC')
     else:
         c.execute('SELECT * FROM objects WHERE name=? ORDER BY score DESC',
@@ -209,7 +213,7 @@ def _evaluateDetectionForClassSklearn(c, c_gt, class_name, args, sklearn):
         y_score[idet] = score
 
         # Get all GT boxes from the same imagefile and of the same class.
-        if class_name == 'ignore':
+        if class_agnostic:
             c_gt.execute('SELECT * FROM objects WHERE imagefile=?',
                          (imagefile, ))
         else:
@@ -256,7 +260,7 @@ def _evaluateDetectionForClassSklearn(c, c_gt, class_name, args, sklearn):
                       idet, objectid_gt)
 
         # Get all GT objects that are of interest.
-        if class_name == 'ignore':
+        if class_agnostic:
             c_gt.execute(
                 'SELECT * FROM objects WHERE imagefile=? AND (%s)' %
                 args.where_object_gt, (imagefile, ))
@@ -286,7 +290,7 @@ def _evaluateDetectionForClassSklearn(c, c_gt, class_name, args, sklearn):
     y_true = y_true[np.bitwise_not(y_ignored)]
 
     # Find the number of GT of interest.
-    if class_name in ['any', 'ignore']:
+    if aggregate_classes or class_agnostic:
         c_gt.execute('SELECT COUNT(1) FROM objects WHERE (%s)' %
                      args.where_object_gt)
     else:
@@ -340,7 +344,7 @@ def _evaluateDetectionForClassSklearn(c, c_gt, class_name, args, sklearn):
     # Compute all metrics for this class.
     aps = sklearn.metrics.average_precision_score(y_true=y_true,
                                                   y_score=y_score)
-    if class_name in ['any', 'ignore']:
+    if aggregate_classes or class_agnostic:
         print('Average precision: %.4f' % aps)
     else:
         print('Average precision for class "%s": %.4f' % (class_name, aps))
@@ -374,15 +378,21 @@ def evaluateDetectionParser(subparsers):
     parser.add_argument(
         '--evaluation_backend',
         choices=[
-            'sklearn', 'pascal-voc', 'sklearn-all-classes',
-            'sklearn-ignore-classes'
+            'pascal-voc', 'by-class', 'aggregate-classes', 'class-agnostic'
         ],
-        default='sklearn',
+        default='by-class',
         help='Detection evaluation is different across papers and methods. '
         'PASCAL VOC produces average-precision score a bit different '
         'than the sklearn package. A good overview on metrics: '
         'https://github.com/rafaelpadilla/Object-Detection-Metrics. '
-        '"sklearn-all-classes" reports only one accuracy.')
+        '\n\n'
+        '"by-class" computes accuracy per class and also averages the result. '
+        '99 objects of class "dog" and 1 object of class "cat" contribute to '
+        'mAP equally\n'
+        '"aggregate-classes" computes only one accuracy. 99 objects of '
+        'class "dog" and 1 object of class "cat" affect AP proportionally.\n'
+        '"class-agnostic" ignores classes. "dog" detected as "animal" is okay.'
+    )
 
 
 def evaluateDetection(c, args):
@@ -401,20 +411,16 @@ def evaluateDetection(c, args):
     logging.info('The ground truth database has %d objects of interest.',
                  len(names))
 
-    if args.evaluation_backend == 'sklearn':
-        for name, in names:
-            _evaluateDetectionForClassSklearn(c, c_gt, name, args, sklearn)
-    elif args.evaluation_backend == 'pascal-voc':
+    if args.evaluation_backend == 'pascal-voc':
         for name, in names:
             if args.metrics is not None:
                 logging.warning('extra_metrics not supported for pascal-voc.')
             _evaluateDetectionForClassPascal(c, c_gt, name, args)
-    elif args.evaluation_backend == 'sklearn-all-classes':
-        # This method does not separate results by classes.
-        _evaluateDetectionForClassSklearn(c, c_gt, 'any', args, sklearn)
-    elif args.evaluation_backend == 'sklearn-ignore-classes':
-        # This method does not separate results by classes.
-        _evaluateDetectionForClassSklearn(c, c_gt, 'ignore', args, sklearn)
+    elif args.evaluation_backend == 'by-class':
+        for name, in names:
+            _evaluateDetectionForClassSklearn(c, c_gt, name, args, sklearn)
+    elif args.evaluation_backend in ['aggregate-classes', 'class-agnostic']:
+        _evaluateDetectionForClassSklearn(c, c_gt, None, args, sklearn)
     else:
         assert False
     conn_gt.close()
