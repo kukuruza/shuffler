@@ -31,7 +31,6 @@ def add_parsers(subparsers):
     moveMediaParser(subparsers)
     moveRootdirParser(subparsers)
     addDbParser(subparsers)
-    subtractDbParser(subparsers)
     splitDbParser(subparsers)
     mergeIntersectingObjectsParser(subparsers)
     renameObjectsParser(subparsers)
@@ -458,7 +457,7 @@ def moveMedia(c, args):
                 oldheight, oldwidth = c.fetchone()
                 newheight, newwidth = backendMedia.getPictureSize(newpath)
                 if newheight != oldheight or newwidth != oldwidth:
-                    logging.info(
+                    logging.debug(
                         'Scaling annotations in "%s" from %dx%d to %dx%d.',
                         oldfile, oldheight, oldwidth, newheight, newwidth)
                     _resizeImageAnnotations(c, newfile, oldwidth, oldheight,
@@ -616,41 +615,6 @@ def addDb(c, args):
         for match, in c_add.fetchall():
             c.execute('INSERT INTO matches(objectid,match) VALUES (?,?)',
                       (objectid, match + max_match))
-
-
-def subtractDbParser(subparsers):
-    parser = subparsers.add_parser(
-        'subtractDb',
-        description='Removes images present in "db_file" from the database. '
-        'Objects in the removed images are removed too.')
-    parser.set_defaults(func=subtractDb)
-    parser.add_argument('--db_file', required=True)
-    parser.add_argument(
-        '--db_rootdir',
-        help=
-        'If specified, imagefiles from add_db are considered relative to db_rootdir. '
-        'They will be modified to be relative to rootdir of the active database.'
-    )
-
-
-def subtractDb(c, args):
-
-    # Get all the subtracted imagefiles
-    c.execute('ATTACH ? AS "subtracted"', (args.db_file, ))
-    c.execute('SELECT imagefile from subtracted.images')
-    imagefiles_subtracted = c.fetchall()
-    c.execute('DETACH DATABASE "subtracted"')
-
-    for imagefile, in progressbar(imagefiles_subtracted):
-        # Maybe, change rootdir of imagefile, so that it matches our dataset.
-        if args.db_rootdir is not None:
-            imagefile = op.relpath(op.join(args.db_rootdir, imagefile),
-                                   args.rootdir)
-        # If present, delete imagefile and all its objects.
-        c.execute('SELECT COUNT(1) FROM images WHERE imagefile=?;',
-                  (imagefile, ))
-        if c.fetchone()[0] != 0:
-            backendDb.deleteImage(c, imagefile)
 
 
 def splitDbParser(subparsers):
