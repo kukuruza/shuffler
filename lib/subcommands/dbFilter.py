@@ -59,30 +59,31 @@ def filterImagesOfAnotherDb(c, args):
     conn_ref = sqlite3.connect('file:%s?mode=ro' % ref_file, uri=True)
     c_ref = conn_ref.cursor()
     c_ref.execute('SELECT imagefile FROM images')
-    imagefiles_ref = c_ref.fetchall()
+    imagefiles_ref = [imagefile for imagefile, in c_ref.fetchall()]
     logging.info('Total %d images in ref.' % len(imagefiles_ref))
     conn_ref.close()
 
     # Get all the imagefiles from the main db.
     c.execute('SELECT imagefile FROM images')
-    imagefiles = c.fetchall()
+    imagefiles = [imagefile for imagefile, in c.fetchall()]
     logging.info('Before filtering have %d files', len(imagefiles))
 
     maybe_basename = lambda x: op.basename(x) if args.use_basename else x
     if args.use_basename:
-        imagefiles_ref = [op.basename(x) for x, in imagefiles_ref]
+        imagefiles_ref = [op.basename(x) for x in imagefiles_ref]
 
     # imagefiles_del are either must be or must not be in the other database.
     if args.keep_db_file is not None:
         imagefiles_del = [
-            x for x, in imagefiles if maybe_basename(x) not in imagefiles_ref
+            x for x in imagefiles if maybe_basename(x) not in imagefiles_ref
         ]
     elif args.delete_db_file is not None:
         imagefiles_del = [
-            x for x, in imagefiles if maybe_basename(x) in imagefiles_ref
+            x for x in imagefiles if maybe_basename(x) in imagefiles_ref
         ]
     else:
         assert 0, "We cant be here."
+    logging.info('Will delete %d images', len(imagefiles_del))
 
     # Delete.
     for imagefile_del in imagefiles_del:
