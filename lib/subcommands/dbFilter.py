@@ -397,6 +397,10 @@ def filterObjectsInsideCertainObjectsParser(subparsers):
 
 
 def filterObjectsInsideCertainObjects(c, args):
+    c.execute('SELECT COUNT(1) FROM objects WHERE (%s)' % args.where_objects)
+    count_before = c.fetchone()[0]
+    count_deleted = 0
+
     c.execute('SELECT imagefile FROM images')
     for imagefile, in progressbar(c.fetchall()):
 
@@ -405,7 +409,8 @@ def filterObjectsInsideCertainObjects(c, args):
             'SELECT * FROM objects WHERE imagefile=? AND (%s)' %
             args.where_shadowing_objects, (imagefile, ))
         shadow_object_entries = c.fetchall()
-        logging.info('Found %d shadowing objects.', len(shadow_object_entries))
+        logging.debug('Found %d shadowing objects in imagefile %s',
+                      len(shadow_object_entries), imagefile)
         # Populate polygons of the shadow objects.
         shadow_object_polygons = []
         for shadow_object_entry in shadow_object_entries:
@@ -425,8 +430,8 @@ def filterObjectsInsideCertainObjects(c, args):
             'SELECT * FROM objects WHERE imagefile=? AND (%s)' %
             args.where_objects, (imagefile, ))
         object_entries = c.fetchall()
-        logging.info('Total %d objects satisfying the condition.',
-                     len(object_entries))
+        logging.debug('Total %d objects satisfying the condition.',
+                      len(object_entries))
 
         for object_entry in object_entries:
             objectid = backendDb.objectField(object_entry, 'objectid')
@@ -455,6 +460,8 @@ def filterObjectsInsideCertainObjects(c, args):
                     is_inside = cv2.pointPolygonTest(
                         np.array(shadow_polygon).astype(int), center_yx,
                         False) >= 0
+                    logging.debug('Object %d is %sinside polygon', objectid,
+                                  ' ' if is_inside else 'not ')
                 else:
                     shadow_roi = utilBoxes.bbox2roi(
                         backendDb.objectField(shadow_object_entry, 'bbox'))
@@ -462,14 +469,18 @@ def filterObjectsInsideCertainObjects(c, args):
                                  and center_yx[0] < shadow_roi[2]
                                  and center_yx[1] > shadow_roi[1]
                                  and center_yx[1] < shadow_roi[3])
+                    logging.debug('Object %d is %sinside bbox', objectid,
+                                  ' ' if is_inside else 'not ')
 
                 if is_inside:
                     is_inside_any = True
+                    break  # One is enough.
 
             if is_inside_any != args.invert:
                 backendDb.deleteObject(c, objectid)
-                # We do not need to check other shadow_object_entries.
-                continue
+                count_deleted += 1
+
+    logging.info('Deleted %d objects out of %d.', count_deleted, count_before)
 
 
 def filterObjectsSQLParser(subparsers):
