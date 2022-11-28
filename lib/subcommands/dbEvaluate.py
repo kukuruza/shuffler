@@ -147,7 +147,7 @@ def _evaluateDetectionForClassPascal(c, c_gt, name, args):
     prec = tp / np.maximum(tp + fp, np.finfo(np.float64).eps)
     aps = _voc_ap(rec, prec)
     print('Average precision for class "%s": %.4f' % (name, aps))
-    return aps
+    return name, aps
 
 
 def _writeCurveValues(out_dir, X, Y, metrics_name, name, header):
@@ -348,7 +348,7 @@ def _evaluateDetectionForClassSklearn(c, c_gt, class_name, args, sklearn):
         print('Average precision: %.4f' % aps)
     else:
         print('Average precision for class "%s": %.4f' % (class_name, aps))
-    return aps
+    return class_name, aps
 
 
 def evaluateDetectionParser(subparsers):
@@ -396,9 +396,6 @@ def evaluateDetectionParser(subparsers):
 
 
 def evaluateDetection(c, args):
-    if 'sklearn' in args.evaluation_backend:
-        import sklearn.metrics
-
     # Load the ground truth database.
     if not op.exists(args.gt_db_file):
         raise FileNotFoundError('File does not exist: %s' % args.gt_db_file)
@@ -411,19 +408,31 @@ def evaluateDetection(c, args):
     logging.info('The ground truth database has %d objects of interest.',
                  len(names))
 
+    results = []
     if args.evaluation_backend == 'pascal-voc':
         for name, in names:
             if args.metrics is not None:
                 logging.warning('extra_metrics not supported for pascal-voc.')
-            _evaluateDetectionForClassPascal(c, c_gt, name, args)
+            results.append(
+                _evaluateDetectionForClassPascal(c, c_gt, name, args))
     elif args.evaluation_backend == 'by-class':
         for name, in names:
-            _evaluateDetectionForClassSklearn(c, c_gt, name, args, sklearn)
+            results.append(
+                _evaluateDetectionForClassSklearn(c, c_gt, name, args,
+                                                  sklearn))
     elif args.evaluation_backend in ['aggregate-classes', 'class-agnostic']:
-        _evaluateDetectionForClassSklearn(c, c_gt, None, args, sklearn)
+        import sklearn.metrics
+        results.append(
+            _evaluateDetectionForClassSklearn(c, c_gt, None, args, sklearn))
     else:
         assert False
     conn_gt.close()
+
+    if args.out_dir:
+        os.makedirs(args.out_dir, exist_ok=True)
+        with open(op.join(args.out_dir, 'average_precision.txt'), 'w') as f:
+            for result in results:
+                f.write('%s\n' % str(result))
 
 
 def fast_hist(a, b, n):
