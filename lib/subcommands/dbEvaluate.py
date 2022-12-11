@@ -147,7 +147,7 @@ def _evaluateDetectionForClassPascal(c, c_gt, name, args):
     prec = tp / np.maximum(tp + fp, np.finfo(np.float64).eps)
     aps = _voc_ap(rec, prec)
     print('Average precision for class "%s": %.4f' % (name, aps))
-    return name, aps
+    return aps
 
 
 def _writeCurveValues(out_dir, X, Y, metrics_name, name, header):
@@ -348,7 +348,7 @@ def _evaluateDetectionForClassSklearn(c, c_gt, class_name, args, sklearn):
         print('Average precision: %.4f' % aps)
     else:
         print('Average precision for class "%s": %.4f' % (class_name, aps))
-    return class_name, aps
+    return aps
 
 
 def evaluateDetectionParser(subparsers):
@@ -414,12 +414,13 @@ def evaluateDetection(c, args):
             if args.metrics is not None:
                 logging.warning('extra_metrics not supported for pascal-voc.')
             results.append(
-                _evaluateDetectionForClassPascal(c, c_gt, name, args))
+                (name, _evaluateDetectionForClassPascal(c, c_gt, name, args)))
     elif args.evaluation_backend == 'by-class':
         for name, in names:
             results.append(
-                _evaluateDetectionForClassSklearn(c, c_gt, name, args,
-                                                  sklearn))
+                (name,
+                 _evaluateDetectionForClassSklearn(c, c_gt, name, args,
+                                                   sklearn)))
     elif args.evaluation_backend in ['aggregate-classes', 'class-agnostic']:
         import sklearn.metrics
         results.append(

@@ -18,7 +18,8 @@ class Test_evaluateDetectionForClass_Base(testUtils.Test_emptyDb):
         backendDb.createDb(self.conn_gt)
         self.args = argparse.Namespace(IoU_thresh=0.5,
                                        where_object_gt='TRUE',
-                                       extra_metrics=[])
+                                       extra_metrics=[],
+                                       evaluation_backend='by-class')
 
     def tearDown(self):
         self.conn.close()
