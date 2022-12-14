@@ -14,7 +14,7 @@ classifiers = [
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
 ]
-keywords = ["dataset", "data engineering", 
+keywords = ["dataset", "data engineering",
             "computer vision", "machine learning",
             "classification", "detection", "segmentation", "tracking"]
 
@@ -29,19 +29,22 @@ dependencies = [
     "pillow",
 ]
 
-[project.extra]
-dev = [
+requires-python = ">=3.6"
+
+[project.optional-dependencies]
+ml = [
     "scikit-learn",
-    "pandas",
-    "seaborn",
     "torch>=1.0.0",
     "tensorflow>=2.0"
 ]
-
-[project.dev]
-dev = ["mock", "nose"]
-
-requires-python = ">=3.6"
+plots = [
+    "pandas",
+    "seaborn"
+]
+test = [
+    "mock",
+    "nose"
+]
 
 [project.urls]
 Homepage = "https://github.com/kukuruza/shuffler"
