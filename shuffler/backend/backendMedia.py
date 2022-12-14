@@ -6,7 +6,8 @@ import shutil
 import traceback
 from pprint import pformat
 from operator import itemgetter
-import PIL
+from PIL import Image as PILImage  # import PIL.Image does not work.
+
 '''
 The support for reading and writing media in the form of single files and
 multiple files, which are supported by our backend imageio:
@@ -46,7 +47,7 @@ def getPictureSize(imagepath):
     if not op.exists(imagepath):
         raise ValueError('Image does not exist at path: "%s"' % imagepath)
     logging.debug('Get size of image "%s".', imagepath)
-    im = PIL.Image.open(imagepath)
+    im = PILImage.open(imagepath)
     width, height = im.size
     im.close()
     return height, width

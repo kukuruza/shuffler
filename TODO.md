@@ -22,3 +22,7 @@ An unordered list of TODO items.
   - Add default config file to MANIFEST.
   - Use "importlib.resources" ro read the config file.
   - Use rich for beatiuful terminal output.
+- Add matplotlib implementation of seaborn plots to eliminate seaborn dependencies:
+  - Violin: https://www.marsja.se/how-to-make-a-violin-plot-in-python-using-matplotlib-and-seaborn/
+  - Countplot: https://stackoverflow.com/questions/55667185/what-is-matplotlibs-alternative-for-countplot-from-seaborn
+  - Stripplot is not replaceable with seaborn.
