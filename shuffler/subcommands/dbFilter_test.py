@@ -1,14 +1,9 @@
 import os, os.path as op
-import logging
 import sqlite3
-import shutil
-import progressbar
 import unittest
 import argparse
-import pprint
 import tempfile
-import mock
-import numpy as np
+import progressbar
 import nose
 
 from shuffler.backend import backendDb

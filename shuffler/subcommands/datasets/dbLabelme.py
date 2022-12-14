@@ -110,7 +110,7 @@ def importLabelme(c, args):
                 'imagefile, width, height, timestamp) VALUES (?,?,?,?)',
                 (original_imagefile, width, height, timestamp))
         imagefiles.append((labelme_imagefile, original_imagefile))
-    logging.info('Found %d new imagefiles.' % len(imagefiles))
+    logging.info('Found %d new imagefiles.', len(imagefiles))
 
     # Adding annotations.
     annotations_paths = os.listdir(args.annotations_dir)
@@ -125,7 +125,7 @@ def importLabelme(c, args):
         # bug/feature in LabelMe.
         regex = re.compile('0*%s[\.]{1,2}xml' %
                            op.splitext(op.basename(labelme_imagefile))[0])
-        logging.debug('Will try to match %s' % regex)
+        logging.debug('Will try to match %s', regex)
         matches = [f for f in annotations_paths if re.match(regex, f)]
         if len(matches) == 0:
             logging.debug('Annotation file does not exist: "%s". Skip image.' %
@@ -135,7 +135,7 @@ def importLabelme(c, args):
             logging.warning('Found multiple files: %s', pformat(matches))
         # FIXME: pick the latest as opposed to just one of those.
         annotation_file = op.join(args.annotations_dir, matches[0])
-        logging.debug('Got a match %s' % annotation_file)
+        logging.debug('Got a match %s', annotation_file)
 
         tree = ET.parse(annotation_file)
         for object_ in tree.getroot().findall('object'):

@@ -1,11 +1,10 @@
-import os, sys, os.path as op
+import os, os.path as op
 import numpy as np
 import cv2
 import logging
 from glob import glob
 import shutil
 import simplejson as json
-import sqlite3
 from progressbar import progressbar
 from pprint import pformat
 
@@ -81,9 +80,9 @@ def importCityscapes(c, args):
     if args.with_display:
         imreader = backendMedia.MediaReader(args.rootdir)
 
-    logging.info('Will load splits: %s' % args.splits)
-    logging.info('Will load json type: %s' % args.type)
-    logging.info('Will load mask type: %s' % args.mask_type)
+    logging.info('Will load splits: %s', args.splits)
+    logging.info('Will load json type: %s', args.type)
+    logging.info('Will load mask type: %s', args.mask_type)
 
     if not op.exists(args.cityscapes_dir):
         raise Exception('Cityscape directory "%s" does not exist' %
@@ -95,16 +94,16 @@ def importCityscapes(c, args):
     for type_ in [args.type, 'leftImg8bit']:
         type_dir_template = op.join(args.cityscapes_dir, '%s*' % type_)
         for type_dir in [x for x in glob(type_dir_template) if op.isdir(x)]:
-            logging.debug('Looking for splits in %s' % type_dir)
+            logging.debug('Looking for splits in %s', type_dir)
             for split in args.splits:
                 typesplit_dir = op.join(type_dir, split)
                 if op.exists(typesplit_dir):
-                    logging.debug('Found split %s in %s' % (split, type_dir))
+                    logging.debug('Found split %s in %s', split, type_dir)
                     # Add the info into the main dictionary "dirs_by_typesplit".
                     if split not in dirs_by_typesplit:
                         dirs_by_typesplit[split] = {}
                     dirs_by_typesplit[split][type_] = typesplit_dir
-    logging.info('Found the following directories: \n%s' %
+    logging.info('Found the following directories: \n%s',
                  pformat(dirs_by_typesplit))
 
     for split in args.splits:
@@ -113,12 +112,12 @@ def importCityscapes(c, args):
         leftImg8bit_dir = dirs_by_typesplit[split]['leftImg8bit']
         cities = os.listdir(leftImg8bit_dir)
         cities = [x for x in cities if op.isdir(op.join(leftImg8bit_dir, x))]
-        logging.info('Found %d cities in %s' % (len(cities), leftImg8bit_dir))
+        logging.info('Found %d cities in %s', len(cities), leftImg8bit_dir)
 
         for city in cities:
             image_names = os.listdir(op.join(leftImg8bit_dir, city))
-            logging.info('In split "%s", city "%s" has %d images' %
-                         (split, city, len(image_names)))
+            logging.info('In split "%s", city "%s" has %d images', split, city,
+                         len(image_names))
 
             for image_name in image_names:
 
@@ -186,11 +185,11 @@ def importCityscapes(c, args):
 
     # Statistics.
     c.execute('SELECT COUNT(1) FROM images')
-    logging.info('Imported %d images' % c.fetchone()[0])
+    logging.info('Imported %d images', c.fetchone()[0])
     c.execute('SELECT COUNT(1) FROM images WHERE maskfile IS NOT NULL')
-    logging.info('Imported %d masks' % c.fetchone()[0])
+    logging.info('Imported %d masks', c.fetchone()[0])
     c.execute('SELECT COUNT(DISTINCT(imagefile)) FROM objects')
-    logging.info('Objects are found in %d images' % c.fetchone()[0])
+    logging.info('Objects are found in %d images', c.fetchone()[0])
 
 
 def _makeLabelName(name, city, type_, was_imported_from_cityscapes):
@@ -206,7 +205,7 @@ def _makeLabelName(name, city, type_, was_imported_from_cityscapes):
         if len(core_parts) >= 3:
             core = '_'.join(core_parts[1:-1])
     out_name = '_'.join([city, core, type_])
-    logging.debug('Made name "%s" out of input name "%s".' % (out_name, name))
+    logging.debug('Made name "%s" out of input name "%s".', out_name, name)
     return out_name
 
 
@@ -293,8 +292,8 @@ def exportCityscapes(c, args):
             op.dirname(imagefile))
         split = args.split if args.split is not None else op.basename(
             op.dirname(op.dirname(imagefile)))
-        logging.debug('Will write imagefile %s to split %s and city %s.' %
-                      (imagefile, split, city))
+        logging.debug('Will write imagefile %s to split %s and city %s.',
+                      imagefile, split, city)
         out_name = _makeLabelName(imagename, city, args.type,
                                   args.was_imported_from_cityscapes)
 

@@ -1,13 +1,8 @@
-import os, sys, os.path as op
-import numpy as np
+import os.path as op
 import cv2
-import collections
 import logging
 from glob import glob
-import shutil
-import sqlite3
 from progressbar import progressbar
-from pprint import pformat
 
 from shuffler.backend import backendDb
 from shuffler.backend import backendMedia
@@ -175,12 +170,12 @@ def importKitti(c, args):
         imreader = backendMedia.MediaReader(args.rootdir)
 
     image_paths = sorted(glob(op.join(args.images_dir, '*.png')))
-    logging.info('Found %d PNG images in %s' %
-                 (len(image_paths), args.images_dir))
+    logging.info('Found %d PNG images in %s', len(image_paths),
+                 args.images_dir)
 
     for image_path in progressbar(image_paths):
         filename = op.splitext(op.basename(image_path))[0]
-        logging.debug('Processing image: "%s"' % filename)
+        logging.debug('Processing image: "%s"', filename)
 
         # Add image to the database.
         imheight, imwidth = backendMedia.getPictureSize(image_path)
@@ -201,8 +196,8 @@ def importKitti(c, args):
             # Read annotation file.
             with open(detection_path) as f:
                 lines = f.read().splitlines()
-            logging.debug('Read %d lines from detection file "%s"' %
-                          (len(lines), detection_path))
+            logging.debug('Read %d lines from detection file "%s"', len(lines),
+                          detection_path)
             for line in lines:
                 objectid = _parseObject(c, line, imagefile)
 

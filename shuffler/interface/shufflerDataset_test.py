@@ -1,5 +1,4 @@
-import os, sys, os.path as op
-import random
+import os, os.path as op
 import logging
 import sqlite3
 import shutil
@@ -15,6 +14,7 @@ from shuffler.interface.shufflerDataset import DatasetWriter
 
 
 class TestDatasetWriter(unittest.TestCase):
+
     def setUp(self):
         self.work_dir = tempfile.mkdtemp()
         self.writer = None
@@ -25,13 +25,13 @@ class TestDatasetWriter(unittest.TestCase):
         # Close an SQLite connection, if left open.
         try:
             self.conn.close()
-        except:
+        except Exception as _:
             pass
 
         # Close the DatasetWriter, if left open.
         try:
             self.writer.close()
-        except:
+        except Exception as _:
             pass
 
     def test_init_needs_argument(self):

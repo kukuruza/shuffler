@@ -1,4 +1,4 @@
-import os, sys, os.path as op
+import os, os.path as op
 import numpy as np
 import cv2
 import logging
@@ -397,6 +397,7 @@ def moveMediaParser(subparsers):
 
 
 def moveMedia(c, args):
+
     def splitall(path):
         allparts = []
         while 1:
@@ -664,8 +665,7 @@ def splitDb(c, args):
 
         # Create a database, and connect to it.
         # Not using ATTACH, because I don't want to commit to the open database.
-        logging.info('Writing %d images to %s' %
-                     (num_images_in_set, db_out_name))
+        logging.info('Writing %d images to %s', num_images_in_set, db_out_name)
         db_out_path = op.join(args.out_dir, db_out_name)
         if op.exists(db_out_path):
             os.remove(db_out_path)
@@ -717,8 +717,8 @@ def _mergeNObjects(c, objectids):
     ' Merge N objects given by their objectids. '
 
     objectid_new = objectids[0]
-    logging.debug('Merging objects %s into object %d' %
-                  (str(objectids), objectid_new))
+    logging.debug('Merging objects %s into object %d', str(objectids),
+                  objectid_new)
 
     # No duplicates.
     if len(objectids) == 1:
@@ -737,8 +737,8 @@ def _mergeNObjects(c, objectids):
     for key, num in c.fetchall():
         if num > 1:
             logging.debug(
-                'Deleting %d duplicate properties for key=%s and objectid=%s' %
-                (num, key, objectid_new))
+                'Deleting %d duplicate properties for key=%s and objectid=%s',
+                num, key, objectid_new)
             c.execute('DELETE FROM properties WHERE objectid=? AND key=?',
                       (objectid_new, key))
 
@@ -764,40 +764,43 @@ def _mergeNObjects(c, objectids):
     c.execute('SELECT DISTINCT(score) FROM objects '
               'WHERE objectid IN (%s) AND score IS NOT NULL' % objectids_str)
     scores = [x for x, in c.fetchall()]
-    logging.debug('Merged objects %s have scores %s' % (objectids_str, scores))
+    logging.debug('Merged objects %s have scores %s', objectids_str, scores)
     if len(scores) > 1:
         logging.debug(
-            'Several distinct score values (%s) for objectids (%s). Will set NULL.'
-            % (str(scores), objectids_str))
+            'Several distinct score values (%s) for objectids (%s). Will set NULL.',
+            str(scores), objectids_str)
         c.execute('UPDATE objects SET score=NULL WHERE objectid=?',
                   (objectid_new, ))
     elif len(scores) == 1:
-        logging.debug('Writing score=%s to objectid=%s.' %
-                      (scores[0], objectid_new))
+        logging.debug('Writing score=%s to objectid=%s.', scores[0],
+                      objectid_new)
         c.execute('UPDATE objects SET score=? WHERE objectid=?',
                   (scores[0], objectid_new))
     else:
-        logging.debug('No score found for objectid=%s.' % (objectid_new, ))
+        logging.debug(
+            'No score found for objectid=%s.',
+            objectid_new,
+        )
 
     # Merge name.
     c.execute(
         'SELECT DISTINCT(name) FROM objects WHERE objectid IN (%s) AND name IS NOT NULL'
         % objectids_str)
     names = [x for x, in c.fetchall()]
-    logging.debug('Merged objects %s have names %s' % (objectids_str, names))
+    logging.debug('Merged objects %s have names %s', objectids_str, names)
     if len(names) > 1:
         logging.debug(
-            'Several distinct name values (%s) for objectids (%s). Will set NULL.'
-            % (str(names), objectids_str))
+            'Several distinct name values (%s) for objectids (%s). Will set NULL.',
+            str(names), objectids_str)
         c.execute('UPDATE objects SET name=NULL WHERE objectid=?;',
                   (objectid_new, ))
     elif len(names) == 1:
-        logging.debug('Writing name=%s to objectid=%s.' %
-                      (names[0], objectid_new))
+        logging.debug('Writing name=%s to objectid=%s.', names[0],
+                      objectid_new)
         c.execute('UPDATE objects SET name=? WHERE objectid=?;',
                   (names[0], objectid_new))
     else:
-        logging.debug('No name found for objectid=%s.' % (objectid_new, ))
+        logging.debug('No name found for objectid=%s.', objectid_new)
 
     # Delete all duplicates from "objects" table. (i.e. except for the 1st object).
     c.execute(
@@ -860,7 +863,7 @@ def mergeIntersectingObjects(c, args):
 
     c.execute('SELECT imagefile FROM images WHERE (%s)' % args.where_image)
     for imagefile, in progressbar(c.fetchall()):
-        logging.debug('Processing imagefile %s' % imagefile)
+        logging.debug('Processing imagefile %s', imagefile)
 
         # Get objects of interest from imagefile.
         c.execute(
@@ -871,8 +874,8 @@ def mergeIntersectingObjects(c, args):
             'SELECT * FROM objects WHERE imagefile=? AND (%s)' %
             args.where_object2, (imagefile, ))
         objects2 = c.fetchall()
-        logging.debug('Image %s has %d and %d objects to match' %
-                      (imagefile, len(objects1), len(objects2)))
+        logging.debug('Image %s has %d and %d objects to match', imagefile,
+                      len(objects1), len(objects2))
 
         pairs_to_merge = util.getIntersectingObjects(objects1,
                                                      objects2,
@@ -899,15 +902,14 @@ def mergeIntersectingObjects(c, args):
                 c.execute('UPDATE objects SET name=? WHERE objectid IN (?,?);',
                           (args.target_name, objectid1, objectid2))
 
-            #logging.info('Merging objects %d and %d.' % (objectid1, objectid2))
             new_objectid = _mergeNObjects(c, [objectid1, objectid2])
             util.polygons2bboxes(c, new_objectid)
 
             c.execute('SELECT * FROM objects WHERE objectid=?',
                       (new_objectid, ))
             new_roi = backendDb.objectField(c.fetchone(), 'roi')
-            logging.info('Merged ROIs %s and %s to make one %s' %
-                         (old_roi1, old_roi2, new_roi))
+            logging.info('Merged ROIs %s and %s to make one %s', old_roi1,
+                         old_roi2, new_roi)
 
             if args.with_display:
                 util.drawScoredRoi(image, new_roi, score=1)
@@ -938,6 +940,7 @@ def syncObjectidsWithDbParser(subparsers):
 
 
 def syncObjectidsWithDb(c, args):
+
     def _getNextObjectidInDb(c):
         # Find the maximum objectid in this db. Will create new objectids greater.
         c.execute('SELECT MAX(objectid) FROM objects')
@@ -994,15 +997,15 @@ def syncObjectidsWithDb(c, args):
 
     num_common, num_new = 0, 0
     for imagefile, in progressbar(imagefiles):
-        logging.debug('Processing imagefile %s' % imagefile)
+        logging.debug('Processing imagefile %s', imagefile)
 
         # Get objects of interest from imagefile.
         c.execute('SELECT * FROM objects_old WHERE imagefile=?', (imagefile, ))
         objects = c.fetchall()
         c_ref.execute('SELECT * FROM objects WHERE imagefile=?', (imagefile, ))
         objects_ref = c_ref.fetchall()
-        logging.debug('Image %s has %d and %d objects to match' %
-                      (imagefile, len(objects), len(objects_ref)))
+        logging.debug('Image %s has %d and %d objects to match', imagefile,
+                      len(objects), len(objects_ref))
         objectid_this_to_ref_map = dict(
             util.getIntersectingObjects(objects, objects_ref,
                                         args.IoU_threshold))
@@ -1059,6 +1062,7 @@ def syncPolygonIdsWithDbParser(subparsers):
 
 
 def syncPolygonIdsWithDb(c, args):
+
     def _getNextPolygonidInDb(c):
         # Find the maximum objectid in this db. Will create new objectids greater.
         c.execute('SELECT MAX(id) FROM polygons')
@@ -1090,8 +1094,8 @@ def syncPolygonIdsWithDb(c, args):
         polygons = c.fetchall()
         c_ref.execute('SELECT * FROM polygons WHERE objectid=?', (objectid, ))
         polygons_ref = c_ref.fetchall()
-        logging.debug('Objectid %d has %d and %d polygons to match' %
-                      (objectid, len(polygons), len(polygons_ref)))
+        logging.debug('Objectid %d has %d and %d polygons to match', objectid,
+                      len(polygons), len(polygons_ref))
         polygon_ids_active_to_ref_map = dict(
             util.getMatchPolygons(polygons, polygons_ref, args.epsilon,
                                   args.ignore_name))
@@ -1382,8 +1386,8 @@ def _resizeImageAnnotations(c, imagefile, old_width, old_height, target_width,
         percent_y = percent_x
         target_width = target_width
         target_height = int(old_height * percent_y)
-    logging.debug('Scaling "%s" with percent_x=%.2f, percent_y=%.2f' %
-                  (imagefile, percent_x, percent_y))
+    logging.debug('Scaling "%s" with percent_x=%.2f, percent_y=%.2f',
+                  imagefile, percent_x, percent_y)
 
     # Update image.
     c.execute('UPDATE images SET width=?,height=? WHERE imagefile=?',

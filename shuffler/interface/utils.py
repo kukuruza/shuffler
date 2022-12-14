@@ -56,7 +56,7 @@ def buildImageSample(image_entry, cursor, imreader, where_object='TRUE'):
     image_height = backendDb.imageField(image_entry, 'height')
 
     # Load the image and mask.
-    logging.debug('Reading image "%s"' % imagefile)
+    logging.debug('Reading image "%s"', imagefile)
     try:
         image = imreader.imread(imagefile)
         mask = imreader.maskread(maskfile) if maskfile is not None else None
@@ -115,8 +115,7 @@ def buildObjectSample(object_entry, c, imreader):
     c.execute('SELECT maskfile FROM images WHERE imagefile=?', (imagefile, ))
     maskfile = c.fetchone()[0]
 
-    logging.debug('Reading object %d from %s imagefile' %
-                  (objectid, imagefile))
+    logging.debug('Reading object %d from %s imagefile', objectid, imagefile)
 
     try:
         image = imreader.imread(imagefile)
@@ -127,7 +126,7 @@ def buildObjectSample(object_entry, c, imreader):
         return None
 
     roi = backendDb.objectField(object_entry, 'roi')
-    logging.debug('Roi: %s' % roi)
+    logging.debug('Roi: %s', roi)
     roi = [int(x) for x in roi]
     image = image[roi[0]:roi[2], roi[1]:roi[3]]
     mask = mask[roi[0]:roi[2], roi[1]:roi[3]] if mask is not None else None
@@ -151,11 +150,11 @@ def buildObjectSample(object_entry, c, imreader):
 
 
 def applyTransformGroup(transform_group, sample):
-    ''' 
+    '''
     Apply a group of transforms to a sample.
     Args:
         transform_group:  Can be one of the four options.
-                        1. (None) Return `sample` unchanged. 
+                        1. (None) Return `sample` unchanged.
                         2. (callable) It is applied to the `sample` once.
                         3. (list of callables) Each callable is applied to the
                            sample. The results are put together in a list.
@@ -163,7 +162,7 @@ def applyTransformGroup(transform_group, sample):
                            image and mask together, and another transform on
                            e.g. name.
                         4. (dict string -> callable) Each key of this dict
-                           should match a key in each sample, and the callables 
+                           should match a key in each sample, and the callables
                            are applied to the respective sample dict values.
         sample:         (dict) A sample queried from one of the datasets.
     Returns:

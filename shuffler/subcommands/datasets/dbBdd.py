@@ -1,14 +1,9 @@
-import os, sys, os.path as op
-import numpy as np
+import os.path as op
 import cv2
-import collections
 import logging
 from glob import glob
-import shutil
-import sqlite3
 import simplejson as json
 from progressbar import progressbar
-from pprint import pformat
 
 from shuffler.backend import backendMedia
 from shuffler.utils import util
@@ -17,61 +12,6 @@ from shuffler.utils import utilBoxes
 
 def add_parsers(subparsers):
     importBddParser(subparsers)
-
-
-def _parseObject(c, detection_dict, imagefile):
-    timestamp = detection_dict['timestamp']
-
-    words = line.split(' ')
-    #    1    type         Describes the type of object: 'Car', 'Van', 'Truck',
-    #                      'Pedestrian', 'Person_sitting', 'Cyclist', 'Tram',
-    #                      'Misc' or 'DontCare'
-    name = words[0]
-    #    1    truncated    Float from 0 (non-truncated) to 1 (truncated), where
-    #                      truncated refers to the object leaving image boundaries
-    truncated = words[1]
-    #    1    occluded     Integer (0,1,2,3) indicating occlusion state:
-    #                      0 = fully visible, 1 = partly occluded
-    #                      2 = largely occluded, 3 = unknown
-    occluded = words[2]
-    #    1    alpha        Observation angle of object, ranging [-pi..pi]
-    alpha = words[3]
-    #    4    bbox         2D bounding box of object in the image (0-based index):
-    #                      contains left, top, right, bottom pixel coordinates
-    x1 = int(float(words[4]))
-    y1 = int(float(words[5]))
-    width = int(float(words[6]) - float(words[4]) + 1)
-    height = int(float(words[7]) - float(words[5]) + 1)
-    #    3    dimensions   3D object dimensions: height, width, length (in meters)
-    dim_height = words[8]
-    dim_width = words[9]
-    dim_length = words[10]
-    #    3    location     3D object location x,y,z in camera coordinates (in meters)
-    loc_x = words[11]
-    loc_y = words[12]
-    loc_z = words[13]
-    #    1    rotation_y   Rotation ry around Y-axis in camera coordinates [-pi..pi]
-    rotation_y = words[14]
-    #    1    score        Only for results: Float, indicating confidence in
-    #                      detection, needed for p/r curves, higher is better.
-    score = float(words[15]) if len(words) == 16 else None
-    c.execute(
-        'INSERT INTO objects(imagefile,x1,y1,width,height,name,score) '
-        'VALUES (?,?,?,?,?,?,?)',
-        (imagefile, x1, y1, width, height, name, score))
-    objectid = c.lastrowid
-    s = 'INSERT INTO properties(objectid,key,value) VALUES (?,?,?)'
-    c.execute(s, (objectid, 'truncated', truncated))
-    c.execute(s, (objectid, 'occluded', occluded))
-    c.execute(s, (objectid, 'alpha', alpha))
-    c.execute(s, (objectid, 'dim_height', dim_height))
-    c.execute(s, (objectid, 'dim_width', dim_width))
-    c.execute(s, (objectid, 'dim_length', dim_length))
-    c.execute(s, (objectid, 'loc_x', loc_x))
-    c.execute(s, (objectid, 'loc_y', loc_y))
-    c.execute(s, (objectid, 'loc_z', loc_z))
-    c.execute(s, (objectid, 'rotation_y', rotation_y))
-    return objectid
 
 
 def importBddParser(subparsers):
@@ -101,8 +41,8 @@ def importBdd(c, args):
         imreader = backendMedia.MediaReader(args.rootdir)
 
     image_paths = sorted(glob(op.join(args.images_dir, '*.jpg')))
-    logging.info('Found %d JPG images in %s' %
-                 (len(image_paths), args.images_dir))
+    logging.info('Found %d JPG images in %s', len(image_paths),
+                 args.images_dir)
 
     if args.detection_json:
         if not op.exists(args.detection_json):
@@ -117,7 +57,7 @@ def importBdd(c, args):
 
     for image_path in progressbar(image_paths):
         filename = op.splitext(op.basename(image_path))[0]
-        logging.debug('Processing image: "%s"' % filename)
+        logging.debug('Processing image: "%s"', filename)
 
         # Add image to the database.
         imheight, imwidth = backendMedia.getPictureSize(image_path)
@@ -151,7 +91,7 @@ def importBdd(c, args):
 
                 # Skip 3d object. TODO: import it to properties.
                 if 'box3d' in object_:
-                    logging.warning('Will skip 3D object %d.' % object_bddid)
+                    logging.warning('Will skip 3D object %d.', object_bddid)
                     continue
 
                 # Get the bbox if exists.

@@ -1,14 +1,9 @@
-import os, sys, os.path as op
-import numpy as np
+import os.path as op
 import cv2
-import collections
 import logging
 from glob import glob
 from lxml import etree as ET
-import shutil
-import sqlite3
 from progressbar import progressbar
-from pprint import pformat
 
 from shuffler.backend import backendMedia
 from shuffler.utils import util
@@ -38,7 +33,7 @@ def importDetrac(c, args):
         imreader = backendMedia.MediaReader(args.rootdir)
 
     video_dirs = sorted(glob(op.join(args.videos_dir, 'MVI_?????')))
-    logging.info('Found %d videos in %s' % (len(video_dirs), args.videos_dir))
+    logging.info('Found %d videos in %s', len(video_dirs), args.videos_dir)
 
     for video_dir in progressbar(video_dirs):
         video_name = op.splitext(op.basename(video_dir))[0]
@@ -47,7 +42,7 @@ def importDetrac(c, args):
         # Add images to the db.
         image_paths = glob(op.join(video_dir, '*.jpg'))
         for image_path in image_paths:
-            logging.debug('Processing image: "%s"' % image_path)
+            logging.debug('Processing image: "%s"', image_path)
             if not op.exists(image_path):
                 raise FileNotFoundError('Image file not found at "%s".' %
                                         image_path)
@@ -55,8 +50,8 @@ def importDetrac(c, args):
             imheight, imwidth = backendMedia.getPictureSize(image_path)
             imagefile = op.relpath(image_path, args.rootdir)
             logging.debug(
-                'Parsed image into imagefile=%s, width=%s, height=%s' %
-                (imagefile, imwidth, imheight))
+                'Parsed image into imagefile=%s, width=%s, height=%s',
+                imagefile, imwidth, imheight)
             c.execute(
                 'INSERT INTO images(imagefile,width,height) VALUES (?,?,?)',
                 (imagefile, imwidth, imheight))
@@ -107,7 +102,7 @@ def importDetrac(c, args):
                     y1 = float(box.attrib['top'])
                     width = float(box.attrib['width'])
                     height = float(box.attrib['height'])
-                    logging.debug('Parsed box: %s' %
+                    logging.debug('Parsed box: %s',
                                   str([x1, y1, width, height]))
                     c.execute(
                         'INSERT INTO objects(imagefile,x1,y1,width,height) '

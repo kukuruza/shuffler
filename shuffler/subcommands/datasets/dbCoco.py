@@ -1,13 +1,9 @@
-import os, sys, os.path as op
+import os, os.path as op
 import numpy as np
-import cv2
 import logging
-from glob import glob
 import shutil
 import simplejson as json
-import sqlite3
 from progressbar import progressbar
-from pprint import pformat
 from datetime import datetime
 
 from shuffler.backend import backendDb
@@ -184,7 +180,7 @@ def exportCoco(c, args):
             "id": icategory,
             "name": category
         })
-    logging.info('Found %d categories: %s' % (len(categoryids), categories))
+    logging.info('Found %d categories: %s', len(categoryids), categories)
 
     # Objects.
     logging.info('Writing objects.')

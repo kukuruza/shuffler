@@ -12,6 +12,7 @@ from shuffler.utils import testUtils
 
 
 class Test_bboxesToPolygons_SyntheticDb(testUtils.Test_DB):
+
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
         backendDb.createDb(self.conn)
@@ -40,6 +41,7 @@ class Test_bboxesToPolygons_SyntheticDb(testUtils.Test_DB):
 
 
 class Test_polygonsToBboxes_SyntheticDb(testUtils.Test_DB):
+
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
         backendDb.createDb(self.conn)
@@ -69,7 +71,7 @@ class Test_polygonsToBboxes_SyntheticDb(testUtils.Test_DB):
         '''
         Object with multiple polygons should trigger an error.
         If an object has polygons with different names (multiple polygons),
-        the behavior is undetermined and thus not allowed. 
+        the behavior is undetermined and thus not allowed.
         '''
         c = self.conn.cursor()
         c.execute(
@@ -88,6 +90,7 @@ class Test_polygonsToBboxes_SyntheticDb(testUtils.Test_DB):
 
 
 class Test_addVideo_SyntheticDb(testUtils.Test_DB):
+
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
         backendDb.createDb(self.conn)
@@ -134,6 +137,7 @@ class Test_addVideo_SyntheticDb(testUtils.Test_DB):
 
 
 class Test_addPictures_SyntheticDb(testUtils.Test_DB):
+
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
         backendDb.createDb(self.conn)
@@ -228,6 +232,7 @@ class Test_addPictures_SyntheticDb(testUtils.Test_DB):
 
 
 class Test_revertObjectTransforms_SyntheticDb(unittest.TestCase):
+
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
         backendDb.createDb(self.conn)
@@ -264,6 +269,7 @@ class Test_revertObjectTransforms_SyntheticDb(unittest.TestCase):
 
 
 class Test_moveRootdir_SyntheticDb(unittest.TestCase):
+
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
         backendDb.createDb(self.conn)
@@ -302,6 +308,7 @@ class Test_moveRootdir_SyntheticDb(unittest.TestCase):
 
 
 class Test_propertyToObjectsField_SyntheticDb(unittest.TestCase):
+
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
         backendDb.createDb(self.conn)
@@ -438,6 +445,7 @@ class Test_propertyToObjectsField_SyntheticDb(unittest.TestCase):
 
 
 class Test_syncPolygonIdsWithDb_SyntheticDb(unittest.TestCase):
+
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
         backendDb.createDb(self.conn)
@@ -465,7 +473,6 @@ class Test_syncPolygonIdsWithDb_SyntheticDb(unittest.TestCase):
                 ['"%s"' % x if x is not None else 'NULL' for x in val])
             vals_str.append(val_str)
         s = ', '.join(['(%s)' % x for x in vals_str])
-        # logging.debug('_vals2str build string: %s', s)
         return s
 
     def _insertPolygonsValue(self, vals, vals_ref):
@@ -512,8 +519,8 @@ class Test_syncPolygonIdsWithDb_SyntheticDb(unittest.TestCase):
         self.assertEqual(c.fetchall(), vals_expected)
 
     def test_allMatch_ignoreName(self):
-        ''' 
-        All points match. Objectids is different. Ignore name. 
+        '''
+        All points match. Objectids is different. Ignore name.
         '''
         # Will need to reverse ids.
         vals = [(4, 2, 10.5, 0.5, None), (3, 1, 20.5, 0.5, None),
@@ -533,7 +540,7 @@ class Test_syncPolygonIdsWithDb_SyntheticDb(unittest.TestCase):
         self.assertEqual(c.fetchall(), vals_expected)
 
     def test_allMatch_matchName(self):
-        ''' 
+        '''
         All points match. Objectids and coordinates is the same. Use name.
         '''
         # Will need to reverse ids.
@@ -556,6 +563,7 @@ class Test_syncPolygonIdsWithDb_SyntheticDb(unittest.TestCase):
 
 
 class Test_syncRoundedCoordinatesWithDb_SyntheticDb(unittest.TestCase):
+
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
         backendDb.createDb(self.conn)
@@ -583,7 +591,7 @@ class Test_syncRoundedCoordinatesWithDb_SyntheticDb(unittest.TestCase):
         return ', '.join(['(%s)' % x for x in vals_str])
 
     def _insertObjectsValue(self, vals, vals_ref):
-        ''' 
+        '''
         Insert values into 'objects' table of the active and ref dbs.
         Args:
           vals, vals_ref:  a tuple with 5 numbes (objectid,x1,y1,width,height).

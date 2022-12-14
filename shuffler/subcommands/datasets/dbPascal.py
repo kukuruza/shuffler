@@ -1,15 +1,9 @@
-import os, sys, os.path as op
-import numpy as np
+import os.path as op
 import cv2
 from lxml import etree as ET
-import collections
 import logging
 from glob import glob
-import shutil
-import sqlite3
 from progressbar import progressbar
-from pprint import pformat
-import re
 
 from shuffler.backend import backendMedia
 from shuffler.utils import util
@@ -55,7 +49,7 @@ def importPascalVoc2012(c, args):
 
     for image_path in progressbar(image_paths):
         filename = op.splitext(op.basename(image_path))[0]
-        logging.debug('Processing image: "%s"' % filename)
+        logging.debug('Processing image: "%s"', filename)
 
         # Add image to the database.
         imheight, imwidth = backendMedia.getPictureSize(image_path)
@@ -116,7 +110,7 @@ def importPascalVoc2012(c, args):
                     y1 = int(float(part.find('bndbox').find('ymin').text))
                     x2 = int(float(part.find('bndbox').find('xmax').text))
                     y2 = int(float(part.find('bndbox').find('ymax').text))
-                    logging.debug('Found part "%s"' % name)
+                    logging.debug('Found part "%s"', name)
                     s = 'INSERT INTO polygons(objectid,x,y,name) VALUES (?,?,?,?)'
                     c.execute(s, (objectid, x1, y1, name))
                     c.execute(s, (objectid, x1, y2, name))
@@ -132,7 +126,7 @@ def importPascalVoc2012(c, args):
             segmentation_path = op.join(args.pascal_dir,
                                         'SegmentationClass/%s.png' % filename)
             if not op.exists(segmentation_path):
-                logging.debug('Annotation file not found at "%s".' %
+                logging.debug('Annotation file not found at "%s".',
                               segmentation_path)
             else:
                 # Add image to the database.
@@ -148,7 +142,7 @@ def importPascalVoc2012(c, args):
             segmentation_path = op.join(args.pascal_dir,
                                         'SegmentationObject/%s.png' % filename)
             if not op.exists(segmentation_path):
-                logging.debug('Annotation file not found at "%s".' %
+                logging.debug('Annotation file not found at "%s".',
                               segmentation_path)
             else:
                 # Add image to the database.

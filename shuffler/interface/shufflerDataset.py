@@ -1,4 +1,4 @@
-import os, sys, os.path as op
+import os, os.path as op
 import numpy as np
 import logging
 from pprint import pformat
@@ -20,6 +20,7 @@ class DatasetWriter:
     are written on disk and the new path is recorded into the database), or as
     a path to an image (in that case, that path is recorded into the database)
     '''
+
     def __init__(self,
                  out_db_file,
                  rootdir='.',
@@ -279,15 +280,15 @@ class DatasetWriter:
             object_entry = (objectid, imagefile, x1, y1, width, height, name,
                             score)
             s = 'objects(objectid,imagefile,x1,y1,width,height,name,score)'
-            logging.debug('Writing %s to %s (objectid is provided.)' %
-                          (object_entry, s))
+            logging.debug('Writing %s to %s (objectid is provided.)',
+                          object_entry, s)
             self.c.execute('INSERT INTO %s VALUES (?,?,?,?,?,?,?,?)' % s,
                            object_entry)
         else:
             object_entry = (imagefile, x1, y1, width, height, name, score)
             s = 'objects(imagefile,x1,y1,width,height,name,score)'
-            logging.debug('Writing %s to %s (objectid not provided.)' %
-                          (object_entry, s))
+            logging.debug('Writing %s to %s (objectid not provided.)',
+                          object_entry, s)
             self.c.execute('INSERT INTO %s VALUES (?,?,?,?,?,?,?)' % s,
                            object_entry)
             objectid = self.c.lastrowid
@@ -300,7 +301,7 @@ class DatasetWriter:
             ]:
                 property_entry = (objectid, key, str(object_dict[key]))
                 s = 'properties(objectid,key,value)'
-                logging.debug('Writing %s to %s' % (property_entry, s))
+                logging.debug('Writing %s to %s', property_entry, s)
                 self.c.execute('INSERT INTO %s VALUES (?,?,?)' % s,
                                property_entry)
 
@@ -339,8 +340,7 @@ class DatasetWriter:
             match = self.c.fetchone()[0]
             match = match + 1 if match is not None else 0
         s = 'matches(match,objectid)'
-        logging.debug('Adding a new match %d for objectid %d' %
-                      (match, objectid))
+        logging.debug('Adding a new match %d for objectid %d', match, objectid)
         self.c.execute('INSERT INTO %s VALUES (?,?);' % s, (match, objectid))
         return match
 
@@ -348,7 +348,7 @@ class DatasetWriter:
         self.imwriter.close()
         self.conn.commit()
         self.c.execute('SELECT COUNT(1) FROM images')
-        logging.info('Wrote the total of %d entries to images.' %
+        logging.info('Wrote the total of %d entries to images.',
                      self.c.fetchone()[0])
         self.conn.close()
 

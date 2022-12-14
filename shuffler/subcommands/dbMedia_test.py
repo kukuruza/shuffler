@@ -1,12 +1,7 @@
-import os, os.path as op
-import logging
 import sqlite3
-import shutil
 import progressbar
 import unittest
 import argparse
-import pprint
-import tempfile
 import mock
 import numpy as np
 import nose
@@ -18,6 +13,7 @@ from shuffler.utils import testUtils
 
 
 class Test_cropObjects_emptyDb(testUtils.Test_emptyDb):
+
     def assertEmpty(self, c):
         c.execute('SELECT COUNT(1) FROM images')
         self.assertEqual(c.fetchone()[0], 0)
@@ -66,6 +62,7 @@ class Test_cropObjects_emptyDb(testUtils.Test_emptyDb):
 
 
 class Test_cropObjects_carsDb(testUtils.Test_carsDb):
+
     def test_general(self):
         c = self.conn.cursor()
         args = argparse.Namespace(
@@ -309,6 +306,7 @@ class Test_cropObjects_carsDb(testUtils.Test_carsDb):
 
 
 class Test_cropObjects_SyntheticDb(unittest.TestCase):
+
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
         backendDb.createDb(self.conn)
@@ -368,6 +366,7 @@ class Test_cropObjects_SyntheticDb(unittest.TestCase):
 
 
 class Test_tileObjects_carsDb(testUtils.Test_carsDb):
+
     def _test_consistency(self, num_cells_Y, num_cells_X, split_by_name,
                           image_icon):
         '''

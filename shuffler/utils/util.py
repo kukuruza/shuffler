@@ -3,10 +3,8 @@ import shutil
 import logging
 import cv2
 import numpy as np
-import pprint
 import matplotlib.pyplot as plt
 import re
-import argparse
 
 from shuffler.backend import backendDb
 from shuffler.utils import utilBoxes
@@ -492,7 +490,7 @@ def makeExportedImageName(tgt_dir,
 
     tgt_path = op.join(tgt_dir, tgt_name)
 
-    logging.debug('The target path is %s' % tgt_path)
+    logging.debug('The target path is %s', tgt_path)
     if op.exists(tgt_path):
         message = 'File with this name %s already exists. ' % tgt_path
         if dirtree_level_for_name == 1:
@@ -514,7 +512,7 @@ def getMatchPolygons(polygons1, polygons2, threshold, ignore_name=True):
       ignore_name:          (bool) Whether to match points with different names.
     Returns:
       pairs_to_merge:       A list of tuples. Each tuple has [polygon]id of an
-                            entry in 'polygons1' and [polygon]id of an entry in 
+                            entry in 'polygons1' and [polygon]id of an entry in
                             'polygons2'.
     '''
     # Compute pairwise distances between rectangles.

@@ -2,13 +2,12 @@ import os, os.path as op
 import logging
 import numpy as np
 import cv2
-import progressbar
+from progressbar import progressbar
 import ast
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import pprint
 import PIL
-import enum
 
 from shuffler.backend import backendDb
 from shuffler.backend import backendMedia
@@ -244,18 +243,18 @@ def _evaluateDetectionForClassSklearn(c, c_gt, class_name, args, sklearn):
         iw = np.maximum(ixmax - ixmin, 0.)
         ih = np.maximum(iymax - iymin, 0.)
         intersection = iw * ih
-        logging.debug('- Intersections with GT objects: %s' % intersection)
+        logging.debug('- Intersections with GT objects: %s', intersection)
 
         # Union between bbox_det and all bboxes_gt.
         union = (bbox_det[2] * bbox_det[3] +
                  bboxes_gt[:, 2] * bboxes_gt[:, 3] - intersection)
-        logging.debug('- Unions with GT objects: %s' % union)
+        logging.debug('- Unions with GT objects: %s', union)
 
         # Compute the best IoU between the bbox_det and all bboxes_gt.
         IoUs = intersection / union
         max_IoU = np.max(IoUs)
         objectid_gt = objectids_gt[np.argmax(IoUs)]
-        logging.debug('- IoUs with GT objects: %s' % IoUs)
+        logging.debug('- IoUs with GT objects: %s', IoUs)
         logging.debug('max_IoU=%.3f for idet %d with objectid_gt %d.', max_IoU,
                       idet, objectid_gt)
 
@@ -596,8 +595,7 @@ def evaluateSegmentationIoU(c, args):
 
     hist_all = np.zeros((len(class_names), len(class_names)))
 
-    for imagefile, maskfile_pr, maskfile_gt in progressbar.progressbar(
-            entries):
+    for imagefile, maskfile_pr, maskfile_gt in progressbar(entries):
 
         # Load masks and bring them to comparable form.
         mask_gt = util.applyLabelMappingToMask(imreader.maskread(maskfile_gt),
@@ -763,8 +761,7 @@ def evaluateBinarySegmentation(c, args):
         plt.xlim(0, 1)
         plt.ylim(0, 1)
 
-    for imagefile, maskfile_pr, maskfile_gt in progressbar.progressbar(
-            entries):
+    for imagefile, maskfile_pr, maskfile_gt in progressbar(entries):
 
         # Load masks and bring them to comparable form.
         mask_gt = imreader.maskread(maskfile_gt)
@@ -813,7 +810,7 @@ def evaluateBinarySegmentation(c, args):
                 FPs[val] += fp
                 FNs[val] += fn
             ROC, area = getPrecRecall(TP, FP, FN)
-            logging.info('%s\t%.2f' % (op.basename(imagefile), area * 100.))
+            logging.info('%s\t%.2f', op.basename(imagefile), area * 100.)
 
         except ImportError:
             # TODO: write the same without torch, on CPU

@@ -1,20 +1,16 @@
 import os, os.path as op
-import logging
 import sqlite3
 import shutil
-import progressbar
 import unittest
-import argparse
 import pprint
 import tempfile
-import mock
-import numpy as np
 
 from shuffler.backend import backendDb
 
 
 class Test_DB(unittest.TestCase):
     ''' Implements utils to compare the result db with the expected one. '''
+
     def summarize_db(self, c):
         summary = []
         summary.append('--- DB summary start ---')
@@ -128,6 +124,7 @@ class Test_DB(unittest.TestCase):
 
 
 class Test_emptyDb(Test_DB):
+
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
         backendDb.createDb(self.conn)

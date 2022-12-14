@@ -60,7 +60,7 @@ def filterImagesOfAnotherDb(c, args):
     c_ref = conn_ref.cursor()
     c_ref.execute('SELECT imagefile FROM images')
     imagefiles_ref = [imagefile for imagefile, in c_ref.fetchall()]
-    logging.info('Total %d images in ref.' % len(imagefiles_ref))
+    logging.info('Total %d images in ref.', len(imagefiles_ref))
     conn_ref.close()
 
     # Get all the imagefiles from the main db.
@@ -92,7 +92,7 @@ def filterImagesOfAnotherDb(c, args):
     # Get all the imagefiles from the main db.
     c.execute('SELECT COUNT(*) FROM images')
     count = c.fetchone()[0]
-    logging.info('%d images left.' % count)
+    logging.info('%d images left.', count)
 
 
 def filterObjectsAtBorderParser(subparsers):
@@ -115,6 +115,7 @@ def filterObjectsAtBorderParser(subparsers):
 
 
 def filterObjectsAtBorder(c, args):
+
     def isPolygonAtBorder(polygon_entries, width, height, border_thresh_perc):
         xs = [backendDb.polygonField(p, 'x') for p in polygon_entries]
         ys = [backendDb.polygonField(p, 'y') for p in polygon_entries]
@@ -126,7 +127,7 @@ def filterObjectsAtBorder(c, args):
 
     def isRoiAtBorder(roi, width, height, border_thresh_perc):
         border_thresh = (height + width) / 2 * border_thresh_perc
-        logging.debug('border_thresh: %f' % border_thresh)
+        logging.debug('border_thresh: %f', border_thresh)
         return min(roi[0], roi[1], height + 1 - roi[2],
                    width + 1 - roi[3]) < border_thresh
 
@@ -149,8 +150,8 @@ def filterObjectsAtBorder(c, args):
 
         c.execute('SELECT * FROM objects WHERE imagefile=?', (imagefile, ))
         object_entries = c.fetchall()
-        logging.debug('%d objects found for %s' %
-                      (len(object_entries), imagefile))
+        logging.debug('%d objects found for %s', len(object_entries),
+                      imagefile)
 
         for object_entry in object_entries:
             for_deletion = False
@@ -166,15 +167,15 @@ def filterObjectsAtBorder(c, args):
             if len(polygon_entries) > 0:
                 if isPolygonAtBorder(polygon_entries, imwidth, imheight,
                                      args.border_thresh):
-                    logging.debug('border polygon %s' % str(polygon))
+                    logging.debug('border polygon %s', str(polygon))
                     for_deletion = True
             elif roi is not None:
                 if isRoiAtBorder(roi, imwidth, imheight, args.border_thresh):
-                    logging.debug('border roi %s' % str(roi))
+                    logging.debug('border roi %s', str(roi))
                     for_deletion = True
             else:
                 logging.error(
-                    'Neither polygon, nor bbox is available for objectid %d' %
+                    'Neither polygon, nor bbox is available for objectid %d',
                     objectid)
 
             # Draw polygon or roi.
@@ -205,8 +206,8 @@ def filterObjectsAtBorder(c, args):
     # For the reference.
     c.execute('SELECT COUNT(1) FROM objects')
     num_after = c.fetchone()[0]
-    logging.info('Deleted %d out of %d objects.' %
-                 (num_before - num_after, num_before))
+    logging.info('Deleted %d out of %d objects.', num_before - num_after,
+                 num_before)
 
 
 def filterObjectsByIntersectionParser(subparsers):
@@ -229,6 +230,7 @@ def filterObjectsByIntersectionParser(subparsers):
 
 
 def filterObjectsByIntersection(c, args):
+
     def getRoiIntesection(rioi1, roi2):
         dy = min(roi1[2], roi2[2]) - max(roi1[0], roi2[0])
         dx = min(roi1[3], roi2[3]) - max(roi1[1], roi2[1])
@@ -246,8 +248,8 @@ def filterObjectsByIntersection(c, args):
 
         c.execute('SELECT * FROM objects WHERE imagefile=?', (imagefile, ))
         object_entries = c.fetchall()
-        logging.debug('%d objects found for %s' %
-                      (len(object_entries), imagefile))
+        logging.debug('%d objects found for %s', len(object_entries),
+                      imagefile)
 
         good_objects = np.ones(shape=len(object_entries), dtype=bool)
         for iobject1, object_entry1 in enumerate(object_entries):
@@ -262,7 +264,7 @@ def filterObjectsByIntersection(c, args):
 
             area1 = (roi1[2] - roi1[0]) * (roi1[3] - roi1[1])
             if area1 == 0:
-                logging.warning('An object in %s has area 0. Will delete.' %
+                logging.warning('An object in %s has area 0. Will delete.',
                                 imagefile)
                 good_objects[iobject1] = False
                 break
@@ -320,14 +322,13 @@ def filterObjectsByNameParser(subparsers):
 def filterObjectsByName(c, args):
     if args.good_names is not None:
         good_names = ','.join(['"%s"' % x for x in args.good_names])
-        logging.info('Will keep the following object names: %s' % good_names)
-        c.execute('SELECT objectid FROM objects WHERE name NOT IN (%s)' %
+        logging.info('Will keep the following object names: %s', good_names)
+        c.execute('SELECT objectid FROM objects WHERE name NOT IN (%s)',
                   good_names)
     elif args.bad_names is not None:
         bad_names = ','.join(['"%s"' % x for x in args.bad_names])
-        logging.info('Will delete the following object names: %s' % bad_names)
-        c.execute('SELECT objectid FROM objects WHERE name IN (%s)' %
-                  bad_names)
+        logging.info('Will delete the following object names: %s', bad_names)
+        c.execute('SELECT objectid FROM objects WHERE name IN (%s)', bad_names)
     else:
         raise ValueError('"good_names" or "bad_names" must be specified.')
     for objectid, in progressbar(c.fetchall()):
@@ -498,12 +499,12 @@ def filterObjectsSQLParser(subparsers):
 
 def filterObjectsSQL(c, args):
     c.execute('SELECT COUNT(1) FROM objects')
-    logging.info('Before filtering have %d objects.' % c.fetchone()[0])
+    logging.info('Before filtering have %d objects.', c.fetchone()[0])
 
     c.execute(args.sql)
 
     objectids = c.fetchall()
-    logging.info('Going to remove %d objects.' % len(objectids))
+    logging.info('Going to remove %d objects.', len(objectids))
     for objectid, in progressbar(objectids):
         backendDb.deleteObject(c, objectid)
 
@@ -521,7 +522,7 @@ def filterImagesSQLParser(subparsers):
 
 def filterImagesSQL(c, args):
     c.execute('SELECT COUNT(1) FROM images')
-    logging.info('Before filtering have %d images.' % c.fetchone()[0])
+    logging.info('Before filtering have %d images.', c.fetchone()[0])
 
     c.execute(args.sql)
 

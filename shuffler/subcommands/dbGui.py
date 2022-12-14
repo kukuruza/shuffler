@@ -1,4 +1,4 @@
-import os, sys, os.path as op
+import os, os.path as op
 import numpy as np
 import cv2
 import logging
@@ -23,6 +23,7 @@ class KeyReader:
     '''
     A mapper from keyboard buttons to actions.
     '''
+
     def __init__(self, keysmap_str):
         '''
         Args:
@@ -33,9 +34,9 @@ class KeyReader:
         Returns:
           Parsed dict.
         '''
-        logging.debug('Got keys map string as: %s' % keysmap_str)
+        logging.debug('Got keys map string as: %s', keysmap_str)
         keysmap = literal_eval(keysmap_str)
-        logging.info('Keys map was parsed as: %s' % pformat(keysmap))
+        logging.info('Keys map was parsed as: %s', pformat(keysmap))
         for value in ['exit', 'previous', 'next']:
             if not value in keysmap.values():
                 raise ValueError('"%s" must be in the values of keysmap, '
@@ -58,16 +59,16 @@ class KeyReader:
 
         if chr(button) in self.keysmap:
             # Get the character from ASCII, since character is in the keymap.
-            logging.info('Found char "%s" for pressed ASCII %d in the table.' %
-                         (chr(button), button))
+            logging.info('Found char "%s" for pressed ASCII %d in the table.',
+                         chr(button), button)
             button = chr(button)
 
         if button in self.keysmap:
-            logging.info('Value for pressed "%s" is "%s".' %
-                         (str(button), self.keysmap[button]))
+            logging.info('Value for pressed "%s" is "%s".', str(button),
+                         self.keysmap[button])
             return self.keysmap[button]
         else:
-            logging.info('No value for pressed "%s".' % str(button))
+            logging.info('No value for pressed "%s".', str(button))
             return None
 
 
@@ -117,7 +118,7 @@ def examineImages(c, args):
 
     c.execute('SELECT * FROM images WHERE (%s)' % args.where_image)
     image_entries = c.fetchall()
-    logging.info('%d images found.' % len(image_entries))
+    logging.info('%d images found.', len(image_entries))
     if len(image_entries) == 0:
         logging.error('There are no images. Exiting.')
         return
@@ -136,7 +137,7 @@ def examineImages(c, args):
     # For overlaying masks.
     labelmap = literal_eval(
         args.mask_mapping_dict) if args.mask_mapping_dict else None
-    logging.info('Parsed mask_mapping_dict to %s' % pformat(labelmap))
+    logging.info('Parsed mask_mapping_dict to %s', pformat(labelmap))
 
     index_image = 0
 
@@ -147,8 +148,8 @@ def examineImages(c, args):
         maskfile = backendDb.imageField(image_entry, 'maskfile')
         imname = backendDb.imageField(image_entry, 'name')
         imscore = backendDb.imageField(image_entry, 'score')
-        logging.info('Imagefile "%s"' % imagefile)
-        logging.debug('Image name="%s", score=%s' % (imname, imscore))
+        logging.info('Imagefile "%s"', imagefile)
+        logging.debug('Image name="%s", score=%s', imname, imscore)
         image = imreader.imread(imagefile)
 
         # Overlay the mask.
@@ -168,15 +169,15 @@ def examineImages(c, args):
         if args.with_objects:
             c.execute('SELECT * FROM objects WHERE imagefile=?', (imagefile, ))
             object_entries = c.fetchall()
-            logging.info('Found %d objects for image %s' %
-                         (len(object_entries), imagefile))
+            logging.info('Found %d objects for image %s', len(object_entries),
+                         imagefile)
             for object_entry in object_entries:
                 objectid = backendDb.objectField(object_entry, 'objectid')
                 roi = backendDb.objectField(object_entry, 'roi')
                 score = backendDb.objectField(object_entry, 'score')
                 name = backendDb.objectField(object_entry, 'name')
-                logging.info('objectid: %d, roi: %s, score: %s, name: %s' %
-                             (objectid, roi, score, name))
+                logging.info('objectid: %d, roi: %s, score: %s, name: %s',
+                             objectid, roi, score, name)
                 c.execute('SELECT * FROM polygons WHERE objectid=?',
                           (objectid, ))
                 polygon_entries = c.fetchall()
@@ -194,8 +195,8 @@ def examineImages(c, args):
                     util.drawScoredRoi(image, roi, label=name, score=score)
                 else:
                     logging.warning(
-                        'Neither polygon, nor bbox is available for objectid %d'
-                        % objectid)
+                        'Neither polygon, nor bbox is available for objectid %d',
+                        objectid)
 
         # Display an image, wait for the key from user, and parse that key.
         scale = float(args.winsize) / max(list(image.shape[0:2]))
@@ -219,7 +220,7 @@ def examineImages(c, args):
             if args.snapshot_dir:
                 snaphot_path = op.join(args.snapshot_dir,
                                        '%08d.png' % index_image)
-                logging.info('Making a snapshot at path: %s' % snaphot_path)
+                logging.info('Making a snapshot at path: %s', snaphot_path)
                 imageio.imwrite(snaphot_path, image)
             else:
                 logging.warning(
@@ -240,8 +241,8 @@ def examineImages(c, args):
             index_image += 1
         else:
             # User pressed something else which has an assigned action, assume it is a new name.
-            logging.info('Setting name "%s" to imagefile "%s"' %
-                         (action, imagefile))
+            logging.info('Setting name "%s" to imagefile "%s"', action,
+                         imagefile)
             c.execute('UPDATE images SET name=? WHERE imagefile=?',
                       (action, imagefile))
         index_image = index_image % len(image_entries)
@@ -270,12 +271,12 @@ def examineObjects(c, args):
     cv2.namedWindow("examineObjects")
 
     c.execute('SELECT COUNT(*) FROM objects WHERE (%s) ' % args.where_object)
-    logging.info('Found %d objects in db.' % c.fetchone()[0])
+    logging.info('Found %d objects in db.', c.fetchone()[0])
 
     c.execute('SELECT DISTINCT imagefile FROM objects WHERE (%s) ' %
               args.where_object)
     image_entries = c.fetchall()
-    logging.info('%d images found.' % len(image_entries))
+    logging.info('%d images found.', len(image_entries))
     if len(image_entries) == 0:
         logging.error('There are no images. Exiting.')
         return
@@ -295,7 +296,7 @@ def examineObjects(c, args):
     while True:  # Until a user hits the key for the "exit" action.
 
         (imagefile, ) = image_entries[index_image]
-        logging.info('Imagefile "%s"' % imagefile)
+        logging.info('Imagefile "%s"', imagefile)
         image = imreader.imread(imagefile)
         scale = float(args.winsize) / max(image.shape[0:2])
         image = cv2.resize(image, dsize=(0, 0), fx=scale, fy=scale)
@@ -304,8 +305,8 @@ def examineObjects(c, args):
             'SELECT * FROM objects WHERE imagefile=? AND (%s)' %
             args.where_object, (imagefile, ))
         object_entries = c.fetchall()
-        logging.info('Found %d objects for image %s' %
-                     (len(object_entries), imagefile))
+        logging.info('Found %d objects for image %s', len(object_entries),
+                     imagefile)
 
         # Put the objects on top of the image.
         if len(object_entries) > 0:
@@ -317,8 +318,8 @@ def examineObjects(c, args):
             name = backendDb.objectField(object_entry, 'name')
             scaledroi = [int(scale * r)
                          for r in roi]  # For displaying the scaled image.
-            logging.info('objectid: %d, roi: %s, score: %s, name: %s' %
-                         (objectid, roi, score, name))
+            logging.info('objectid: %d, roi: %s, score: %s, name: %s',
+                         objectid, roi, score, name)
             c.execute('SELECT * FROM polygons WHERE objectid=?', (objectid, ))
             polygon_entries = c.fetchall()
             if len(polygon_entries) > 0:
@@ -326,10 +327,10 @@ def examineObjects(c, args):
                 polygon = [(int(backendDb.polygonField(p, 'x')),
                             int(backendDb.polygonField(p, 'y')))
                            for p in polygon_entries]
-                logging.debug('nonscaled polygon: %s' % pformat(polygon))
+                logging.debug('nonscaled polygon: %s', pformat(polygon))
                 polygon = [(int(scale * x), int(scale * y))
                            for x, y in polygon]
-                logging.debug('scaled polygon: %s' % pformat(polygon))
+                logging.debug('scaled polygon: %s', pformat(polygon))
                 util.drawScoredPolygon(image, polygon, label=None, score=score)
             elif roi is not None:
                 logging.info('showing object with a bounding box.')
@@ -356,7 +357,7 @@ def examineObjects(c, args):
                              scaledroi[0] - 10 + util.SCALE * (iproperty + 1)),
                             util.FONT, util.FONT_SIZE, (255, 255, 255),
                             util.THICKNESS - 1)
-                logging.info('objectid: %d. %s = %s.' % (objectid, key, value))
+                logging.info('objectid: %d. %s = %s.', objectid, key, value)
 
         # Display an image, wait for the key from user, and parse that key.
         cv2.imshow('examineObjects', image[:, :, ::-1])
@@ -383,7 +384,7 @@ def examineObjects(c, args):
                 index_image += 1
                 index_object = 0
         elif action == 'unname' and len(object_entries) > 0:
-            logging.info('Remove the name from objectid "%s"' % objectid)
+            logging.info('Remove the name from objectid "%s"', objectid)
             c.execute('UPDATE objects SET name=NULL WHERE objectid=?',
                       (objectid, ))
         index_image = index_image % len(image_entries)
@@ -416,11 +417,11 @@ def labelObjects(c, args):
     cv2.namedWindow("labelObjects")
 
     c.execute('SELECT COUNT(*) FROM objects WHERE (%s) ' % args.where_object)
-    logging.info('Found %d objects in db.' % c.fetchone()[0])
+    logging.info('Found %d objects in db.', c.fetchone()[0])
 
     c.execute('SELECT * FROM objects WHERE (%s)' % args.where_object)
     object_entries = c.fetchall()
-    logging.info('Found %d objects in db.' % len(object_entries))
+    logging.info('Found %d objects in db.', len(object_entries))
     if len(object_entries) == 0:
         return
 
@@ -442,23 +443,23 @@ def labelObjects(c, args):
             another_object = False
 
             logging.info(' ')
-            logging.info('Object %d out of %d' %
-                         (index_object, len(object_entries)))
+            logging.info('Object %d out of %d', index_object,
+                         len(object_entries))
             object_entry = object_entries[index_object]
             objectid = backendDb.objectField(object_entry, 'objectid')
             bbox = backendDb.objectField(object_entry, 'bbox')
             roi = backendDb.objectField(object_entry, 'roi')
             imagefile = backendDb.objectField(object_entry, 'imagefile')
-            logging.info('imagefile: %s' % imagefile)
+            logging.info('imagefile: %s', imagefile)
             image = imreader.imread(imagefile)
 
             # Display an image, wait for the key from user, and parse that key.
             scale = float(args.winsize) / max(image.shape[0:2])
-            logging.debug('Will resize image and annotations with scale: %f' %
+            logging.debug('Will resize image and annotations with scale: %f',
                           scale)
             image = cv2.resize(image, dsize=(0, 0), fx=scale, fy=scale)
 
-            logging.info('objectid: %d, roi: %s' % (objectid, roi))
+            logging.info('objectid: %d, roi: %s', objectid, roi)
             c.execute('SELECT * FROM polygons WHERE objectid=?', (objectid, ))
             polygon_entries = c.fetchall()
             if len(polygon_entries) > 0:
@@ -466,17 +467,17 @@ def labelObjects(c, args):
                 polygon = [(int(backendDb.polygonField(p, 'x')),
                             int(backendDb.polygonField(p, 'y')))
                            for p in polygon_entries]
-                logging.debug('nonscaled polygon: %s' % pformat(polygon))
+                logging.debug('nonscaled polygon: %s', pformat(polygon))
                 polygon = [(int(scale * p[0]), int(scale * p[1]))
                            for p in polygon]
-                logging.debug('scaled polygon: %s' % pformat(polygon))
+                logging.debug('scaled polygon: %s', pformat(polygon))
                 util.drawScoredPolygon(image, polygon, label=None, score=None)
             elif roi is not None:
                 logging.info('showing object with a bounding box.')
-                logging.debug('nonscaled roi: %s' % pformat(roi))
+                logging.debug('nonscaled roi: %s', pformat(roi))
                 roi = [int(scale * r)
                        for r in roi]  # For displaying the scaled image.
-                logging.debug('scaled roi: %s' % pformat(roi))
+                logging.debug('scaled roi: %s', pformat(roi))
                 util.drawScoredRoi(image, roi, label=None, score=None)
             else:
                 raise Exception(
@@ -493,8 +494,8 @@ def labelObjects(c, args):
             if len(properties) > 1:
                 logging.warning(
                     'Multiple values for object %s and property %s. '
-                    'If reassigned, both will be changed' %
-                    (objectid, args.property))
+                    'If reassigned, both will be changed', objectid,
+                    args.property)
 
             for iproperty, (key, value) in enumerate(properties):
                 cv2.putText(image, '%s: %s' % (key, value),
@@ -504,21 +505,21 @@ def labelObjects(c, args):
                             (10, util.SCALE * (iproperty + 1)), util.FONT,
                             util.FONT_SIZE, (255, 255, 255),
                             util.THICKNESS - 1)
-                logging.info('objectid: %d. %s = %s.' % (objectid, key, value))
+                logging.info('objectid: %d. %s = %s.', objectid, key, value)
 
         cv2.imshow('labelObjects', image[:, :, ::-1])
         action = key_reader.parse(cv2.waitKey(-1))
         if action == 'exit':
             break
         elif action == 'delete_label' and any_object_in_focus:
-            logging.info('Remove label from objectid "%s"' % objectid)
+            logging.info('Remove label from objectid "%s"', objectid)
             c.execute('DELETE FROM properties WHERE objectid=? AND key=?',
                       (objectid, args.property))
             go_next_object = True
         elif action is not None and action not in ['previous', 'next']:
             # User pressed something else which has an assigned action,
             # assume it is a new value.
-            logging.info('Setting label "%s" to objectid "%s"' %
+            logging.info('Setting label "%s" to objectid "%s"',
                          (action, objectid))
             if len(properties) > 0:
                 c.execute('DELETE FROM properties WHERE objectid=? AND key=?',
@@ -585,13 +586,12 @@ def examineMatches(c, args):
             'SELECT * FROM objects WHERE objectid IN '
             '(SELECT objectid FROM matches WHERE match=?)', (match, ))
         object_entries = c.fetchall()
-        logging.info('Found %d objects for match %d' %
-                     (len(object_entries), match))
+        logging.info('Found %d objects for match %d', len(object_entries),
+                     match)
 
         images = []
         for object_entry in object_entries:
             imagefile = backendDb.objectField(object_entry, 'imagefile')
-            objectid = backendDb.objectField(object_entry, 'objectid')
             roi = backendDb.objectField(object_entry, 'roi')
             score = backendDb.objectField(object_entry, 'score')
 
@@ -621,8 +621,8 @@ def examineMatches(c, args):
         else:
             # User pressed something else which has an assigned action,
             # assume it is a new name.
-            logging.info('Setting name "%s" to imagefile "%s"' %
-                         (action, imagefile))
+            logging.info('Setting name "%s" to imagefile "%s"', action,
+                         imagefile)
             c.execute('UPDATE images SET name=? WHERE imagefile=?',
                       (action, imagefile))
         index_match = index_match % len(match_entries)
@@ -631,30 +631,31 @@ def examineMatches(c, args):
 
 
 # Helper global vars for mouse callback _monitorPressRelease.
-xpress, ypress = None, None
-mousePressed = False
-mouseReleased = False
+XPRESS, YPRESS = None, None
+MOUSE_PRESSED = False
+MOUSE_RELEASED = False
 
 
 def _monitorPressRelease(event, x, y, flags, param):
     ''' A mouse callback for labelling matches. '''
 
-    global xpress, ypress, mousePressed, mouseReleased
+    global XPRESS, YPRESS, MOUSE_PRESSED, MOUSE_RELEASED
 
     if event == cv2.EVENT_LBUTTONDOWN:
-        logging.debug('Left mouse button pressed at %d,%d' % (x, y))
-        xpress, ypress = x, y
-        assert not mouseReleased
-        mousePressed = True
+        logging.debug('Left mouse button pressed at %d,%d', x, y)
+        XPRESS, YPRESS = x, y
+        assert not MOUSE_RELEASED
+        MOUSE_PRESSED = True
 
     elif event == cv2.EVENT_LBUTTONUP:
-        xpress, ypress = x, y
-        logging.debug('Left mouse button released at %d,%d' % (x, y))
-        assert not mousePressed
-        mouseReleased = True
+        XPRESS, YPRESS = x, y
+        logging.debug('Left mouse button released at %d,%d', x, y)
+        assert not MOUSE_PRESSED
+        MOUSE_RELEASED = True
 
 
 def _drawMatch(img, roi1, roi2, yoffset):
+
     def _getCenter(roi):
         return int(0.5 * roi[1] + 0.5 * roi[3]), int(0.25 * roi[0] +
                                                      0.75 * roi[2])
@@ -707,13 +708,13 @@ def labelMatchesParser(subparsers):
 def labelMatches(c, args):
     cv2.namedWindow("labelMatches")
     cv2.setMouseCallback('labelMatches', _monitorPressRelease)
-    global mousePressed, mouseReleased, xpress, ypress
+    global MOUSE_PRESSED, MOUSE_RELEASED, XPRESS, YPRESS
 
     c.execute('SELECT imagefile FROM images WHERE %s' % args.where_image)
     image_entries = c.fetchall()
-    logging.debug('Found %d images' % len(image_entries))
+    logging.debug('Found %d images', len(image_entries))
     if len(image_entries) < 2:
-        logging.error('Found only %d images. Quit.' % len(image_entries))
+        logging.error('Found only %d images. Quit.', len(image_entries))
         return
 
     imreader = backendMedia.MediaReader(rootdir=args.rootdir)
@@ -735,18 +736,18 @@ def labelMatches(c, args):
         # Make sure images have the same width, so that we can stack them.
         # That will happen when the video changes, so we'll skip that pair.
         if img1.shape[1] != img2.shape[1]:
-            logging.warning('Skipping image pair "%s" and "%s" '
-                            'since they are of different width.' %
-                            (imagefile1, imagefile2))
+            logging.warning(
+                'Skipping image pair "%s" and "%s" '
+                'since they are of different width.', imagefile1, imagefile2)
             index_image += 1
 
         # get objects from both images
         c.execute('SELECT * FROM objects WHERE imagefile=? ', (imagefile1, ))
         objects1 = c.fetchall()
-        logging.info('%d objects found for %s' % (len(objects1), imagefile1))
+        logging.info('%d objects found for %s', len(objects1), imagefile1)
         c.execute('SELECT * FROM objects WHERE imagefile=? ', (imagefile2, ))
         objects2 = c.fetchall()
-        logging.info('%d objects found for %s' % (len(objects2), imagefile2))
+        logging.info('%d objects found for %s', len(objects2), imagefile2)
 
         # draw cars in both images
         for object_ in objects1:
@@ -794,30 +795,30 @@ def labelMatches(c, args):
                                       fx=scale,
                                       fy=scale)
                 cv2.imshow('labelMatches', img_show[:, :, ::-1])
-                logging.info('Will draw %d matches found between the pair' %
+                logging.info('Will draw %d matches found between the pair',
                              len(matchesOf1))
                 needRedraw = False
 
             # process mouse callback effect (button has been pressed)
-            if mousePressed:
+            if MOUSE_PRESSED:
                 i2 = None  # reset after the last unsuccessful match
-                logging.debug('Pressed  x=%d, y=%d' % (xpress, ypress))
-                xpress /= scale
-                ypress /= scale
-                i1 = _findPressedObject(xpress, ypress, objects1)
+                logging.debug('Pressed  x=%d, y=%d', XPRESS, YPRESS)
+                XPRESS /= scale
+                YPRESS /= scale
+                i1 = _findPressedObject(XPRESS, YPRESS, objects1)
                 if i1 is not None:
-                    logging.debug('Found pressed object: %d' % i1)
-                mousePressed = False
+                    logging.debug('Found pressed object: %d', i1)
+                MOUSE_PRESSED = False
 
             # process mouse callback effect (button has been released)
-            if mouseReleased:
-                logging.debug('released x=%d, y=%d' % (xpress, ypress))
-                xpress /= scale
-                ypress /= scale
-                i2 = _findPressedObject(xpress, ypress - yoffset, objects2)
+            if MOUSE_RELEASED:
+                logging.debug('released x=%d, y=%d', XPRESS, YPRESS)
+                XPRESS /= scale
+                YPRESS /= scale
+                i2 = _findPressedObject(XPRESS, YPRESS - yoffset, objects2)
                 if i2 is not None:
-                    logging.debug('Found released object: %d' % i2)
-                mouseReleased = False
+                    logging.debug('Found released object: %d', i2)
+                MOUSE_RELEASED = False
 
             # If we could find pressed and released objects, add match
             if i1 is not None and i2 is not None:
@@ -832,7 +833,7 @@ def labelMatches(c, args):
                     # Add the match to the list.
                     objectid1 = backendDb.objectField(objects1[i1], 'objectid')
                     objectid2 = backendDb.objectField(objects2[i2], 'objectid')
-                    logging.debug('i1 = %d, i2 = %d' % (i1, i2))
+                    logging.debug('i1 = %d, i2 = %d', i1, i2)
 
                     # Check if this object already in the matches.
                     c.execute('SELECT match FROM matches WHERE objectid=?',
@@ -844,35 +845,35 @@ def labelMatches(c, args):
 
                     if len(matches1) > 1 or len(matches2) > 1:
                         logging.error(
-                            'One of the objectids %d, %d is in several matches.'
-                            % (objectid1, objectid2))
+                            'One of the objectids %d, %d is in several matches.',
+                            objectid1, objectid2)
                         continue
 
                     elif len(matches1) == 1 and len(matches2) == 1:
                         logging.info(
-                            'Will merge matches of objectids %d and %d' %
-                            (objectid1, objectid2))
+                            'Will merge matches of objectids %d and %d',
+                            objectid1, objectid2)
                         c.execute('UPDATE matches SET match=? WHERE match=?',
                                   (matches1[0][0], matches2[0][0]))
 
                     elif len(matches1) == 1 and len(matches2) == 0:
-                        logging.info('Add objectid %d to match %d' %
-                                     (objectid2, matches1[0][0]))
+                        logging.info('Add objectid %d to match %d', objectid2,
+                                     matches1[0][0])
                         c.execute(
                             'INSERT INTO matches(match, objectid) VALUES (?,?)',
                             (matches1[0][0], objectid2))
 
                     elif len(matches1) == 0 and len(matches2) == 1:
-                        logging.info('Add objectid %d to match %d' %
-                                     (objectid1, matches2[0][0]))
+                        logging.info('Add objectid %d to match %d', objectid1,
+                                     matches2[0][0])
                         c.execute(
                             'INSERT INTO matches(match, objectid) VALUES (?,?)',
                             (matches2[0][0], objectid1))
 
                     elif len(matches1) == 0 and len(matches2) == 0:
                         logging.info(
-                            'Add a new match between objectids %d and %d.' %
-                            (objectid1, objectid2))
+                            'Add a new match between objectids %d and %d.',
+                            objectid1, objectid2)
 
                         # Find a free match index
                         c.execute('SELECT MAX(match) FROM matches')
@@ -912,7 +913,7 @@ def labelMatches(c, args):
             if i1 is not None and i1 in matchesOf1:
                 match = matchesOf1[i1]
                 objectid1 = backendDb.objectField(objects1[i1], 'objectid')
-                logging.info('deleting match %d' % match)
+                logging.info('deleting match %d', match)
                 c.execute(
                     'DELETE FROM matches WHERE match = ? AND objectid = ?',
                     (match, objectid1))

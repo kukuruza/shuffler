@@ -2,7 +2,6 @@ import os.path as op
 import shutil
 import unittest
 import tempfile
-import argparse
 import progressbar
 import nose
 
@@ -10,6 +9,7 @@ from shuffler.utils import util
 
 
 class Test_CopyWithBackup(unittest.TestCase):
+
     def setUp(self):
         self.work_dir = tempfile.mkdtemp()
         with open(op.join(self.work_dir, 'from.txt'), 'w') as f:
@@ -67,6 +67,7 @@ class Test_CopyWithBackup(unittest.TestCase):
 
 
 class Test_getIntersectingObjects(unittest.TestCase):
+
     def test_empty(self):
         pairs_to_merge = util.getIntersectingObjects([], [], 0.5)
         self.assertEqual(pairs_to_merge, [])
@@ -131,6 +132,7 @@ class Test_getIntersectingObjects(unittest.TestCase):
 
 
 class Test_makeExportedImageName(unittest.TestCase):
+
     def setUp(self):
         self.work_dir = tempfile.mkdtemp()
 
@@ -175,6 +177,7 @@ class Test_makeExportedImageName(unittest.TestCase):
 
 
 class Test_getMatchPolygons(unittest.TestCase):
+
     def test_empty(self):
         pairs = util.getMatchPolygons([], [], 1.)
         self.assertEqual(pairs, [])
