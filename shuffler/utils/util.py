@@ -6,8 +6,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import re
 
-from shuffler.backend import backendDb
-from shuffler.utils import utilBoxes
+from shuffler.backend import backend_db
+from shuffler.utils import util_boxes
 
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 SCALE = 28
@@ -318,7 +318,7 @@ def bboxes2polygons(cursor, objectid):
     object_entry = cursor.fetchone()
     if object_entry is None:
         raise ValueError('Objectid %d does not exist.' % objectid)
-    y1, x1, y2, x2 = backendDb.objectField(object_entry, 'roi')
+    y1, x1, y2, x2 = backend_db.objectField(object_entry, 'roi')
     for x, y in [(x1, y1), (x2, y1), (x2, y2), (x1, y2)]:
         cursor.execute(
             'INSERT INTO polygons(objectid,x,y,name) VALUES (?,?,?,"bounding box")',
@@ -417,14 +417,14 @@ def getIntersectingObjects(objects1, objects2, IoU_threshold, same_id_ok=True):
     for i1, object1 in enumerate(objects1):
         for i2, object2 in enumerate(objects2):
             # Do not merge an object with itself.
-            objectid1 = backendDb.objectField(object1, 'objectid')
-            objectid2 = backendDb.objectField(object2, 'objectid')
+            objectid1 = backend_db.objectField(object1, 'objectid')
+            objectid2 = backend_db.objectField(object2, 'objectid')
             if objectid1 == objectid2 and not same_id_ok:
                 pairwise_IoU[i1, i2] = np.nan
             else:
-                roi1 = backendDb.objectField(object1, 'roi')
-                roi2 = backendDb.objectField(object2, 'roi')
-                pairwise_IoU[i1, i2] = utilBoxes.getIoU(roi1, roi2)
+                roi1 = backend_db.objectField(object1, 'roi')
+                roi2 = backend_db.objectField(object2, 'roi')
+                pairwise_IoU[i1, i2] = util_boxes.getIoU(roi1, roi2)
     logging.debug('getIntersectingObjects got Pairwise_IoU:\n%s',
                   np.array2string(pairwise_IoU, precision=1))
 
@@ -442,11 +442,11 @@ def getIntersectingObjects(objects1, objects2, IoU_threshold, same_id_ok=True):
         pairwise_IoU[i1, :] = 0.
         pairwise_IoU[:, i2] = 0.
         # Add a pair to the list.
-        objectid1 = backendDb.objectField(objects1[i1], 'objectid')
-        objectid2 = backendDb.objectField(objects2[i2], 'objectid')
+        objectid1 = backend_db.objectField(objects1[i1], 'objectid')
+        objectid2 = backend_db.objectField(objects2[i2], 'objectid')
         pairs_to_merge.append((objectid1, objectid2))
-        name1 = backendDb.objectField(objects1[i1], 'name')
-        name2 = backendDb.objectField(objects2[i2], 'name')
+        name1 = backend_db.objectField(objects1[i1], 'name')
+        name2 = backend_db.objectField(objects2[i2], 'name')
         logging.debug('Matching objects %d (%s) and %d (%s) with IoU %f.',
                       objectid1, name1, objectid2, name2, IoU)
 
@@ -521,12 +521,12 @@ def getMatchPolygons(polygons1, polygons2, threshold, ignore_name=True):
                              dtype=float)
     for i1, polygon_entry1 in enumerate(polygons1):
         for i2, polygon_entry2 in enumerate(polygons2):
-            x1 = backendDb.polygonField(polygon_entry1, 'x')
-            y1 = backendDb.polygonField(polygon_entry1, 'y')
-            name1 = backendDb.polygonField(polygon_entry1, 'name')
-            x2 = backendDb.polygonField(polygon_entry2, 'x')
-            y2 = backendDb.polygonField(polygon_entry2, 'y')
-            name2 = backendDb.polygonField(polygon_entry2, 'name')
+            x1 = backend_db.polygonField(polygon_entry1, 'x')
+            y1 = backend_db.polygonField(polygon_entry1, 'y')
+            name1 = backend_db.polygonField(polygon_entry1, 'name')
+            x2 = backend_db.polygonField(polygon_entry2, 'x')
+            y2 = backend_db.polygonField(polygon_entry2, 'y')
+            name2 = backend_db.polygonField(polygon_entry2, 'name')
             pairwise_dist[i1, i2] = np.linalg.norm(
                 np.array([x1, y1], dtype=float) -
                 np.array([x2, y2], dtype=float)) + (
@@ -562,8 +562,8 @@ def getMatchPolygons(polygons1, polygons2, threshold, ignore_name=True):
         pairwise_dist[i1, :] = np.inf
         pairwise_dist[:, i2] = np.inf
         # Add a pair to the list.
-        id1 = backendDb.polygonField(polygons1[i1], 'id')
-        id2 = backendDb.polygonField(polygons2[i2], 'id')
+        id1 = backend_db.polygonField(polygons1[i1], 'id')
+        id2 = backend_db.polygonField(polygons2[i2], 'id')
         pairs_to_merge.append((id1, id2))
         logging.debug(
             'Matched points %d and %d (indices %d and %d) with distance %.2f.',

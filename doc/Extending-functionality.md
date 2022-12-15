@@ -15,7 +15,7 @@ for `myFunction`. That makes adding sub-commands straightforward.
 
 To add a new function and its associated sub-command, one first needs
 to pick a file where the function would fit the best based on its functionality.
-For example, all operations of filtering reside in `lib/subcommands/dbFilter.py`.
+For example, all operations of filtering reside in `operations/filtering.py`.
 Then one needs to 1) write the function body, which implements the interface,
 2) write the parser, and 3) register the parser in the `add_parsers` function.
 Below is the skeleton for function `myFilter`. Replace `< ... >` with your code.
@@ -52,11 +52,11 @@ def myFilter (cursor, args):
 
 Let's say we have a property in the `properties` table, that encodes an integer angle from 0 to 359.
 However, a user may enter any number from -360 to 359.
-We would like to have a function that would bring a number to the right standard: from 0 to 359. The function take a angle modulo 360. We will call the subcommand `propertyModulo360`.
+We would like to have a function that would bring a number to the right standard: from 0 to 359. The function take a angle modulo 360. We will call the operation `propertyModulo360`.
 
-1. The function modifies annotations, therefore, it will be placed into the file `dbModify.py`.
+1. The function modifies annotations, therefore, it will be placed into the file `operations/modify.py`.
 
-2. We change the function `add_parsers` in file `dbModify.py` by adding one line to the end of the function:
+2. We change the function `add_parsers` in file `operations/modify.py` by adding one line to the end of the function:
 
 ```python
 def add_parsers(subparsers):
@@ -64,8 +64,8 @@ def add_parsers(subparsers):
   propertyModulo360Parser(subparsers)
 ```
 
-3. The subcommand will use one argument: the name of the property to be changed.
-In the end of file `dbModify.py`, we will add the following lines.
+3. The operation will use one argument: the name of the property to be changed.
+In the end of file `operations/modify.py`, we will add the following lines.
 
 ```python
 def propertyModulo360Parser(subparsers):
@@ -78,7 +78,7 @@ def propertyModulo360Parser(subparsers):
 ```
 
 4. Finally, we will write the body of the function.
-It goes in the end of `lib/subcommands/dbModify.py`, right after `propertyModulo360Parser`.
+It goes in the end of `operations/modify.py`, right after `propertyModulo360Parser`.
 
 ```python
 def propertyModulo360 (cursor, args):
@@ -91,7 +91,7 @@ def propertyModulo360 (cursor, args):
 ```
 
 That's all. Now you can invoke this sub-command.
-For example, that's how to get the help about the subcommand.
+For example, that's how to get the help about the operation.
 
 ```bash
 python -m shuffler propertyModulo360 -h

@@ -2,7 +2,7 @@ import logging
 import functools
 import detectron2.data
 
-from shuffler.backend import backendMedia
+from shuffler.backend import backend_media
 from shuffler.interface import utils
 
 
@@ -13,8 +13,8 @@ def register_object_dataset(dataset_name, *args, **kwargs):
         db_file:        (string) A path to an sqlite3 database file.
         rootdir:        (string) A root path, is pre-appended to "imagefile"
                         entries of "images" table in the sqlite3 database.
-        where_object:   (string) The WHERE part of the SQL query on the 
-                        "objects" table, as in: 
+        where_object:   (string) The WHERE part of the SQL query on the
+                        "objects" table, as in:
                         "SELECT * FROM objects WHERE ${where_object};"
                         Allows to query only needed objects.
         used_keys:      (a list of strings or None) If specified, use only
@@ -38,8 +38,8 @@ def _object_dataset_function(db_file,
         db_file:        (string) A path to an sqlite3 database file.
         rootdir:        (string) A root path, is pre-appended to "imagefile"
                         entries of "images" table in the sqlite3 database.
-        where_object:   (string) The WHERE part of the SQL query on the 
-                        "objects" table, as in: 
+        where_object:   (string) The WHERE part of the SQL query on the
+                        "objects" table, as in:
                         "SELECT * FROM objects WHERE ${where_object};"
                         Allows to query only needed objects.
         used_keys:      (a list of strings or None) If specified, use only
@@ -56,7 +56,7 @@ def _object_dataset_function(db_file,
               where_object)
     object_entries = c.fetchall()
 
-    imreader = backendMedia.MediaReader(rootdir=rootdir)
+    imreader = backend_media.MediaReader(rootdir=rootdir)
 
     _checkUsedKeys(used_keys)
     utils.checkTransformGroup(transform_group)

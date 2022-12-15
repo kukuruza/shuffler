@@ -99,12 +99,12 @@ python -m shuffler \
 
 `importKitti` and `exportCoco` above are examples of operations. There are over 60 operations that fall under the following broad categories:
 
-- [Import/export](doc/Subcommands.md#import) most common computer vision datasets.
+- [Import/export](doc/Operations.md#import) most common computer vision datasets.
 - Aggregate information about a dataset. Print statistics, plot histograms and scatter plots.
-- [GUI](doc/Subcommands.md#gui) to manually loop through a dataset, visualize, modify, and delete entries.
-- [Filter](doc/Subcommands.md#filter) annotations, e.g. small objects, objects at image boundary, objects without a color, etc.
-- [Modify](doc/Subcommands.md#modify) a dataset, e.g. increase bounding boxes by 20%, split a dataset into "train" and "test" subsets, etc.
-- [Evaluate](doc/Subcommands.md#evaluate) the performance of an object detection or semantic segmentation task, given the ground truth and predictions.
+- [GUI](doc/Operations.md#gui) to manually loop through a dataset, visualize, modify, and delete entries.
+- [Filter](doc/Operations.md#filter) annotations, e.g. small objects, objects at image boundary, objects without a color, etc.
+- [Modify](doc/Operations.md#modify) a dataset, e.g. increase bounding boxes by 20%, split a dataset into "train" and "test" subsets, etc.
+- [Evaluate](doc/Operations.md#evaluate) the performance of an object detection or semantic segmentation task, given the ground truth and predictions.
 
 
 ### Chaining operations

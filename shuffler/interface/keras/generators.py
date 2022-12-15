@@ -3,13 +3,13 @@ import numpy as np
 import tensorflow as tf
 
 from shuffler.interface import utils
-from shuffler.backend import backendMedia
+from shuffler.backend import backend_media
 
 
 class ImageGenerator(tf.keras.utils.Sequence):
-    ''' 
+    '''
     Generates images, each one with objects.
-    
+
     Every generated sample is a dict with the following fields:
         image:      (np.uint8 array) Corresponding to an image.
         mask:       (np.uint8 array) Corresponding to a mask if exists, or None.
@@ -23,6 +23,7 @@ class ImageGenerator(tf.keras.utils.Sequence):
     a tuple, or as a dict (if a dict, you can change keys names) by providing
     `used_keys` to the __init__ (see comments to __init__.)
     '''
+
     def __init__(self,
                  db_file,
                  rootdir='.',
@@ -39,19 +40,19 @@ class ImageGenerator(tf.keras.utils.Sequence):
             db_file:        (string) A path to an sqlite3 database file.
             rootdir:        (string) A root path, is pre-appended to "imagefile"
                             entries of "images" table in the sqlite3 database.
-            where_image:    (string) The WHERE part of the SQL query on the 
-                            "images" table, as in: 
+            where_image:    (string) The WHERE part of the SQL query on the
+                            "images" table, as in:
                             "SELECT * FROM images WHERE ${where_image};"
                             Allows to query only needed images.
-            where_object:   (string) The WHERE part of the SQL query on the 
-                            "objects" table, as in: 
+            where_object:   (string) The WHERE part of the SQL query on the
+                            "objects" table, as in:
                             "SELECT * FROM objects WHERE ${where_object};"
                             Allows to query only needed objects for each image.
-            mode:           ("r" or "w") The readonly or write-read mode to open 
-                            the database. The default is "r", use "w" only if 
+            mode:           ("r" or "w") The readonly or write-read mode to open
+                            the database. The default is "r", use "w" only if
                             you plan to call addRecord().
-            copy_to_memory: (bool) Copies database into memory. 
-                            Only for mode="r". Should be used for python2. 
+            copy_to_memory: (bool) Copies database into memory.
+                            Only for mode="r". Should be used for python2.
             used_keys:      (None, list of str, tuple of str, or dict str -> str)
                             Originally __getitem__ returns a dict with keys:
                             'image', 'mask', 'objects', 'imagefile', 'name',
@@ -67,11 +68,11 @@ class ImageGenerator(tf.keras.utils.Sequence):
                             4) Dict str -> str. The key is the key in the
                                database, the value is the key in the output dict.
                                __getitem__ returns a dict.
-            transform_group: (a callable or a dict string -> callable) 
+            transform_group: (a callable or a dict string -> callable)
                             Transform(s) to be applied on a sample.
                             1) If it is a callable, it is applied to the sample.
-                            2) If it is a dict, each key is matched to a key in 
-                               the sample (after used dict), and callables are 
+                            2) If it is a dict, each key is matched to a key in
+                               the sample (after used dict), and callables are
                                called on the respective elements.
         '''
         self.batch_size = batch_size
@@ -87,7 +88,7 @@ class ImageGenerator(tf.keras.utils.Sequence):
                        where_image)
         self.image_entries = self.c.fetchall()
 
-        self.imreader = backendMedia.MediaReader(rootdir=rootdir)
+        self.imreader = backend_media.MediaReader(rootdir=rootdir)
         self.where_object = where_object
 
         _checkUsedKeys(used_keys)
@@ -153,6 +154,7 @@ class ImageGenerator(tf.keras.utils.Sequence):
 
 class BareImageGenerator(ImageGenerator):
     ''' A specialization class providing only image and imagefile. '''
+
     def __init__(self,
                  db_file,
                  rootdir='.',
@@ -176,9 +178,9 @@ class BareImageGenerator(ImageGenerator):
 
 
 class ObjectGenerator(tf.keras.utils.Sequence):
-    ''' 
+    '''
     Generates objects, including cropped image and mask.
-    
+
     Every generated sample is a dict with the following fields:
         image:      (np.uint8) The array corresponding to an image.
         mask:       (np.uint8) The array corresponding to a mask if exists, or None.
@@ -191,6 +193,7 @@ class ObjectGenerator(tf.keras.utils.Sequence):
     a tuple, or as a dict (if a dict, you can change keys names) by providing
     `used_keys` to the __init__ (see comments to __init__.)
     '''
+
     def __init__(self,
                  db_file,
                  rootdir='.',
@@ -206,15 +209,15 @@ class ObjectGenerator(tf.keras.utils.Sequence):
             db_file:        (string) A path to an sqlite3 database file.
             rootdir:        (string) A root path, is pre-appended to "imagefile"
                             entries of "images" table in the sqlite3 database.
-            where_object:   (string) The WHERE part of the SQL query on the 
-                            "objects" table, as in: 
+            where_object:   (string) The WHERE part of the SQL query on the
+                            "objects" table, as in:
                             "SELECT * FROM objects WHERE ${where_object};"
                             Allows to query only needed objects for each image.
-            mode:           ("r" or "w") The readonly or write-read mode to open 
-                            the database. The default is "r", use "w" only if 
+            mode:           ("r" or "w") The readonly or write-read mode to open
+                            the database. The default is "r", use "w" only if
                             you plan to call addRecord().
-            copy_to_memory: (bool) Copies database into memory. 
-                            Only for mode="r". Should be used for python2. 
+            copy_to_memory: (bool) Copies database into memory.
+                            Only for mode="r". Should be used for python2.
             used_keys:      (None, list of str, tuple of str, or dict str -> str)
                             Originally __getitem__ returns a dict with keys:
                             'image', 'mask', 'objects', 'imagefile', 'name',
@@ -230,11 +233,11 @@ class ObjectGenerator(tf.keras.utils.Sequence):
                             4) Dict str -> str. The key is the key in the
                                database, the value is the key in the output dict.
                                __getitem__ returns a dict.
-            transform_group: (a callable or a dict string -> callable) 
+            transform_group: (a callable or a dict string -> callable)
                             Transform(s) to be applied on a sample.
                             1) If it is a callable, it is applied to the sample.
-                            2) If it is a dict, each key is matched to a key in 
-                               the sample (after used dict), and callables are 
+                            2) If it is a dict, each key is matched to a key in
+                               the sample (after used dict), and callables are
                                called on the respective elements.
         '''
 
@@ -251,7 +254,7 @@ class ObjectGenerator(tf.keras.utils.Sequence):
                        where_object)
         self.object_entries = self.c.fetchall()
 
-        self.imreader = backendMedia.MediaReader(rootdir=rootdir)
+        self.imreader = backend_media.MediaReader(rootdir=rootdir)
 
         _checkUsedKeys(used_keys)
         self.used_keys = used_keys
@@ -318,8 +321,8 @@ class ObjectGenerator(tf.keras.utils.Sequence):
         This function is a thin wrapper around an "INSERT" SQL qeuery.
 
         Args:
-            objectid: (int) An id of an object. 
-                      It is a key in a dict returned by the [] operator. 
+            objectid: (int) An id of an object.
+                      It is a key in a dict returned by the [] operator.
                       Tip: it will not work if you pass "used_keys" argument
                       without "objectid" when creating the generator object.
             key:      (string) Describes what you are writing, e.g. "result".
@@ -342,6 +345,7 @@ class ObjectGenerator(tf.keras.utils.Sequence):
 
 
 def _listOfWhateverToWhateverOfLists(samples):
+
     def _transposeListOfLists(samples):
         return [[samples[j][i] for j in range(len(samples))]
                 for i in range(len(samples[0]))]

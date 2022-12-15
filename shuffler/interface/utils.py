@@ -2,7 +2,7 @@ import sqlite3
 import logging
 import traceback
 
-from shuffler.backend import backendDb
+from shuffler.backend import backend_db
 
 
 def openConnection(db_file, mode='r', copy_to_memory=True):
@@ -50,10 +50,10 @@ def buildImageSample(image_entry, cursor, imreader, where_object='TRUE'):
         name:       (str) The "name" field of the "images" table.
         score:      (float) The "score" field of the "images" table.
     '''
-    imagefile = backendDb.imageField(image_entry, 'imagefile')
-    maskfile = backendDb.imageField(image_entry, 'maskfile')
-    image_width = backendDb.imageField(image_entry, 'width')
-    image_height = backendDb.imageField(image_entry, 'height')
+    imagefile = backend_db.imageField(image_entry, 'imagefile')
+    maskfile = backend_db.imageField(image_entry, 'maskfile')
+    image_width = backend_db.imageField(image_entry, 'width')
+    image_height = backend_db.imageField(image_entry, 'height')
 
     # Load the image and mask.
     logging.debug('Reading image "%s"', imagefile)
@@ -65,8 +65,8 @@ def buildImageSample(image_entry, cursor, imreader, where_object='TRUE'):
         logging.error('Reading image or mask failed. Returning None.')
         return None
 
-    imagename = backendDb.imageField(image_entry, 'name')
-    imagescore = backendDb.imageField(image_entry, 'score')
+    imagename = backend_db.imageField(image_entry, 'name')
+    imagescore = backend_db.imageField(image_entry, 'score')
 
     keys = ['x1', 'y1', 'width', 'height', 'name', 'score']
     cursor.execute(
@@ -107,10 +107,10 @@ def buildObjectSample(object_entry, c, imreader):
         imagefile:  (string) The image id.
         All key-value pairs from the "properties" table for this objectid.
     '''
-    objectid = backendDb.objectField(object_entry, 'objectid')
-    imagefile = backendDb.objectField(object_entry, 'imagefile')
-    name = backendDb.objectField(object_entry, 'name')
-    score = backendDb.objectField(object_entry, 'score')
+    objectid = backend_db.objectField(object_entry, 'objectid')
+    imagefile = backend_db.objectField(object_entry, 'imagefile')
+    name = backend_db.objectField(object_entry, 'name')
+    score = backend_db.objectField(object_entry, 'score')
 
     c.execute('SELECT maskfile FROM images WHERE imagefile=?', (imagefile, ))
     maskfile = c.fetchone()[0]
@@ -125,7 +125,7 @@ def buildObjectSample(object_entry, c, imreader):
         logging.error('Reading image or mask failed. Returning None.')
         return None
 
-    roi = backendDb.objectField(object_entry, 'roi')
+    roi = backend_db.objectField(object_entry, 'roi')
     logging.debug('Roi: %s', roi)
     roi = [int(x) for x in roi]
     image = image[roi[0]:roi[2], roi[1]:roi[3]]

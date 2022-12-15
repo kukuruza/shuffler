@@ -6,7 +6,7 @@ import numpy as np
 import cv2  # Used to resize objects to the same size.
 import tensorflow as tf
 
-from shuffler.utils import testUtils
+from shuffler.utils import test_utils
 from shuffler.interface.keras import generators
 
 
@@ -28,8 +28,8 @@ def make_model(input_shape, num_classes):
 
 def main():
     # This database contains 3 images with 2 cars and 1 bus.
-    in_db_file = testUtils.Test_carsDb.CARS_DB_PATH
-    rootdir = testUtils.Test_carsDb.CARS_DB_ROOTDIR
+    in_db_file = test_utils.Test_carsDb.CARS_DB_PATH
+    rootdir = test_utils.Test_carsDb.CARS_DB_ROOTDIR
 
     # Objects are resized to this shape.
     width = 100

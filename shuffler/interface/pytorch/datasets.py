@@ -1,14 +1,15 @@
 import logging
 import torch.utils.data
 
-from shuffler.backend import backendMedia
+from shuffler.backend import backend_media
 from shuffler.interface import utils
 
 
 class ImageDataset(torch.utils.data.Dataset):
-    ''' 
-    Items of a dataset are images, each one with its objects. 
     '''
+    Items of a dataset are images, each one with its objects.
+    '''
+
     def __init__(self,
                  db_file,
                  rootdir='.',
@@ -23,26 +24,26 @@ class ImageDataset(torch.utils.data.Dataset):
             db_file:        (string) A path to an sqlite3 database file.
             rootdir:        (string) A root path, is pre-appended to "imagefile"
                             entries of "images" table in the sqlite3 database.
-            where_image:    (string) The WHERE part of the SQL query on the 
-                            "images" table, as in: 
+            where_image:    (string) The WHERE part of the SQL query on the
+                            "images" table, as in:
                             "SELECT * FROM images WHERE ${where_image};"
                             Allows to query only needed images.
-            where_object:   (string) The WHERE part of the SQL query on the 
-                            "objects" table, as in: 
+            where_object:   (string) The WHERE part of the SQL query on the
+                            "objects" table, as in:
                             "SELECT * FROM objects WHERE ${where_object};"
                             Allows to query only needed objects for each image.
-            mode:           ("r" or "w") The readonly or write-read mode to open 
-                            the database. The default is "r", use "w" only if 
+            mode:           ("r" or "w") The readonly or write-read mode to open
+                            the database. The default is "r", use "w" only if
                             you plan to call addRecord().
-            copy_to_memory: (bool) Copies database into memory. 
-                            Only for mode="r". Should be used for python2. 
+            copy_to_memory: (bool) Copies database into memory.
+                            Only for mode="r". Should be used for python2.
             used_keys:      (None or list of str)
                             Originally __getitem__ returns a dict with keys:
                             'image', 'mask', 'objects', 'imagefile', 'name',
                             'score' (see the comments to this class above).
                             Argument `used_keys` determines which of these keys
                             are needed, and which can be disposed of.
-            transform_group: (a callable or a dict string -> callable) 
+            transform_group: (a callable or a dict string -> callable)
                             Transform(s) to be applied on a sample.
                             If it is a callable, it is applied to the sample.
                             If it is a dict, each key is matched to a key in the
@@ -58,7 +59,7 @@ class ImageDataset(torch.utils.data.Dataset):
                        where_image)
         self.image_entries = self.c.fetchall()
 
-        self.imreader = backendMedia.MediaReader(rootdir=rootdir)
+        self.imreader = backend_media.MediaReader(rootdir=rootdir)
 
         utils.checkWhereObject(where_object)
         self.where_object = where_object
@@ -112,6 +113,7 @@ class ImageDataset(torch.utils.data.Dataset):
 
 class ObjectDataset(torch.utils.data.Dataset):
     ''' Items of a dataset are objects. '''
+
     def __init__(self,
                  db_file,
                  rootdir='.',
@@ -126,22 +128,22 @@ class ObjectDataset(torch.utils.data.Dataset):
             db_file:        (string) A path to an sqlite3 database file.
             rootdir:        (string) A root path, is pre-appended to "imagefile"
                             entries of "images" table in the sqlite3 database.
-            where_object:   (string) The WHERE part of the SQL query on the 
-                            "objects" table, as in: 
+            where_object:   (string) The WHERE part of the SQL query on the
+                            "objects" table, as in:
                             "SELECT * FROM objects WHERE ${where_object};"
                             Allows to query only needed objects.
-            mode:           ("r" or "w") The readonly or write-read mode to open 
-                            the database. The default is "r", use "w" only if 
+            mode:           ("r" or "w") The readonly or write-read mode to open
+                            the database. The default is "r", use "w" only if
                             you plan to call addRecord().
-            copy_to_memory: (bool) Copies database into memory. 
-                            Only for mode="r". Should be used for python2. 
+            copy_to_memory: (bool) Copies database into memory.
+                            Only for mode="r". Should be used for python2.
             used_keys:      (a list of strings or None) If specified, use only
                             these keys for every sample, and discard the rest.
-            transform_group: ((1) a callable, or (2) a list of callables, 
-                            or (3) a dict {string: callable}) 
+            transform_group: ((1) a callable, or (2) a list of callables,
+                            or (3) a dict {string: callable})
                             Transform(s) to be applied on a sample.
                             (1) A callable: It is applied to the sample.
-                            (2) A list of callables: Each callable is applied 
+                            (2) A list of callables: Each callable is applied
                                 to the sample sequentially.
                             (3) A dict {string: callable}: Each key of this dict
                             should match a key in each sample, and the callables
@@ -158,7 +160,7 @@ class ObjectDataset(torch.utils.data.Dataset):
                        where_object)
         self.object_entries = self.c.fetchall()
 
-        self.imreader = backendMedia.MediaReader(rootdir=rootdir)
+        self.imreader = backend_media.MediaReader(rootdir=rootdir)
 
         _checkUsedKeys(used_keys)
         self.used_keys = used_keys
@@ -237,8 +239,8 @@ class ObjectDataset(torch.utils.data.Dataset):
         This function is a thin wrapper around an "INSERT" SQL qeuery.
 
         Args:
-            objectid: (int) An id of an object. 
-                      It is a key in a dict returned by the [] operator. 
+            objectid: (int) An id of an object.
+                      It is a key in a dict returned by the [] operator.
                       Tip: it will not work if you pass "used_keys" argument
                       without "objectid" when creating the dataset object.
             key:      (string) Describes what you are writing, e.g. "result".

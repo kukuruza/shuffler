@@ -8,7 +8,7 @@ import tempfile
 import torch
 import torchvision.transforms
 
-from shuffler.utils import testUtils
+from shuffler.utils import test_utils
 from shuffler.interface.pytorch import datasets
 
 
@@ -37,8 +37,8 @@ class ConvNet(torch.nn.Module):
 
 def main():
     # This database contains 3 images with 2 cars and 1 bus.
-    in_db_file = testUtils.Test_carsDb.CARS_DB_PATH
-    rootdir = testUtils.Test_carsDb.CARS_DB_ROOTDIR
+    in_db_file = test_utils.Test_carsDb.CARS_DB_PATH
+    rootdir = test_utils.Test_carsDb.CARS_DB_ROOTDIR
 
     # We are going to make changes to the database, so let's work on its copy.
     tmp_in_db_file = tempfile.NamedTemporaryFile().name

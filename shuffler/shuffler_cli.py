@@ -7,15 +7,15 @@ import progressbar
 from itertools import groupby
 
 from shuffler.utils import util
-from shuffler.backend import backendDb
-from shuffler import subcommands
+from shuffler.backend import backend_db
+from shuffler import operations
 
 
 def usage():
     return '''
     shuffler [-h] [-i INPUT.db] [-o OUTPUT.db] [--rootdir ROOTDIR]
-      subcommand1  <subcommand's arguments>  '|'
-      subcommand2  <subcommand's arguments>
+      operation1  <operation's arguments>  '|'
+      operation2  <operation's arguments>
     '''
 
 
@@ -60,7 +60,7 @@ def getParser():
         type=int,
         choices={10, 20, 30, 40},
         help='Log debug (10), info (20), warning (30), error (40).')
-    subcommands.add_subparsers(parser)
+    operations.add_subparsers(parser)
     return parser
 
 
@@ -95,7 +95,7 @@ def connect(in_db_path=None, out_db_path=None):
             raise Exception(
                 'Database "-o" exists. Specify it in "-i" too to change it.')
         conn = sqlite3.connect(out_db_path)
-        backendDb.createDb(conn)
+        backend_db.createDb(conn)
 
     elif in_db_path is not None and out_db_path is not None:
         # Load db from in_db_path and save as out_db_path.
@@ -109,13 +109,13 @@ def connect(in_db_path=None, out_db_path=None):
         logging.info(
             'will load existing database from %s, but will not commit.',
             in_db_path)
-        conn = backendDb.connect(in_db_path, 'load_to_memory')
+        conn = backend_db.connect(in_db_path, 'load_to_memory')
 
     elif in_db_path is None and out_db_path is None:
         # Create a db and discard it in the end.
         logging.info('will create a temporary database in memory.')
         conn = sqlite3.connect(':memory:')  # Create an in-memory database.
-        backendDb.createDb(conn)
+        backend_db.createDb(conn)
 
     else:
         assert False
@@ -123,9 +123,9 @@ def connect(in_db_path=None, out_db_path=None):
     return conn
 
 
-def runSubcommand(cursor, args):
+def runOperation(cursor, args):
     print('=== %s ===' % args.func.__name__)
-    logging.debug('=== Subcommand args: %s', args)
+    logging.debug('=== Operation args: %s', args)
     args.func(cursor, args)
 
 
@@ -136,7 +136,7 @@ def main():
     if len(sys.argv) == 1:
         sys.argv.append('-h')
 
-    # Split command-line arguments into subcommands by special symbol "|".
+    # Split command-line arguments into operations by special symbol "|".
     groups = groupby(sys.argv[1:], lambda x: x == '|')
     argv_splits = [list(group) for k, group in groups if not k]
 
@@ -164,14 +164,14 @@ def main():
             'Provide a sub-command. Type "python -m shuffler -h" for options.')
 
     # Main arguments and sub-command #1.
-    runSubcommand(cursor, args)
+    runOperation(cursor, args)
 
     # Sub-commands #2 to last.
     for argv_split in argv_splits[1:]:
         args = parser.parse_args(argv_split)
-        # "rootdir" is the only argument that is used in all subcommands.
+        # "rootdir" is the only argument that is used in all operations.
         args.rootdir = rootdir
-        runSubcommand(cursor, args)
+        runOperation(cursor, args)
 
     if do_commit:
         conn.commit()
