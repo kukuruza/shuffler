@@ -25,11 +25,11 @@ def importDetracParser(subparsers):
     parser.add_argument('--tracking_dir',
                         help='Directory with .xml annotations of videos. '
                         'E.g. "detrac/DETRAC-Train-Annotations-XML".')
-    parser.add_argument('--with_display', action='store_true')
+    parser.add_argument('--display', action='store_true')
 
 
 def importDetrac(c, args):
-    if args.with_display:
+    if args.display:
         imreader = backend_media.MediaReader(args.rootdir)
 
     video_dirs = sorted(glob(op.join(args.videos_dir, 'MVI_?????')))
@@ -57,11 +57,11 @@ def importDetrac(c, args):
                 (imagefile, imwidth, imheight))
 
             # Maybe display if there are no annotations.
-            if args.with_display and args.tracking_dir is None:
+            if args.display and args.tracking_dir is None:
                 img = imreader.imread(imagefile)
                 cv2.imshow('importDetrac', img[:, :, ::-1])
                 if cv2.waitKey(-1) == 27:
-                    args.with_display = False
+                    args.display = False
                     cv2.destroyWindow('importDetrac')
 
         # Detection annotations.
@@ -90,7 +90,7 @@ def importDetrac(c, args):
                         'Imagepath %s the xml %s is not a jpeg in dir: %s' %
                         (image_path, annotation_path, video_dir))
 
-                if args.with_display:
+                if args.display:
                     imagefile = op.relpath(image_path, args.rootdir)
                     img = imreader.imread(imagefile)
 
@@ -138,14 +138,14 @@ def importDetrac(c, args):
                         (objectid, 'trajectory_length',
                          str(trajectory_length)))
 
-                    if args.with_display:
+                    if args.display:
                         util.drawScoredRoi(
                             img, util_boxes.bbox2roi([x1, y1, width, height]),
                             vehicle_type)
 
                 # Maybe display.
-                if args.with_display:
+                if args.display:
                     cv2.imshow('importDetrac', img[:, :, ::-1])
                     if cv2.waitKey(-1) == 27:
-                        args.with_display = False
+                        args.display = False
                         cv2.destroyWindow('importDetrac')

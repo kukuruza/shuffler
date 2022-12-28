@@ -15,22 +15,21 @@ from shuffler.utils import util_boxes
 
 
 def add_parsers(subparsers):
-    filterImagesOfAnotherDbParser(subparsers)
-    filterObjectsAtBorderParser(subparsers)
+    filterImagesViaAnotherDbParser(subparsers)
+    filterImagesWithoutObjectsParser(subparsers)
+    filterImagesSQLParser(subparsers)
+    filterBadImagesParser(subparsers)
+    filterObjectsAtImageEdgesParser(subparsers)
     filterObjectsByIntersectionParser(subparsers)
     filterObjectsByNameParser(subparsers)
-    filterEmptyImagesParser(subparsers)
     filterObjectsByScoreParser(subparsers)
     filterObjectsInsideCertainObjectsParser(subparsers)
     filterObjectsSQLParser(subparsers)
-    filterImagesSQLParser(subparsers)
-    filterImagesByIdsParser(subparsers)
-    filterBadImagesParser(subparsers)
 
 
-def filterImagesOfAnotherDbParser(subparsers):
+def filterImagesViaAnotherDbParser(subparsers):
     parser = subparsers.add_parser(
-        'filterImagesOfAnotherDb',
+        'filterImagesViaAnotherDb',
         description=
         'Remove images from the db that are / are not in the reference db.')
     db_group = parser.add_mutually_exclusive_group()
@@ -44,10 +43,10 @@ def filterImagesOfAnotherDbParser(subparsers):
         '--use_basename',
         action='store_true',
         help='If specified, compare files based on their basename, not paths.')
-    parser.set_defaults(func=filterImagesOfAnotherDb)
+    parser.set_defaults(func=filterImagesViaAnotherDb)
 
 
-def filterImagesOfAnotherDb(c, args):
+def filterImagesViaAnotherDb(c, args):
     if args.keep_db_file is None and args.delete_db_file is None:
         raise ValueError(
             'Either "keep_db_file" or "delete_db_file" must be specified.')
@@ -95,43 +94,169 @@ def filterImagesOfAnotherDb(c, args):
     logging.info('%d images left.', count)
 
 
-def filterObjectsAtBorderParser(subparsers):
+def filterImagesWithoutObjectsParser(subparsers):
     parser = subparsers.add_parser(
-        'filterObjectsAtBorder',
-        description='Delete bboxes closer than "border_thresh" from border.')
-    parser.set_defaults(func=filterObjectsAtBorder)
+        'filterImagesWithoutObjects',
+        description='Delete images that have no objects.')
     parser.add_argument(
-        '--border_thresh',
+        '--where_image',
+        default='TRUE',
+        help='the SQL "where" clause for "images" table. '
+        'E.g. to change imagefile of JPG pictures from directory "from/mydir" '
+        'only, use: \'imagefile LIKE "from/mydir/%%"\'')
+    parser.set_defaults(func=filterImagesWithoutObjects)
+
+
+def filterImagesWithoutObjects(c, args):
+    c.execute('SELECT imagefile FROM images WHERE (%s) AND imagefile NOT IN '
+              '(SELECT imagefile FROM objects)' % args.where_image)
+    for imagefile, in progressbar(c.fetchall()):
+        backend_db.deleteImage(c, imagefile)
+
+
+def filterImagesSQLParser(subparsers):
+    parser = subparsers.add_parser(
+        'filterImagesSQL',
+        description=
+        'Delete images (and their objects) based on the SQL "where_image" clause.'
+    )
+    parser.set_defaults(func=filterImagesSQL)
+    parser.add_argument(
+        '--sql', help='an arbitrary SQL clause that should query "imagefile"')
+
+
+def filterImagesSQL(c, args):
+    c.execute('SELECT COUNT(1) FROM images')
+    logging.info('Before filtering have %d images.', c.fetchone()[0])
+
+    c.execute(args.sql)
+
+    imagefiles = c.fetchall()
+    logging.info('Will filter %d images.', len(imagefiles))
+    for imagefile, in progressbar(imagefiles):
+        backend_db.deleteImage(c, imagefile)
+
+
+def filterBadImagesParser(subparsers):
+    parser = subparsers.add_parser(
+        'filterBadImages',
+        description='Loads all images and masks and delete unreadable ones. '
+        'Imagefile records with missing images or masks are not deleted')
+    parser.add_argument('--force_single_thread',
+                        action='store_true',
+                        help='If specified, single thread is used.')
+    parser.set_defaults(func=filterBadImages)
+
+
+def filterBadImages(c, args):
+
+    def isImageOk(imreader, imagefile, maskfile):
+        if imagefile is not None:
+            try:
+                imreader.imread(imagefile)
+            except Exception:
+                logging.info('Found a bad image %s', imagefile)
+                logging.debug("Got exception:\n%s", traceback.print_exc())
+                return False
+        if maskfile is not None:
+            try:
+                imreader.maskread(maskfile)
+            except Exception:
+                logging.info('Found a bad mask %s for imagefile %s', maskfile,
+                             imagefile)
+                logging.debug("Got exception:\n%s", traceback.print_exc())
+                return False
+        return True
+
+    imreader = backend_media.MediaReader(rootdir=args.rootdir)
+
+    num_deleted_imagefiles = 0
+
+    c.execute('SELECT imagefile,maskfile FROM images')
+    image_entries = c.fetchall()
+
+    if (isinstance(imreader, backend_media.PictureReader)
+            and not args.force_single_thread):
+        # Can do it parallel.
+        max_workers = multiprocessing.cpu_count() - 1
+        logging.info('Running filtering with %d workers.', max_workers)
+        with concurrent.futures.ThreadPoolExecutor(max_workers) as executor:
+            futures = []
+            for imagefile, maskfile in progressbar(image_entries):
+                logging.debug('Imagefile "%s"', imagefile)
+                futures.append(
+                    executor.submit(isImageOk, imreader, imagefile, maskfile))
+
+        for future in concurrent.futures.as_completed(futures):
+            if not future.result():
+                backend_db.deleteImage(c, imagefile)
+                num_deleted_imagefiles += 1
+
+    else:
+        logging.info('Running filtering in a single thread.')
+        for imagefile, maskfile in progressbar(image_entries):
+            logging.debug('Imagefile "%s"', imagefile)
+            if not isImageOk(imreader, imagefile, maskfile):
+                backend_db.deleteImage(c, imagefile)
+                num_deleted_imagefiles += 1
+
+    logging.info("Deleted %d image(s).", num_deleted_imagefiles)
+
+
+# TODO: keep or delete.
+def filterObjectsAtImageEdgesParser(subparsers):
+    parser = subparsers.add_parser(
+        'filterObjectsAtImageEdges',
+        description='Delete objects closer than a threshold from image edges.')
+    parser.set_defaults(func=filterObjectsAtImageEdges)
+    parser.add_argument(
+        '--threshold',
         default=0.03,
-        help='Width of the buffer around the image edges '
-        'specified as a percentage of image dimensions'
-        'Objects in this buffer and outside of the image are filtered out.')
+        help='Width of the buffer around the image edges specified as a '
+        'fraction of image dimensions. Objects intersecting with this buffer '
+        'and outside of the image are deleted.')
     parser.add_argument(
-        '--with_display',
+        '--display',
         action='store_true',
         help=
         'Until <Esc> key, images are displayed with objects on Border as red, '
         'and other as blue.')
 
 
-def filterObjectsAtBorder(c, args):
+def filterObjectsAtImageEdges(c, args):
 
-    def isPolygonAtBorder(polygon_entries, width, height, border_thresh_perc):
+    def isPolygonAtImageEdge(polygon_entries, imwidth, imheight, threshold):
+        '''
+        A polygon is considered to be at image edge iff at least one point is
+        within the buffer from the edge.
+        '''
+        assert len(polygon_entries) > 0
         xs = [backend_db.polygonField(p, 'x') for p in polygon_entries]
         ys = [backend_db.polygonField(p, 'y') for p in polygon_entries]
-        border_thresh = (height + width) / 2 * border_thresh_perc
-        dist_to_border = min(xs, [width - x for x in xs], ys,
-                             [height - y for y in ys])
-        num_too_close = sum([x < border_thresh for x in dist_to_border])
-        return num_too_close >= 2
+        x_buffer_depth = imwidth * threshold
+        y_buffer_depth = imheight * threshold
+        num_too_close = 0
+        num_too_close += sum([x < x_buffer_depth for x in xs])
+        num_too_close += sum([y < y_buffer_depth for y in ys])
+        num_too_close += sum([x > imwidth - x_buffer_depth for x in xs])
+        num_too_close += sum([y > imheight - y_buffer_depth for y in ys])
+        return num_too_close >= 1
 
-    def isRoiAtBorder(roi, width, height, border_thresh_perc):
-        border_thresh = (height + width) / 2 * border_thresh_perc
-        logging.debug('border_thresh: %f', border_thresh)
-        return min(roi[0], roi[1], height + 1 - roi[2],
-                   width + 1 - roi[3]) < border_thresh
+    def isRoiAtImageEdge(roi, imwidth, imheight, threshold):
+        '''
+        A roi is considered to be at image edge iff one of the sides is within
+        a buffer from the edge.
+        '''
+        x_buffer_depth = imwidth * threshold
+        y_buffer_depth = imheight * threshold
+        logging.debug('x_buffer_depth: %f, y_buffer_depth: %f', x_buffer_depth,
+                      y_buffer_depth)
+        assert len(roi) == 4
+        return (roi[0] < y_buffer_depth or roi[1] < x_buffer_depth
+                or roi[2] > imheight + 1 - y_buffer_depth
+                or roi[3] > imwidth + 1 - x_buffer_depth)
 
-    if args.with_display:
+    if args.display:
         imreader = backend_media.MediaReader(rootdir=args.rootdir)
 
     # For the reference.
@@ -141,7 +266,7 @@ def filterObjectsAtBorder(c, args):
     c.execute('SELECT imagefile FROM images')
     for imagefile, in progressbar(c.fetchall()):
 
-        if args.with_display:
+        if args.display:
             image = imreader.imread(imagefile)
 
         c.execute('SELECT width,height FROM images WHERE imagefile=?',
@@ -165,13 +290,13 @@ def filterObjectsAtBorder(c, args):
             # Find if the polygon or the roi is at the border,
             # polygon has preference over roi.
             if len(polygon_entries) > 0:
-                if isPolygonAtBorder(polygon_entries, imwidth, imheight,
-                                     args.border_thresh):
-                    logging.debug('border polygon %s', str(polygon))
+                if isPolygonAtImageEdge(polygon_entries, imwidth, imheight,
+                                        args.threshold):
+                    logging.debug('Found a polygon at edge %s', str(polygon))
                     for_deletion = True
             elif roi is not None:
-                if isRoiAtBorder(roi, imwidth, imheight, args.border_thresh):
-                    logging.debug('border roi %s', str(roi))
+                if isRoiAtImageEdge(roi, imwidth, imheight, args.threshold):
+                    logging.debug('Found a roi at edge %s', str(roi))
                     for_deletion = True
             else:
                 logging.error(
@@ -179,7 +304,7 @@ def filterObjectsAtBorder(c, args):
                     objectid)
 
             # Draw polygon or roi.
-            if args.with_display:
+            if args.display:
                 if len(polygon_entries) > 0:
                     polygon = [(backend_db.polygonField(p, 'x'),
                                 backend_db.polygonField(p, 'y'))
@@ -196,12 +321,12 @@ def filterObjectsAtBorder(c, args):
             if for_deletion:
                 backend_db.deleteObject(c, objectid)
 
-        if args.with_display:
-            cv2.imshow('filterObjectsAtBorder', image[:, :, ::-1])
+        if args.display:
+            cv2.imshow('filterObjectsAtImageEdges', image[:, :, ::-1])
             key = cv2.waitKey(-1)
             if key == 27:
-                args.with_display = False
-                cv2.destroyWindow('filterObjectsAtBorder')
+                args.display = False
+                cv2.destroyWindow('filterObjectsAtImageEdges')
 
     # For the reference.
     c.execute('SELECT COUNT(1) FROM objects')
@@ -210,19 +335,21 @@ def filterObjectsAtBorder(c, args):
                  num_before)
 
 
+# TODO: Should be used for deleting duplicates. Keep the highest score object.
+#       Should use hierarchical clustering.
+# TODO: Add intersection by polygons.
 def filterObjectsByIntersectionParser(subparsers):
     parser = subparsers.add_parser(
         'filterObjectsByIntersection',
-        description='Remove cars that have high intersection with other cars.')
+        description='Remove objects that intersect with other objects.')
     parser.set_defaults(func=filterObjectsByIntersection)
     parser.add_argument(
-        '--intersection_thresh',
+        '--threshold',
         default=0.1,
         type=float,
-        help=
-        'How much an object has to intersect with others to be filtered out.')
+        help='How much an object has to intersect with others.')
     parser.add_argument(
-        '--with_display',
+        '--display',
         action='store_true',
         help='Until <Esc> key, display how each object intersects others. '
         'Bad objects are shown as as red, good as blue, '
@@ -231,19 +358,20 @@ def filterObjectsByIntersectionParser(subparsers):
 
 def filterObjectsByIntersection(c, args):
 
-    def getRoiIntesection(rioi1, roi2):
+    def getRoiIntersection(roi1, roi2):
         dy = min(roi1[2], roi2[2]) - max(roi1[0], roi2[0])
         dx = min(roi1[3], roi2[3]) - max(roi1[1], roi2[1])
-        if dy <= 0 or dx <= 0: return 0
+        if dy <= 0 or dx <= 0:
+            return 0
         return dy * dx
 
-    if args.with_display:
+    if args.display:
         imreader = backend_media.MediaReader(rootdir=args.rootdir)
 
     c.execute('SELECT imagefile FROM images')
     for imagefile, in progressbar(c.fetchall()):
 
-        if args.with_display:
+        if args.display:
             image = imreader.imread(imagefile)
 
         c.execute('SELECT * FROM objects WHERE imagefile=?', (imagefile, ))
@@ -254,7 +382,6 @@ def filterObjectsByIntersection(c, args):
         good_objects = np.ones(shape=len(object_entries), dtype=bool)
         for iobject1, object_entry1 in enumerate(object_entries):
 
-            #roi1 = _expandCarBbox_(object_entry1, args)
             roi1 = backend_db.objectField(object_entry1, 'roi')
             if roi1 is None:
                 logging.error(
@@ -275,12 +402,12 @@ def filterObjectsByIntersection(c, args):
                 roi2 = backend_db.objectField(object_entry2, 'roi')
                 if roi2 is None:
                     continue
-                intersection = getRoiIntesection(roi1, roi2) / float(area1)
-                if intersection > args.intersection_thresh:
+                intersection = getRoiIntersection(roi1, roi2) / float(area1)
+                if intersection > args.threshold:
                     good_objects[iobject1] = False
                     break
 
-            if args.with_display:
+            if args.display:
                 image = imreader.imread(imagefile)
                 util.drawScoredRoi(image,
                                    roi1,
@@ -296,7 +423,7 @@ def filterObjectsByIntersection(c, args):
                 key = cv2.waitKey(-1)
                 if key == 27:
                     cv2.destroyWindow('filterObjectsByIntersection')
-                    args.with_display = 0
+                    args.display = 0
 
         for object_entry, is_object_good in zip(object_entries, good_objects):
             if not is_object_good:
@@ -307,68 +434,52 @@ def filterObjectsByIntersection(c, args):
 def filterObjectsByNameParser(subparsers):
     parser = subparsers.add_parser(
         'filterObjectsByName',
-        description='Filter away car entries with unknown names.')
+        description=
+        'Delete objects with specific names or all but with specific names.')
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
-        '--good_names',
+        '--keep_names',
         nargs='+',
-        help='A list of object names to keep. Others will be filtered.')
-    group.add_argument('--bad_names',
+        help='A list of object names to keep. Others will be deleted.')
+    group.add_argument('--delete_names',
                        nargs='+',
                        help='A list of object names to delete.')
     parser.set_defaults(func=filterObjectsByName)
 
 
 def filterObjectsByName(c, args):
-    if args.good_names is not None:
-        good_names = ','.join(['"%s"' % x for x in args.good_names])
-        logging.info('Will keep the following object names: %s', good_names)
+    if args.keep_names is not None:
+        keep_names = ','.join(['"%s"' % x for x in args.keep_names])
+        logging.info('Will keep names: %s', keep_names)
         c.execute('SELECT objectid FROM objects WHERE name NOT IN (%s)',
-                  good_names)
-    elif args.bad_names is not None:
-        bad_names = ','.join(['"%s"' % x for x in args.bad_names])
-        logging.info('Will delete the following object names: %s', bad_names)
-        c.execute('SELECT objectid FROM objects WHERE name IN (%s)', bad_names)
+                  keep_names)
+    elif args.delete_names is not None:
+        delete_names = ','.join(['"%s"' % x for x in args.delete_names])
+        logging.info('Will delete names: %s', delete_names)
+        c.execute('SELECT objectid FROM objects WHERE name IN (%s)',
+                  delete_names)
     else:
-        raise ValueError('"good_names" or "bad_names" must be specified.')
+        raise ValueError('"keep_names" or "delete_names" must be specified.')
     for objectid, in progressbar(c.fetchall()):
         backend_db.deleteObject(c, objectid)
-
-
-def filterEmptyImagesParser(subparsers):
-    parser = subparsers.add_parser('filterEmptyImages')
-    parser.add_argument(
-        '--where_image',
-        default='TRUE',
-        help='the SQL "where" clause for "images" table. '
-        'E.g. to change imagefile of JPG pictures from directory "from/mydir" '
-        'only, use: \'imagefile LIKE "from/mydir/%%"\'')
-    parser.set_defaults(func=filterEmptyImages)
-
-
-def filterEmptyImages(c, args):
-    c.execute('SELECT imagefile FROM images WHERE (%s) AND imagefile NOT IN '
-              '(SELECT imagefile FROM objects)' % args.where_image)
-    for imagefile, in progressbar(c.fetchall()):
-        backend_db.deleteImage(c, imagefile)
 
 
 def filterObjectsByScoreParser(subparsers):
     parser = subparsers.add_parser(
         'filterObjectsByScore',
-        description=
-        'Delete all objects that have score less than "score_threshold".')
+        description='Delete all objects that have score less than "threshold".'
+    )
     parser.set_defaults(func=filterObjectsByScore)
-    parser.add_argument('--score_threshold', type=float, default=0.5)
+    parser.add_argument('--threshold', type=float, default=0.5)
 
 
 def filterObjectsByScore(c, args):
-    c.execute('SELECT objectid FROM objects WHERE score < %f' %
-              args.score_threshold)
+    c.execute('SELECT objectid FROM objects WHERE score < %f' % args.threshold)
     for objectid, in progressbar(c.fetchall()):
         backend_db.deleteObject(c, objectid)
 
 
+# TODO. Should not use center.
 def filterObjectsInsideCertainObjectsParser(subparsers):
     parser = subparsers.add_parser(
         'filterObjectsInsideCertainObjects',
@@ -507,114 +618,3 @@ def filterObjectsSQL(c, args):
     logging.info('Going to remove %d objects.', len(objectids))
     for objectid, in progressbar(objectids):
         backend_db.deleteObject(c, objectid)
-
-
-def filterImagesSQLParser(subparsers):
-    parser = subparsers.add_parser(
-        'filterImagesSQL',
-        description=
-        'Delete images (and their objects) based on the SQL "where_image" clause.'
-    )
-    parser.set_defaults(func=filterImagesSQL)
-    parser.add_argument(
-        '--sql', help='an arbitrary SQL clause that should query "imagefile"')
-
-
-def filterImagesSQL(c, args):
-    c.execute('SELECT COUNT(1) FROM images')
-    logging.info('Before filtering have %d images.', c.fetchone()[0])
-
-    c.execute(args.sql)
-
-    imagefiles = c.fetchall()
-    logging.info('Will filter %d images.', len(imagefiles))
-    for imagefile, in progressbar(imagefiles):
-        backend_db.deleteImage(c, imagefile)
-
-
-def filterImagesByIdsParser(subparsers):
-    parser = subparsers.add_parser(
-        'filterImagesByIds',
-        description='Delete images (and their objects) based on their '
-        'sequential number in the sorted table.')
-    parser.set_defaults(func=filterImagesByIds)
-    parser.add_argument('ids',
-                        type=int,
-                        nargs='+',
-                        help='A sequential number of an image in the database')
-
-
-def filterImagesByIds(c, args):
-    c.execute('SELECT imagefile FROM images ORDER BY imagefile')
-    imagefiles = c.fetchall()
-    imagefiles = np.array(imagefiles)[np.array(args.ids)]
-
-    for imagefile, in progressbar(imagefiles):
-        backend_db.deleteImage(c, imagefile)
-
-
-def filterBadImagesParser(subparsers):
-    parser = subparsers.add_parser(
-        'filterBadImages',
-        description='Loads all images and masks and delete unreadable ones. '
-        'Note that missing images and masks are not deleted')
-    parser.add_argument(
-        '--force_single_thread',
-        action='store_true',
-        help='If specified, single thread is used for storage formats. '
-        'Otherwise, Picture storage format is process in parallel.')
-    parser.set_defaults(func=filterBadImages)
-
-
-def isImageOk(imreader, imagefile, maskfile):
-    if imagefile is not None:
-        try:
-            imreader.imread(imagefile)
-        except Exception:
-            logging.info('Will delete image %s', imagefile)
-            logging.debug("Got exception:\n%s", traceback.print_exc())
-            return False
-    if maskfile is not None:
-        try:
-            imreader.maskread(maskfile)
-        except Exception:
-            logging.info('Will delete image %s', imagefile)
-            logging.debug("Got exception:\n%s", traceback.print_exc())
-            return False
-    return True
-
-
-def filterBadImages(c, args):
-    imreader = backend_media.MediaReader(rootdir=args.rootdir)
-
-    num_deleted_imagefiles = 0
-
-    c.execute('SELECT imagefile,maskfile FROM images')
-    image_entries = c.fetchall()
-
-    if (isinstance(imreader, backend_media.PictureReader)
-            and not args.force_single_thread):
-        # Can make it parallel.
-        max_workers = multiprocessing.cpu_count() - 1
-        logging.info('Running filtering with %d workers.', max_workers)
-        with concurrent.futures.ThreadPoolExecutor(max_workers) as executor:
-            futures = []
-            for imagefile, maskfile in progressbar(image_entries):
-                logging.debug('Imagefile "%s"', imagefile)
-                futures.append(
-                    executor.submit(isImageOk, imreader, imagefile, maskfile))
-
-        for future in concurrent.futures.as_completed(futures):
-            if not future.result():
-                backend_db.deleteImage(c, imagefile)
-                num_deleted_imagefiles += 1
-
-    else:
-        logging.info('Running filtering in a single thread.')
-        for imagefile, maskfile in progressbar(image_entries):
-            logging.debug('Imagefile "%s"', imagefile)
-            if not isImageOk(imreader, imagefile, maskfile):
-                backend_db.deleteImage(c, imagefile)
-                num_deleted_imagefiles += 1
-
-    logging.info("Deleted %d image(s).", num_deleted_imagefiles)

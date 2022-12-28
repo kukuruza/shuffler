@@ -162,11 +162,11 @@ def importKittiParser(subparsers):
         help='Directory with 8bit masks for semantic and 16bit masks '
         'for instance segmentation annotations. '
         'E.g. "kitti/data_object_image_2/training/label_2".')
-    parser.add_argument('--with_display', action='store_true')
+    parser.add_argument('--display', action='store_true')
 
 
 def importKitti(c, args):
-    if args.with_display:
+    if args.display:
         imreader = backend_media.MediaReader(args.rootdir)
 
     image_paths = sorted(glob(op.join(args.images_dir, '*.png')))
@@ -183,7 +183,7 @@ def importKitti(c, args):
         c.execute('INSERT INTO images(imagefile,width,height) VALUES (?,?,?)',
                   (imagefile, imwidth, imheight))
 
-        if args.with_display:
+        if args.display:
             img = imreader.imread(imagefile)
 
         # Detection annotations.
@@ -201,7 +201,7 @@ def importKitti(c, args):
             for line in lines:
                 objectid = _parseObject(c, line, imagefile)
 
-                if args.with_display:
+                if args.display:
                     c.execute('SELECT * FROM objects WHERE objectid=?',
                               (objectid, ))
                     object_entry = c.fetchone()
@@ -223,13 +223,13 @@ def importKitti(c, args):
             c.execute('UPDATE images SET maskfile=? WHERE imagefile=?',
                       (maskfile, imagefile))
 
-            if args.with_display:
+            if args.display:
                 mask = imreader.maskread(maskfile)
                 img = util.drawMaskAside(img, mask, labelmap=None)
 
         # Maybe display.
-        if args.with_display:
+        if args.display:
             cv2.imshow('importKitti', img[:, :, ::-1])
             if cv2.waitKey(-1) == 27:
-                args.with_display = False
+                args.display = False
                 cv2.destroyWindow('importKitti')

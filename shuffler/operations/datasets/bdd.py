@@ -33,11 +33,11 @@ def importBddParser(subparsers):
     parser.add_argument('--segmentation_dir',
                         help='Directory with .png segmentation masks.'
                         'E.g. "/my/path/to/BDD/bdd100k/seg/labels/val".')
-    parser.add_argument('--with_display', action='store_true')
+    parser.add_argument('--display', action='store_true')
 
 
 def importBdd(c, args):
-    if args.with_display:
+    if args.display:
         imreader = backend_media.MediaReader(args.rootdir)
 
     image_paths = sorted(glob(op.join(args.images_dir, '*.jpg')))
@@ -65,7 +65,7 @@ def importBdd(c, args):
         c.execute('INSERT INTO images(imagefile,width,height) VALUES (?,?,?)',
                   (imagefile, imwidth, imheight))
 
-        if args.with_display:
+        if args.display:
             img = imreader.imread(imagefile)
 
         # Detection annotations.
@@ -102,7 +102,7 @@ def importBdd(c, args):
                     y1 = int(float(box2d['y1']))
                     width = int(float(box2d['x2']) - x1)
                     height = int(float(box2d['y2']) - y1)
-                    if args.with_display:
+                    if args.display:
                         roi = util_boxes.bbox2roi((x1, y1, width, height))
                         util.drawScoredRoi(img, roi, object_name)
 
@@ -123,7 +123,7 @@ def importBdd(c, args):
                             'INSERT INTO polygons(objectid,x,y,name) '
                             'VALUES (?,?,?,?)',
                             (objectid, pt[0], pt[1], polygon_name))
-                    if args.with_display:
+                    if args.display:
                         util.drawScoredPolygon(img,
                                                [(int(x[0]), int(x[1]))
                                                 for x in polygon['vertices']],
@@ -149,13 +149,13 @@ def importBdd(c, args):
             c.execute('UPDATE images SET maskfile=? WHERE imagefile=?',
                       (maskfile, imagefile))
 
-            if args.with_display:
+            if args.display:
                 mask = imreader.maskread(maskfile)
                 img = util.drawMaskAside(img, mask, labelmap=None)
 
         # Maybe display.
-        if args.with_display:
+        if args.display:
             cv2.imshow('importKitti', img[:, :, ::-1])
             if cv2.waitKey(-1) == 27:
-                args.with_display = False
+                args.display = False
                 cv2.destroyWindow('importKitti')

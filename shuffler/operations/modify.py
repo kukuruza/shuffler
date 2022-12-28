@@ -846,14 +846,14 @@ def mergeIntersectingObjectsParser(subparsers):
         help='the SQL "where" clause for "images" table. '
         'E.g. to change imagefile of JPG pictures from directory '
         '"from/mydir" only, use: \'imagefile LIKE "from/mydir/%%"\'')
-    parser.add_argument('--with_display',
+    parser.add_argument('--filterObjectsByIoU',
                         action='store_true',
                         help='Until <Esc> key, display merged opjects.')
 
 
 def mergeIntersectingObjects(c, args):
 
-    if args.with_display:
+    if args.filterObjectsByIoU:
         imreader = backend_media.MediaReader(rootdir=args.rootdir)
 
     # Make polygons if necessary
@@ -882,7 +882,7 @@ def mergeIntersectingObjects(c, args):
                                                      args.IoU_threshold,
                                                      same_id_ok=False)
 
-        if args.with_display and len(pairs_to_merge) > 0:
+        if args.filterObjectsByIoU and len(pairs_to_merge) > 0:
             image = imreader.imread(imagefile)
 
         # Merge pairs.
@@ -893,7 +893,7 @@ def mergeIntersectingObjects(c, args):
             c.execute('SELECT * WHERE objectid=?', objectid2)
             old_roi2 = backend_db.objectField(c.fetchone(), 'roi')
 
-            if args.with_display:
+            if args.filterObjectsByIoU:
                 util.drawScoredRoi(image, old_roi1, score=0)
                 util.drawScoredRoi(image, old_roi2, score=0.25)
 
@@ -911,16 +911,16 @@ def mergeIntersectingObjects(c, args):
             logging.info('Merged ROIs %s and %s to make one %s', old_roi1,
                          old_roi2, new_roi)
 
-            if args.with_display:
+            if args.filterObjectsByIoU:
                 util.drawScoredRoi(image, new_roi, score=1)
 
-        if args.with_display and len(pairs_to_merge) > 0:
+        if args.filterObjectsByIoU and len(pairs_to_merge) > 0:
             logging.getLogger().handlers[0].flush()
             cv2.imshow('mergeIntersectingObjects', image[:, :, ::-1])
             key = cv2.waitKey()
             if key == 27:
                 cv2.destroyWindow('mergeIntersectingObjects')
-                args.with_display = False
+                args.filterObjectsByIoU = False
 
 
 def syncObjectidsWithDbParser(subparsers):

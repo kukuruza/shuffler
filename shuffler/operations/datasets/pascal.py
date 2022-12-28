@@ -36,11 +36,11 @@ def importPascalVoc2012Parser(subparsers):
     segm.add_argument('--segmentation_object',
                       action='store_true',
                       help='Import from directory "SegmentationObject"')
-    parser.add_argument('--with_display', action='store_true')
+    parser.add_argument('--display', action='store_true')
 
 
 def importPascalVoc2012(c, args):
-    if args.with_display:
+    if args.display:
         imreader = backend_media.MediaReader(args.rootdir)
 
     image_paths = sorted(glob(op.join(args.pascal_dir, 'JPEGImages/*.jpg')))
@@ -57,7 +57,7 @@ def importPascalVoc2012(c, args):
         c.execute('INSERT INTO images(imagefile,width,height) VALUES (?,?,?)',
                   (imagefile, imwidth, imheight))
 
-        if args.with_display:
+        if args.display:
             img = imreader.imread(imagefile)
 
         # Object annotations.
@@ -98,7 +98,7 @@ def importPascalVoc2012(c, args):
                 c.execute(s, (objectid, 'difficult', difficult))
                 c.execute(s, (objectid, 'occluded', occluded))
 
-                if args.with_display:
+                if args.display:
                     roi = util_boxes.bbox2roi((x1, y1, width, height))
                     util.drawScoredRoi(img, roi, name)
 
@@ -117,7 +117,7 @@ def importPascalVoc2012(c, args):
                     c.execute(s, (objectid, x2, y2, name))
                     c.execute(s, (objectid, x2, y1, name))
 
-                    if args.with_display:
+                    if args.display:
                         pts = [[x1, y1], [x1, y2], [x2, y2], [x2, y1]]
                         util.drawScoredPolygon(img, pts, name, score=1)
 
@@ -133,7 +133,7 @@ def importPascalVoc2012(c, args):
                 maskfile = op.relpath(segmentation_path, args.rootdir)
                 c.execute('UPDATE images SET maskfile=? WHERE imagefile=?',
                           (maskfile, imagefile))
-                if args.with_display:
+                if args.display:
                     mask = imreader.maskread(maskfile)
                     img = util.drawMaskAside(img, mask, labelmap=None)
 
@@ -149,15 +149,15 @@ def importPascalVoc2012(c, args):
                 maskfile = op.relpath(segmentation_path, args.rootdir)
                 c.execute('UPDATE images SET maskfile=? WHERE imagefile=?',
                           (maskfile, imagefile))
-                if args.with_display:
+                if args.display:
                     mask = imreader.maskread(maskfile)
                     img = util.drawMaskAside(img, mask, labelmap=None)
 
         # Maybe display.
-        if args.with_display:
+        if args.display:
             img = img[:, :,
                       [2, 1, 0, 3]] if img.shape[2] == 4 else img[:, :, ::-1]
             cv2.imshow('importPascalVoc2012', img)
             if cv2.waitKey(-1) == 27:
-                args.with_display = False
+                args.display = False
                 cv2.destroyWindow('importPascalVoc2012')

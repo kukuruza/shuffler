@@ -73,11 +73,11 @@ def importCityscapesParser(subparsers):
     parser.add_argument('--mask_type',
                         choices=['labelIds', 'instanceIds', 'color'],
                         help='Which mask to import, if any.')
-    parser.add_argument('--with_display', action='store_true')
+    parser.add_argument('--display', action='store_true')
 
 
 def importCityscapes(c, args):
-    if args.with_display:
+    if args.display:
         imreader = backend_media.MediaReader(args.rootdir)
 
     logging.info('Will load splits: %s', args.splits)
@@ -166,7 +166,7 @@ def importCityscapes(c, args):
                                     'UPDATE images SET maskfile=? WHERE imagefile=?',
                                     (maskfile, imagefile))
 
-                if args.with_display:
+                if args.display:
                     img = imreader.imread(imagefile)
                     c.execute(
                         'SELECT objectid,name FROM objects WHERE imagefile=?',
@@ -180,7 +180,7 @@ def importCityscapes(c, args):
                                                      for pt in polygon], name)
                     cv2.imshow('importCityscapes', img[:, :, ::-1])
                     if cv2.waitKey(-1) == 27:
-                        args.with_display = False
+                        args.display = False
                         cv2.destroyWindow('importCityscapes')
 
     # Statistics.

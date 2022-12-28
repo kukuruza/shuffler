@@ -175,12 +175,12 @@ python -m shuffler --rootdir 'test' \
 # Filter objects at image border.
 python -m shuffler --rootdir 'test' \
   --in_db_file 'testdata/cars/micro1_v5.db' \
-  filterObjectsAtBorder --with_display
+  filterObjectsAtBorder --display
 
 # Filter objects that intersect other objects too much.
 python -m shuffler --rootdir 'test' \
   --in_db_file 'testdata/cars/micro1_v5.db' \
-  filterObjectsByIntersection --with_display
+  filterObjectsByIntersection --display
 
 # Filter objects that have certain names.
 python -m shuffler --rootdir 'test' \
@@ -235,11 +235,11 @@ python -m shuffler --rootdir 'test' \
 # Expand bounding boxes
 python -m shuffler --rootdir 'test' \
   --in_db_file 'testdata/cars/micro1_v5.db' \
-  expandBoxes --expand_perc 0.2 --with_display
+  expandBoxes --expand_perc 0.2 --display
 # or to try match the target_ratio
 python -m shuffler --rootdir 'test' \
   --in_db_file 'testdata/cars/micro1_v5.db' \
-  expandBoxes --expand_perc 0.2 --target_ratio 0.75 --with_display
+  expandBoxes --expand_perc 0.2 --target_ratio 0.75 --display
 
 # To move the directory of images or masks
 python -m shuffler --rootdir 'test' \

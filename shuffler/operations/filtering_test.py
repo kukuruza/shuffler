@@ -11,6 +11,85 @@ from shuffler.operations import filtering
 from shuffler.utils import test_utils
 
 
+class Test_filterBadImages_CarsDb(test_utils.Test_carsDb):
+
+    def setUp(self):
+        test_utils.Test_carsDb.setUp(self)
+        # Make a corrupted image file.
+        self.bad_jpg_path = tempfile.NamedTemporaryFile(suffix='.jpg').name
+        with open(self.bad_jpg_path, 'w') as f:
+            f.write('I am a corrupted image file.')
+
+    def tearDown(self):
+        if op.exists(self.bad_jpg_path):
+            os.remove(self.bad_jpg_path)
+        test_utils.Test_carsDb.tearDown(self)
+
+    def test_single_thread_all_ok(self):
+        ''' Tests the single-thread mode when all images are ok. '''
+
+        c = self.conn.cursor()
+        args = argparse.Namespace(
+            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            force_single_thread=True)
+        filtering.filterBadImages(c, args)
+        c.execute('SELECT COUNT(1) FROM images')
+        self.assertEqual(c.fetchone()[0], 3)
+
+    def test_parallel_all_ok(self):
+        ''' Tests the parallel mode when all images are ok. '''
+
+        c = self.conn.cursor()
+        args = argparse.Namespace(
+            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            force_single_thread=False)
+        filtering.filterBadImages(c, args)
+        c.execute('SELECT COUNT(1) FROM images')
+        self.assertEqual(c.fetchone()[0], 3)
+
+    def test_single_thread_missing(self):
+        ''' Tests deleting a missing image in the single-thread mode. '''
+
+        c = self.conn.cursor()
+        c.execute('INSERT INTO images(imagefile) VALUES ("non-existent.jpg")')
+        args = argparse.Namespace(
+            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            force_single_thread=True)
+        filtering.filterBadImages(c, args)
+        c.execute('SELECT COUNT(1) FROM images')
+        self.assertEqual(c.fetchone()[0], 3)
+
+    def test_single_thread_corrupted(self):
+        ''' Tests deleting a corrupted image in the single-thread mode. '''
+
+        # Add the corrrupted image to the db.
+        c = self.conn.cursor()
+        c.execute('INSERT INTO images(imagefile) VALUES (?)', (op.relpath(
+            self.bad_jpg_path, test_utils.Test_carsDb.CARS_DB_ROOTDIR), ))
+
+        args = argparse.Namespace(
+            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            force_single_thread=True)
+        filtering.filterBadImages(c, args)
+        c.execute('SELECT COUNT(1) FROM images')
+        self.assertEqual(c.fetchone()[0], 3)
+
+    def test_parallel_corrupted(self):
+        ''' Tests deleting a corrupted image in the parallel mode. '''
+
+        # Add the corrrupted image to the db.
+        c = self.conn.cursor()
+        c.execute('INSERT INTO images(imagefile) VALUES (?)', (op.relpath(
+            self.bad_jpg_path, test_utils.Test_carsDb.CARS_DB_ROOTDIR), ))
+
+        args = argparse.Namespace(
+            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            force_single_thread=False)
+        filtering.filterBadImages(c, args)
+        c.execute('SELECT COUNT(1) FROM images')
+        self.assertEqual(c.fetchone()[0], 3)
+
+
 class Test_filterObjectsInsideCertainObjects_SyntheticDb(unittest.TestCase):
 
     # TODO: Add tests with invert=True.
@@ -205,85 +284,6 @@ class Test_filterObjectsInsideCertainObjects_SyntheticDb(unittest.TestCase):
         c.execute('SELECT objectid FROM objects')
         object_ids = c.fetchall()
         self.assertEqual(object_ids, [(1, ), (2, )])
-
-
-class Test_filterBadImages_CarsDb(test_utils.Test_carsDb):
-
-    def setUp(self):
-        test_utils.Test_carsDb.setUp(self)
-        # Make a corrupted image file.
-        self.bad_jpg_path = tempfile.NamedTemporaryFile(suffix='.jpg').name
-        with open(self.bad_jpg_path, 'w') as f:
-            f.write('I am a corrupted image file.')
-
-    def tearDown(self):
-        if op.exists(self.bad_jpg_path):
-            os.remove(self.bad_jpg_path)
-        test_utils.Test_carsDb.tearDown(self)
-
-    def test_single_thread_all_ok(self):
-        ''' Tests the single-thread mode when all images are ok. '''
-
-        c = self.conn.cursor()
-        args = argparse.Namespace(
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
-            force_single_thread=True)
-        filtering.filterBadImages(c, args)
-        c.execute('SELECT COUNT(1) FROM images')
-        self.assertEqual(c.fetchone()[0], 3)
-
-    def test_parallel_all_ok(self):
-        ''' Tests the parallel mode when all images are ok. '''
-
-        c = self.conn.cursor()
-        args = argparse.Namespace(
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
-            force_single_thread=False)
-        filtering.filterBadImages(c, args)
-        c.execute('SELECT COUNT(1) FROM images')
-        self.assertEqual(c.fetchone()[0], 3)
-
-    def test_single_thread_missing(self):
-        ''' Tests deleting a missing image in the single-thread mode. '''
-
-        c = self.conn.cursor()
-        c.execute('INSERT INTO images(imagefile) VALUES ("non-existent.jpg")')
-        args = argparse.Namespace(
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
-            force_single_thread=True)
-        filtering.filterBadImages(c, args)
-        c.execute('SELECT COUNT(1) FROM images')
-        self.assertEqual(c.fetchone()[0], 3)
-
-    def test_single_thread_corrupted(self):
-        ''' Tests deleting a corrupted image in the single-thread mode. '''
-
-        # Add the corrrupted image to the db.
-        c = self.conn.cursor()
-        c.execute('INSERT INTO images(imagefile) VALUES (?)', (op.relpath(
-            self.bad_jpg_path, test_utils.Test_carsDb.CARS_DB_ROOTDIR), ))
-
-        args = argparse.Namespace(
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
-            force_single_thread=True)
-        filtering.filterBadImages(c, args)
-        c.execute('SELECT COUNT(1) FROM images')
-        self.assertEqual(c.fetchone()[0], 3)
-
-    def test_parallel_corrupted(self):
-        ''' Tests deleting a corrupted image in the parallel mode. '''
-
-        # Add the corrrupted image to the db.
-        c = self.conn.cursor()
-        c.execute('INSERT INTO images(imagefile) VALUES (?)', (op.relpath(
-            self.bad_jpg_path, test_utils.Test_carsDb.CARS_DB_ROOTDIR), ))
-
-        args = argparse.Namespace(
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
-            force_single_thread=False)
-        filtering.filterBadImages(c, args)
-        c.execute('SELECT COUNT(1) FROM images')
-        self.assertEqual(c.fetchone()[0], 3)
 
 
 if __name__ == '__main__':
