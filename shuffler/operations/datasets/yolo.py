@@ -3,7 +3,6 @@ import logging
 import shutil
 import progressbar
 
-from shuffler.backend import backend_db
 from shuffler.utils import util
 
 
@@ -70,6 +69,9 @@ def _exportImage(c, imagefile, imwidth, imheight, classes):
         yn = (y1 + height / 2.) / imheight
         wn = width / imwidth
         hn = height / imheight
+
+        logging.debug('x1: %f, width: %f, imwidth: %f, xn: %f, wn: %f', x1,
+                      width, imwidth, xn, wn)
 
         line = (f'{label_id} {_truncate(xn, 7)} {_truncate(yn, 7)} ' +
                 f'{_truncate(wn, 7)} {_truncate(hn, 7)}\n')
@@ -163,7 +165,7 @@ def exportYolo(c, args):
             lines = _exportImage(c, imagefile, imwidth, imheight, args.classes)
 
         # Write to labels file.
-        if len(lines):
+        if len(lines) > 0:
             labels_path = util.makeExportedImageName(
                 labels_dir, imagefile, args.dirtree_level_for_name,
                 args.fix_invalid_image_names)
