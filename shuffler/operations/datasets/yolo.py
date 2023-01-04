@@ -4,6 +4,7 @@ import shutil
 import progressbar
 
 from shuffler.utils import util
+from shuffler.utils import parser as parser_utils
 
 
 def add_parsers(subparsers):
@@ -46,7 +47,7 @@ def exportYoloParser(subparsers):
         help=
         'Save in the format of https://github.com/XinzeLee/PolygonObjectDetection'
     )
-    util.addParserArguments_MakeExportedImageName(parser)
+    parser_utils.addExportedImageNameArguments(parser)
 
 
 # Truncates numbers to N decimals

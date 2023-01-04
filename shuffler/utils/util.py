@@ -456,22 +456,6 @@ def getIntersectingObjects(objects1, objects2, IoU_threshold, same_id_ok=True):
     return pairs_to_merge
 
 
-def addParserArguments_MakeExportedImageName(parser):
-    parser.add_argument(
-        '--dirtree_level_for_name',
-        type=int,
-        default=1,
-        help='How many levels of the directory structure to use as a filename. '
-        'E.g. imagefile "my/fancy/image.jpg" would result in output name '
-        '"image.jpg" when --dirtree_level_for_name=1, '
-        '"fancy_image.jpg" when =2, and my_fancy_image.jpg with >=3. '
-        'Useful when images in different dirs have the same filename.')
-    parser.add_argument(
-        '--fix_invalid_image_names',
-        action='store_true',
-        help='Replace invalid symbols with "_" in image names.')
-
-
 def makeExportedImageName(tgt_dir,
                           imagefile,
                           dirtree_level_for_name=1,

@@ -12,6 +12,7 @@ from shuffler.backend import backend_db
 from shuffler.backend import backend_media
 from shuffler.utils import util
 from shuffler.utils import util_boxes
+from shuffler.utils import parser as parser_utils
 
 
 def add_parsers(subparsers):
@@ -32,30 +33,25 @@ def filterImagesViaAnotherDbParser(subparsers):
         'filterImagesViaAnotherDb',
         description=
         'Remove images from the db that are / are not in the reference db.')
-    db_group = parser.add_mutually_exclusive_group()
-    db_group.add_argument(
-        '--keep_db_file',
-        help='If specified, will KEEP all images that are in keep_db_file.')
-    db_group.add_argument(
-        '--delete_db_file',
-        help='If specified, will DELETE all images that are in keep_db_file.')
+    parser.set_defaults(func=filterImagesViaAnotherDb)
+    parser.add_argument(
+        '--ref_db_file',
+        help=
+        'Imagefile entries from this .db file will be kept / deleted from the open db.'
+    )
     parser.add_argument(
         '--use_basename',
         action='store_true',
         help='If specified, compare files based on their basename, not paths.')
-    parser.set_defaults(func=filterImagesViaAnotherDb)
+    parser_utils.addKeepOrDeleteArguments(parser)
 
 
 def filterImagesViaAnotherDb(c, args):
-    if args.keep_db_file is None and args.delete_db_file is None:
-        raise ValueError(
-            'Either "keep_db_file" or "delete_db_file" must be specified.')
-
     # Get all the imagefiles from the reference db.
-    ref_file = args.keep_db_file if args.keep_db_file else args.delete_db_file
-    if not op.exists(ref_file):
-        raise FileNotFoundError('Reference db does not exist: %s' % ref_file)
-    conn_ref = sqlite3.connect('file:%s?mode=ro' % ref_file, uri=True)
+    if not op.exists(args.ref_file):
+        raise FileNotFoundError('Reference db does not exist: %s' %
+                                args.ref_file)
+    conn_ref = sqlite3.connect('file:%s?mode=ro' % args.ref_file, uri=True)
     c_ref = conn_ref.cursor()
     c_ref.execute('SELECT imagefile FROM images')
     imagefiles_ref = [imagefile for imagefile, in c_ref.fetchall()]
@@ -72,16 +68,14 @@ def filterImagesViaAnotherDb(c, args):
         imagefiles_ref = [op.basename(x) for x in imagefiles_ref]
 
     # imagefiles_del are either must be or must not be in the other database.
-    if args.keep_db_file is not None:
+    if args.keep:
         imagefiles_del = [
             x for x in imagefiles if maybe_basename(x) not in imagefiles_ref
         ]
-    elif args.delete_db_file is not None:
+    else:
         imagefiles_del = [
             x for x in imagefiles if maybe_basename(x) in imagefiles_ref
         ]
-    else:
-        assert 0, "We cant be here."
     logging.info('Will delete %d images', len(imagefiles_del))
 
     # Delete.
@@ -436,30 +430,24 @@ def filterObjectsByNameParser(subparsers):
         'filterObjectsByName',
         description=
         'Delete objects with specific names or all but with specific names.')
-    group = parser.add_mutually_exclusive_group()
-    group.add_argument(
-        '--keep_names',
-        nargs='+',
-        help='A list of object names to keep. Others will be deleted.')
-    group.add_argument('--delete_names',
-                       nargs='+',
-                       help='A list of object names to delete.')
     parser.set_defaults(func=filterObjectsByName)
+    parser.add_argument('--names',
+                        nargs='+',
+                        help='A list of object names to keep or delete.')
+    parser_utils.addKeepOrDeleteArguments(parser)
 
 
 def filterObjectsByName(c, args):
-    if args.keep_names is not None:
-        keep_names = ','.join(['"%s"' % x for x in args.keep_names])
+    if args.keep:
+        keep_names = ','.join(['"%s"' % x for x in args.names])
         logging.info('Will keep names: %s', keep_names)
         c.execute('SELECT objectid FROM objects WHERE name NOT IN (%s)',
                   keep_names)
-    elif args.delete_names is not None:
-        delete_names = ','.join(['"%s"' % x for x in args.delete_names])
+    else:
+        delete_names = ','.join(['"%s"' % x for x in args.names])
         logging.info('Will delete names: %s', delete_names)
         c.execute('SELECT objectid FROM objects WHERE name IN (%s)',
                   delete_names)
-    else:
-        raise ValueError('"keep_names" or "delete_names" must be specified.')
     for objectid, in progressbar(c.fetchall()):
         backend_db.deleteObject(c, objectid)
 
@@ -500,12 +488,7 @@ def filterObjectsInsideCertainObjectsParser(subparsers):
         default='TRUE',
         help='SQL "where" clause that queries for "objectid" to crop. '
         'Queries table "objects". Example: \'objects.name == "car"\'')
-    parser.add_argument(
-        '--invert',
-        action='store_true',
-        help=
-        'Use the INVERTED condition: delete objects OUTSIDE ALL shadow objects.'
-    )
+    parser_utils.addKeepOrDeleteArguments(parser)
 
 
 def filterObjectsInsideCertainObjects(c, args):
@@ -588,7 +571,7 @@ def filterObjectsInsideCertainObjects(c, args):
                     is_inside_any = True
                     break  # One is enough.
 
-            if is_inside_any != args.invert:
+            if is_inside_any != args.keep:
                 backend_db.deleteObject(c, objectid)
                 count_deleted += 1
 

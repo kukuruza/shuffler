@@ -11,6 +11,7 @@ from datetime import datetime
 from shuffler.backend import backend_db
 from shuffler.backend import backend_media
 from shuffler.utils import util
+from shuffler.utils import parser as parser_utils
 
 
 def add_parsers(subparsers):
@@ -229,7 +230,7 @@ def exportLabelmeParser(subparsers):
         '--overwrite',
         action='store_true',
         help='overwrite image and/or annotation files if they exist.')
-    util.addParserArguments_MakeExportedImageName(parser)
+    parser_utils.addExportedImageNameArguments(parser)
 
 
 def exportLabelme(c, args):
