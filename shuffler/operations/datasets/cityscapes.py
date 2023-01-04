@@ -10,7 +10,7 @@ from pprint import pformat
 
 from shuffler.backend import backend_db
 from shuffler.backend import backend_media
-from shuffler.utils import util
+from shuffler.utils import general as general_utils
 
 
 def add_parsers(subparsers):
@@ -176,8 +176,9 @@ def importCityscapes(c, args):
                         c.execute('SELECT x,y FROM polygons WHERE objectid=?',
                                   (objectid, ))
                         polygon = c.fetchall()
-                        util.drawScoredPolygon(img, [(int(pt[0]), int(pt[1]))
-                                                     for pt in polygon], name)
+                        general_utils.drawScoredPolygon(
+                            img, [(int(pt[0]), int(pt[1])) for pt in polygon],
+                            name)
                     cv2.imshow('importCityscapes', img[:, :, ::-1])
                     if cv2.waitKey(-1) == 27:
                         args.display = False

@@ -6,7 +6,7 @@ import sqlite3
 import progressbar
 from itertools import groupby
 
-from shuffler.utils import util
+from shuffler.utils import general as general_utils
 from shuffler.backend import backend_db
 from shuffler import operations
 
@@ -101,7 +101,7 @@ def connect(in_db_path=None, out_db_path=None):
         # Load db from in_db_path and save as out_db_path.
         logging.info('will copy existing database from %s to %s.', in_db_path,
                      out_db_path)
-        util.copyWithBackup(in_db_path, out_db_path)
+        general_utils.copyWithBackup(in_db_path, out_db_path)
         conn = sqlite3.connect(out_db_path)
 
     elif in_db_path is not None and out_db_path is None:

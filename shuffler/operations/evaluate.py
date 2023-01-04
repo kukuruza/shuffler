@@ -11,7 +11,7 @@ import PIL
 
 from shuffler.backend import backend_db
 from shuffler.backend import backend_media
-from shuffler.utils import util
+from shuffler.utils import general as general_utils
 
 
 def add_parsers(subparsers):
@@ -152,7 +152,7 @@ def _evaluateDetectionForClassPascal(c, c_gt, name, args):
 
 def _writeCurveValues(out_dir, X, Y, metrics_name, name, header):
     if name is not None:
-        name = util.validateFileName(name)
+        name = general_utils.validateFileName(name)
         stem = '%s-%s' % (metrics_name, name)
     else:
         stem = metrics_name
@@ -599,10 +599,10 @@ def evaluateSegmentationIoU(c, args):
     for imagefile, maskfile_pr, maskfile_gt in progressbar(entries):
 
         # Load masks and bring them to comparable form.
-        mask_gt = util.applyLabelMappingToMask(imreader.maskread(maskfile_gt),
-                                               labelmap_gt)
-        mask_pr = util.applyLabelMappingToMask(imreader.maskread(maskfile_pr),
-                                               labelmap_pr)
+        mask_gt = general_utils.applyLabelMappingToMask(
+            imreader.maskread(maskfile_gt), labelmap_gt)
+        mask_pr = general_utils.applyLabelMappingToMask(
+            imreader.maskread(maskfile_pr), labelmap_pr)
         mask_pr = cv2.resize(mask_pr, (mask_gt.shape[1], mask_gt.shape[0]),
                              interpolation=cv2.INTER_NEAREST)
 

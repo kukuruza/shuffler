@@ -5,7 +5,7 @@ import tempfile
 import unittest
 import numpy as np
 
-from shuffler.utils import test_utils
+from shuffler.utils import testing as testing_utils
 from shuffler.interface.pytorch import datasets
 
 
@@ -18,11 +18,12 @@ class TestHelperFunctions(unittest.TestCase):
         self.assertTrue('image' in sample)
 
 
-class TestImageDataset(test_utils.Test_carsDb):
+class TestImageDataset(testing_utils.Test_carsDb):
 
     def setUp(self):
         self.tmp_in_db_file = tempfile.NamedTemporaryFile().name
-        shutil.copy(test_utils.Test_carsDb.CARS_DB_PATH, self.tmp_in_db_file)
+        shutil.copy(testing_utils.Test_carsDb.CARS_DB_PATH,
+                    self.tmp_in_db_file)
 
     def tearDown(self):
         if os.path.exists(self.tmp_in_db_file):
@@ -30,8 +31,8 @@ class TestImageDataset(test_utils.Test_carsDb):
 
     def test_general(self):
         dataset = datasets.ImageDataset(
-            test_utils.Test_carsDb.CARS_DB_PATH,
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR)
+            testing_utils.Test_carsDb.CARS_DB_PATH,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR)
         self.assertEqual(len(dataset), 3)  # 3 images.
         sample = dataset[0]
         self.assertTrue(isinstance(sample, dict))
@@ -56,8 +57,8 @@ class TestImageDataset(test_utils.Test_carsDb):
 
     def test_used_keys(self):
         dataset = datasets.ImageDataset(
-            test_utils.Test_carsDb.CARS_DB_PATH,
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            testing_utils.Test_carsDb.CARS_DB_PATH,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             used_keys=['mask', 'score'])
         self.assertEqual(len(dataset), 3)  # 3 images.
         sample = dataset[0]
@@ -68,35 +69,36 @@ class TestImageDataset(test_utils.Test_carsDb):
 
     def test_where_image(self):
         dataset = datasets.ImageDataset(
-            test_utils.Test_carsDb.CARS_DB_PATH,
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            testing_utils.Test_carsDb.CARS_DB_PATH,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             where_image='imagefile == "images/000000.jpg"')
         self.assertEqual(len(dataset), 1)  # 1 image.
 
     def test_where_object(self):
         # All objects should be "cars".
         dataset = datasets.ImageDataset(
-            test_utils.Test_carsDb.CARS_DB_PATH,
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            testing_utils.Test_carsDb.CARS_DB_PATH,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             where_object='name == "car"')
         sample = dataset[0]
         self.assertEqual(len(sample['objects']), 1)  # 1 car in the 1st image.
 
         # All objects should be "bus".
         dataset = datasets.ImageDataset(
-            test_utils.Test_carsDb.CARS_DB_PATH,
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            testing_utils.Test_carsDb.CARS_DB_PATH,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             where_object='name == "bus"')
         sample = dataset[0]
         self.assertEqual(len(sample['objects']),
                          0)  # No buses in the 1st image.
 
 
-class TestObjectDataset(test_utils.Test_carsDb):
+class TestObjectDataset(testing_utils.Test_carsDb):
 
     def setUp(self):
         self.tmp_in_db_file = tempfile.NamedTemporaryFile().name
-        shutil.copy(test_utils.Test_carsDb.CARS_DB_PATH, self.tmp_in_db_file)
+        shutil.copy(testing_utils.Test_carsDb.CARS_DB_PATH,
+                    self.tmp_in_db_file)
 
     def tearDown(self):
         if os.path.exists(self.tmp_in_db_file):
@@ -105,7 +107,7 @@ class TestObjectDataset(test_utils.Test_carsDb):
     def test_general(self):
         dataset = datasets.ObjectDataset(
             self.tmp_in_db_file,
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             mode='w')
         self.assertEqual(len(dataset), 3)  # 3 objects.
         sample = dataset[0]
@@ -128,7 +130,7 @@ class TestObjectDataset(test_utils.Test_carsDb):
     def test_general_preload(self):
         dataset = datasets.ObjectDataset(
             self.tmp_in_db_file,
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             preload_samples=True)
         self.assertEqual(len(dataset), 3)  # 3 objects.
         sample = dataset[0]
@@ -142,8 +144,8 @@ class TestObjectDataset(test_utils.Test_carsDb):
 
     def test_used_keys(self):
         dataset = datasets.ObjectDataset(
-            test_utils.Test_carsDb.CARS_DB_PATH,
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            testing_utils.Test_carsDb.CARS_DB_PATH,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             used_keys=['mask', 'score'])
         self.assertEqual(len(dataset), 3)  # 3 objects.
         sample = dataset[0]
@@ -155,8 +157,8 @@ class TestObjectDataset(test_utils.Test_carsDb):
     def test_where_object(self):
         # All objects should be "cars".
         dataset = datasets.ObjectDataset(
-            test_utils.Test_carsDb.CARS_DB_PATH,
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            testing_utils.Test_carsDb.CARS_DB_PATH,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             where_object='name == "car"')
         # 2 cars out of 3 objects in the dataset.
         self.assertEqual(len(dataset), 2)

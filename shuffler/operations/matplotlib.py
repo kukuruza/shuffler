@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.patheffects as path_effects
 
-from shuffler.utils import util
+from shuffler.utils import general as general_utils
 from shuffler.backend import backend_db
 from shuffler.backend import backend_media
 
@@ -74,7 +74,7 @@ def drawScoredPolygon(ax, polygon, label=None, score=None):
     ymin = polygon[:, 1].min()
     if label is not None:
         # if isinstance(label, bytes):
-        label = util.maybeDecode(label)
+        label = general_utils.maybeDecode(label)
         if label:
             text = ax.text(x=xmin, y=ymin - 5, s=label, c='white')
             text.set_path_effects([
@@ -169,12 +169,14 @@ def displayImagesPlt(c, args):
         if maskfile is not None:
             mask = imreader.maskread(maskfile)
             if args.mask_aside:
-                image = util.drawMaskAside(image, mask, labelmap=labelmap)
+                image = general_utils.drawMaskAside(image,
+                                                    mask,
+                                                    labelmap=labelmap)
             elif args.mask_alpha is not None:
-                image = util.drawMaskOnImage(image,
-                                             mask,
-                                             alpha=args.mask_alpha,
-                                             labelmap=labelmap)
+                image = general_utils.drawMaskOnImage(image,
+                                                      mask,
+                                                      alpha=args.mask_alpha,
+                                                      labelmap=labelmap)
         else:
             logging.info('No mask for this image.')
 

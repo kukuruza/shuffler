@@ -7,7 +7,7 @@ from progressbar import progressbar
 from datetime import datetime
 
 from shuffler.backend import backend_db
-from shuffler.utils import util
+from shuffler.utils import general as general_utils
 
 
 def add_parsers(subparsers):
@@ -193,7 +193,8 @@ def exportCoco(c, args):
         objectid = backend_db.objectField(object_entry, 'objectid')
         name = backend_db.objectField(object_entry, 'name')
         imagefile = backend_db.objectField(object_entry, 'imagefile')
-        util.polygons2bboxes(c, objectid)  # Get a box if there wasn't one.
+        general_utils.polygons2bboxes(
+            c, objectid)  # Get a box if there wasn't one.
         bbox = backend_db.objectField(object_entry, 'bbox')
         imageid = imageids[imagefile]
 
@@ -217,7 +218,7 @@ def exportCoco(c, args):
             polygons_coco.append(polygon_coco)
 
         # Get area.
-        mask = util.polygons2mask(c, objectid)
+        mask = general_utils.polygons2mask(c, objectid)
         area = np.count_nonzero(mask)
 
         annotations.append({

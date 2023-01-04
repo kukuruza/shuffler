@@ -7,10 +7,10 @@ import progressbar
 import nose
 
 from shuffler.backend import backend_db
-from shuffler.utils import test_utils
+from shuffler.utils import testing as testing_utils
 
 
-class TestFieldGetters_Cars(test_utils.Test_carsDb):
+class TestFieldGetters_Cars(testing_utils.Test_carsDb):
 
     def test_objectField(self):
         c = self.conn.cursor()
@@ -124,7 +124,7 @@ class TestFieldGetters_Cars(test_utils.Test_carsDb):
         ])
 
 
-class TestDeleteImage_Cars(test_utils.Test_carsDb):
+class TestDeleteImage_Cars(testing_utils.Test_carsDb):
 
     def test_delete_imagefile_nonexistent(self):
         c = self.conn.cursor()
@@ -178,7 +178,7 @@ class TestDeleteImage_Cars(test_utils.Test_carsDb):
         self.assertEqual(c.fetchall(), [])
 
 
-class TestDeleteObject_Cars(test_utils.Test_carsDb):
+class TestDeleteObject_Cars(testing_utils.Test_carsDb):
 
     def test_deleteObject0(self):
         c = self.conn.cursor()
@@ -220,7 +220,7 @@ class TestDeleteObject_Cars(test_utils.Test_carsDb):
         self.assertEqual(c.fetchall(), [])
 
 
-class Test_updateObjectTransform_emptyDb(test_utils.Test_emptyDb):
+class Test_updateObjectTransform_emptyDb(testing_utils.Test_emptyDb):
 
     def test_noPreviousTransform(self):
         c = self.conn.cursor()
@@ -273,7 +273,7 @@ class Test_updateObjectTransform_emptyDb(test_utils.Test_emptyDb):
                                       transform2)
 
 
-class TestUpgradeV4toV5_Cars(test_utils.Test_emptyDb):
+class TestUpgradeV4toV5_Cars(testing_utils.Test_emptyDb):
 
     CARS_DB_V4_PATH = 'testdata/cars/micro1_v5.db'
     CARS_DB_V5_PATH = 'testdata/cars/micro1_v5.db'

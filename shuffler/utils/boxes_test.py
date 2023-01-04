@@ -3,93 +3,93 @@ import unittest
 import numpy as np
 import nose
 
-from shuffler.utils import util_boxes
+from shuffler.utils import boxes as boxes_utils
 
 
 class Test_Bbox2roi(unittest.TestCase):
 
     def test_normal(self):
-        self.assertEqual(util_boxes.bbox2roi([1, 2, 3, 4]), [2, 1, 6, 4])
-        self.assertEqual(util_boxes.bbox2roi((1, 2, 3, 4)), [2, 1, 6, 4])
+        self.assertEqual(boxes_utils.bbox2roi([1, 2, 3, 4]), [2, 1, 6, 4])
+        self.assertEqual(boxes_utils.bbox2roi((1, 2, 3, 4)), [2, 1, 6, 4])
 
     def test_zeroDims(self):
-        self.assertEqual(util_boxes.bbox2roi([1, 2, 0, 0]), [2, 1, 2, 1])
+        self.assertEqual(boxes_utils.bbox2roi([1, 2, 0, 0]), [2, 1, 2, 1])
 
     def test_notSequence(self):
         with self.assertRaises(TypeError):
-            util_boxes.bbox2roi(42)
+            boxes_utils.bbox2roi(42)
 
     def test_lessThanFourNumbers(self):
         with self.assertRaises(ValueError):
-            util_boxes.bbox2roi([42])
+            boxes_utils.bbox2roi([42])
 
     def test_moreThanFourNumbers(self):
         with self.assertRaises(ValueError):
-            util_boxes.bbox2roi([42, 42, 42, 42, 42])
+            boxes_utils.bbox2roi([42, 42, 42, 42, 42])
 
     def test_notNumbers(self):
         with self.assertRaises(TypeError):
-            util_boxes.bbox2roi(['a', 'b', 'c', 'd'])
+            boxes_utils.bbox2roi(['a', 'b', 'c', 'd'])
 
     def test_negativeDims(self):
         with self.assertRaises(ValueError):
-            util_boxes.bbox2roi([1, 2, 3, -1])
+            boxes_utils.bbox2roi([1, 2, 3, -1])
 
 
 class Test_Roi2Bbox(unittest.TestCase):
 
     def test_normal(self):
-        self.assertEqual(util_boxes.roi2bbox([2, 1, 6, 4]), [1, 2, 3, 4])
-        self.assertEqual(util_boxes.roi2bbox((2, 1, 6, 4)), [1, 2, 3, 4])
+        self.assertEqual(boxes_utils.roi2bbox([2, 1, 6, 4]), [1, 2, 3, 4])
+        self.assertEqual(boxes_utils.roi2bbox((2, 1, 6, 4)), [1, 2, 3, 4])
 
     def test_zeroDims(self):
-        self.assertEqual(util_boxes.roi2bbox([2, 1, 2, 1]), [1, 2, 0, 0])
+        self.assertEqual(boxes_utils.roi2bbox([2, 1, 2, 1]), [1, 2, 0, 0])
 
     def test_notSequence(self):
         with self.assertRaises(TypeError):
-            util_boxes.roi2bbox(42)
+            boxes_utils.roi2bbox(42)
 
     def test_lessThanFourNumbers(self):
         with self.assertRaises(ValueError):
-            util_boxes.roi2bbox([42])
+            boxes_utils.roi2bbox([42])
 
     def test_moreThanFourNumbers(self):
         with self.assertRaises(ValueError):
-            util_boxes.roi2bbox([42, 42, 42, 42, 42])
+            boxes_utils.roi2bbox([42, 42, 42, 42, 42])
 
     def test_notNumbers(self):
         with self.assertRaises(TypeError):
-            util_boxes.roi2bbox(['a', 'b', 'c', 'd'])
+            boxes_utils.roi2bbox(['a', 'b', 'c', 'd'])
 
     def test_negativeDims(self):
         with self.assertRaises(ValueError):
-            util_boxes.roi2bbox([2, 1, 1, 2])
+            boxes_utils.roi2bbox([2, 1, 1, 2])
 
 
 class Test_getIoU(unittest.TestCase):
 
     def test_identical(self):
         # Integer input.
-        self.assertEqual(util_boxes.getIoU([1, 2, 3, 4], [1, 2, 3, 4]), 1.)
+        self.assertEqual(boxes_utils.getIoU([1, 2, 3, 4], [1, 2, 3, 4]), 1.)
         # Float input.
         self.assertEqual(
-            util_boxes.getIoU([10., 20., 30., 40.], [10., 20., 30., 40.]), 1.)
+            boxes_utils.getIoU([10., 20., 30., 40.], [10., 20., 30., 40.]), 1.)
 
     def test_one_inside_the_other(self):
         # One is 50% width of the other and is completely inside.
-        self.assertEqual(util_boxes.getIoU([1, 2, 3, 4], [2, 2, 3, 4]), 0.50)
+        self.assertEqual(boxes_utils.getIoU([1, 2, 3, 4], [2, 2, 3, 4]), 0.50)
 
     def test_partial_overlap(self):
         # Overlap 33.3% perc on Y axis, identical area.
-        self.assertEqual(util_boxes.getIoU([1, 2, 4, 4], [3, 2, 6, 4]), 0.20)
+        self.assertEqual(boxes_utils.getIoU([1, 2, 4, 4], [3, 2, 6, 4]), 0.20)
         # Overlap 33.3% perc on X axis, identical area.
-        self.assertEqual(util_boxes.getIoU([2, 1, 4, 4], [2, 3, 4, 6]), 0.20)
+        self.assertEqual(boxes_utils.getIoU([2, 1, 4, 4], [2, 3, 4, 6]), 0.20)
 
     def test_no_overlap(self):
         # No overlap on Y axis, identical area.
-        self.assertEqual(util_boxes.getIoU([1, 2, 3, 4], [3, 2, 5, 4]), 0.0)
+        self.assertEqual(boxes_utils.getIoU([1, 2, 3, 4], [3, 2, 5, 4]), 0.0)
         # No overlap on X axis, identical area.
-        self.assertEqual(util_boxes.getIoU([2, 1, 4, 3], [2, 3, 4, 5]), 0.0)
+        self.assertEqual(boxes_utils.getIoU([2, 1, 4, 3], [2, 3, 4, 5]), 0.0)
 
 
 class TestExpandRoi(unittest.TestCase):
@@ -97,25 +97,25 @@ class TestExpandRoi(unittest.TestCase):
     def test_identity(self):
         roi = [0.5, 0.5, 100.5, 200.5]
         np.testing.assert_array_equal(
-            np.array(roi), np.array(util_boxes.expandRoi(roi, (0, 0))))
+            np.array(roi), np.array(boxes_utils.expandRoi(roi, (0, 0))))
 
     def test_xIsGreater(self):
         roi = [0.5, 0.5, 100.5, 200.5]
         perc = (0.5, 1)
         expected = [-24.5, -99.5, 125.5, 300.5]
         np.testing.assert_array_equal(
-            np.array(expected), np.array(util_boxes.expandRoi(roi, perc)))
+            np.array(expected), np.array(boxes_utils.expandRoi(roi, perc)))
 
     def test_yIsGreater(self):
         roi = [0.5, 0.5, 200.5, 100.5]
         perc = (1, 0.5)
         expected = [-99.5, -24.5, 300.5, 125.5]
         np.testing.assert_array_equal(
-            np.array(expected), np.array(util_boxes.expandRoi(roi, perc)))
+            np.array(expected), np.array(boxes_utils.expandRoi(roi, perc)))
 
     def test_invalid(self):
         with self.assertRaises(ValueError):
-            util_boxes.expandRoi([0.5, 0.5, 100.5, 200.5], (-0.8, 0))
+            boxes_utils.expandRoi([0.5, 0.5, 100.5, 200.5], (-0.8, 0))
 
 
 class TestExpandRoiUpToRatio(unittest.TestCase):
@@ -125,14 +125,14 @@ class TestExpandRoiUpToRatio(unittest.TestCase):
         ratio = 1.
         expected = roi
         np.testing.assert_array_equal(
-            expected, np.array(util_boxes.expandRoiUpToRatio(roi, ratio)))
+            expected, np.array(boxes_utils.expandRoiUpToRatio(roi, ratio)))
 
     def test_equal(self):
         roi = [0.5, 0.5, 100.5, 200.5]
         ratio = 1.
         expected = [-49.5, 0.5, 150.5, 200.5]
         np.testing.assert_array_equal(
-            expected, np.array(util_boxes.expandRoiUpToRatio(roi, ratio)))
+            expected, np.array(boxes_utils.expandRoiUpToRatio(roi, ratio)))
 
 
 class TestCropPatch(unittest.TestCase):
@@ -201,8 +201,8 @@ class TestCropPatch(unittest.TestCase):
     def test_edgeOriginal_identity(self):
         roi = [0, 0, self.HEIGHT, self.WIDTH]
         # Compare patches.
-        actual_patch, transform = util_boxes.cropPatch(self.image, roi,
-                                                       'original', None, None)
+        actual_patch, transform = boxes_utils.cropPatch(
+            self.image, roi, 'original', None, None)
         expected_patch = TestCropPatch.makeGradientImage(
             self.HEIGHT, self.WIDTH)
         np.testing.assert_array_equal(actual_patch, expected_patch)
@@ -216,8 +216,8 @@ class TestCropPatch(unittest.TestCase):
     def test_edgeOriginal_outOfBoundary1(self):
         roi = [-10, 30, 10, 70]
         # Compare patches.
-        actual_patch, transform = util_boxes.cropPatch(self.image, roi,
-                                                       'original', None, None)
+        actual_patch, transform = boxes_utils.cropPatch(
+            self.image, roi, 'original', None, None)
         expected_patch = TestCropPatch.makeGradientImage(height=10,
                                                          width=40,
                                                          min_y=0,
@@ -233,8 +233,8 @@ class TestCropPatch(unittest.TestCase):
     def test_edgeOriginal_outOfBoundary2(self):
         roi = [40, -10, 60, 30]
         # Compare patches.
-        actual_patch, transform = util_boxes.cropPatch(self.image, roi,
-                                                       'original', None, None)
+        actual_patch, transform = boxes_utils.cropPatch(
+            self.image, roi, 'original', None, None)
         expected_patch = TestCropPatch.makeGradientImage(height=20,
                                                          width=30,
                                                          min_y=40,
@@ -250,8 +250,8 @@ class TestCropPatch(unittest.TestCase):
     def test_edgeOriginal_outOfBoundary3(self):
         roi = [90, 30, 110, 70]
         # Compare patches.
-        actual_patch, transform = util_boxes.cropPatch(self.image, roi,
-                                                       'original', None, None)
+        actual_patch, transform = boxes_utils.cropPatch(
+            self.image, roi, 'original', None, None)
         expected_patch = TestCropPatch.makeGradientImage(height=10,
                                                          width=40,
                                                          min_y=90,
@@ -267,8 +267,8 @@ class TestCropPatch(unittest.TestCase):
     def test_edgeOriginal_outOfBoundary4(self):
         roi = [40, 170, 60, 210]
         # Compare patches.
-        actual_patch, transform = util_boxes.cropPatch(self.image, roi,
-                                                       'original', None, None)
+        actual_patch, transform = boxes_utils.cropPatch(
+            self.image, roi, 'original', None, None)
         expected_patch = TestCropPatch.makeGradientImage(height=20,
                                                          width=30,
                                                          min_y=40,
@@ -284,8 +284,8 @@ class TestCropPatch(unittest.TestCase):
     def test_edgeOriginal(self):
         roi = [40, 30, 60, 70]
         # Compare patches.
-        actual_patch, transform = util_boxes.cropPatch(self.image, roi,
-                                                       'original', None, None)
+        actual_patch, transform = boxes_utils.cropPatch(
+            self.image, roi, 'original', None, None)
         expected_patch = TestCropPatch.makeGradientImage(height=20,
                                                          width=40,
                                                          min_y=40,
@@ -299,21 +299,21 @@ class TestCropPatch(unittest.TestCase):
     def test_edgeConstant_targetSizeNone(self):
         roi = [40, 30, 60, 70]
         with self.assertRaises(RuntimeError):
-            util_boxes.cropPatch(self.image, roi, 'constant', None, None)
+            boxes_utils.cropPatch(self.image, roi, 'constant', None, None)
 
     def test_edgeConstant_lessThanTwoIntegerPixels(self):
         roi = [9.1, 20, 11.9, 40]
         with self.assertRaises(ValueError):
-            util_boxes.cropPatch(self.image, roi, 'constant', 20, 20)
+            boxes_utils.cropPatch(self.image, roi, 'constant', 20, 20)
 
     def test_edgeConstant_noStretch(self):
         roi = [40, 30, 60, 70]
         # Compare patches.
-        actual_patch, transform = util_boxes.cropPatch(self.image,
-                                                       roi,
-                                                       'constant',
-                                                       target_height=40,
-                                                       target_width=40)
+        actual_patch, transform = boxes_utils.cropPatch(self.image,
+                                                        roi,
+                                                        'constant',
+                                                        target_height=40,
+                                                        target_width=40)
         expected_patch = TestCropPatch.makeGradientImage(height=20,
                                                          width=40,
                                                          min_y=40,
@@ -331,7 +331,7 @@ class TestCropPatch(unittest.TestCase):
         HEIGHT = 4
         WIDTH = 10
         roi = [0, 0, HEIGHT, WIDTH]
-        actual_patch, transform = util_boxes.cropPatch(
+        actual_patch, transform = boxes_utils.cropPatch(
             self.image[0:HEIGHT, 0:WIDTH],
             roi,
             'constant',
@@ -355,11 +355,11 @@ class TestCropPatch(unittest.TestCase):
     def test_edgeDistortY(self):
         roi = [45, 40, 55, 60]
         # Compare patches.
-        actual_patch, transform = util_boxes.cropPatch(self.image,
-                                                       roi,
-                                                       'distort',
-                                                       target_height=20,
-                                                       target_width=20)
+        actual_patch, transform = boxes_utils.cropPatch(self.image,
+                                                        roi,
+                                                        'distort',
+                                                        target_height=20,
+                                                        target_width=20)
         expected_patch = TestCropPatch.makeGradientImage(height=20,
                                                          width=20,
                                                          min_y=45,
@@ -374,11 +374,11 @@ class TestCropPatch(unittest.TestCase):
     def test_edgeBackgroundY_noStretch(self):
         roi = [45, 40, 55, 60]
         # Compare patches.
-        actual_patch, transform = util_boxes.cropPatch(self.image,
-                                                       roi,
-                                                       'background',
-                                                       target_height=20,
-                                                       target_width=20)
+        actual_patch, transform = boxes_utils.cropPatch(self.image,
+                                                        roi,
+                                                        'background',
+                                                        target_height=20,
+                                                        target_width=20)
         expected_patch = TestCropPatch.makeGradientImage(height=20,
                                                          width=20,
                                                          min_y=40,
@@ -392,11 +392,11 @@ class TestCropPatch(unittest.TestCase):
     def test_edgeBackgroundX_noStretch(self):
         roi = [40, 45, 60, 55]
         # Compare patches.
-        actual_patch, transform = util_boxes.cropPatch(self.image,
-                                                       roi,
-                                                       'background',
-                                                       target_height=20,
-                                                       target_width=20)
+        actual_patch, transform = boxes_utils.cropPatch(self.image,
+                                                        roi,
+                                                        'background',
+                                                        target_height=20,
+                                                        target_width=20)
         expected_patch = TestCropPatch.makeGradientImage(height=20,
                                                          width=20,
                                                          min_y=40,
@@ -410,11 +410,11 @@ class TestCropPatch(unittest.TestCase):
     def test_edgeBackgroundYBelow0_noStretch(self):
         roi = [0, 40, 10, 60]
         # Compare patches.
-        actual_patch, transform = util_boxes.cropPatch(self.image,
-                                                       roi,
-                                                       'background',
-                                                       target_height=20,
-                                                       target_width=20)
+        actual_patch, transform = boxes_utils.cropPatch(self.image,
+                                                        roi,
+                                                        'background',
+                                                        target_height=20,
+                                                        target_width=20)
         expected_patch = TestCropPatch.makeGradientImage(height=15,
                                                          width=20,
                                                          min_x=40)
@@ -430,11 +430,11 @@ class TestCropPatch(unittest.TestCase):
     def test_edgeBackgroundXBelow0_noStretch(self):
         roi = [40, 0, 60, 10]
         # Compare patches.
-        actual_patch, transform = util_boxes.cropPatch(self.image,
-                                                       roi,
-                                                       'background',
-                                                       target_height=20,
-                                                       target_width=20)
+        actual_patch, transform = boxes_utils.cropPatch(self.image,
+                                                        roi,
+                                                        'background',
+                                                        target_height=20,
+                                                        target_width=20)
         expected_patch = TestCropPatch.makeGradientImage(height=20,
                                                          width=15,
                                                          min_y=40)
@@ -450,11 +450,11 @@ class TestCropPatch(unittest.TestCase):
     def test_edgeBackgroundYAboveTop_noStretch(self):
         roi = [90, 40, 100, 60]
         # Compare patches.
-        actual_patch, transform = util_boxes.cropPatch(self.image,
-                                                       roi,
-                                                       'background',
-                                                       target_height=20,
-                                                       target_width=20)
+        actual_patch, transform = boxes_utils.cropPatch(self.image,
+                                                        roi,
+                                                        'background',
+                                                        target_height=20,
+                                                        target_width=20)
         expected_patch = TestCropPatch.makeGradientImage(height=15,
                                                          width=20,
                                                          min_y=85,
@@ -471,11 +471,11 @@ class TestCropPatch(unittest.TestCase):
     def test_edgeBackgroundXAboveTop_noStretch(self):
         roi = [40, 190, 60, 200]
         # Compare patches.
-        actual_patch, transform = util_boxes.cropPatch(self.image,
-                                                       roi,
-                                                       'background',
-                                                       target_height=20,
-                                                       target_width=20)
+        actual_patch, transform = boxes_utils.cropPatch(self.image,
+                                                        roi,
+                                                        'background',
+                                                        target_height=20,
+                                                        target_width=20)
         expected_patch = TestCropPatch.makeGradientImage(height=20,
                                                          width=15,
                                                          min_y=40,
@@ -492,11 +492,11 @@ class TestCropPatch(unittest.TestCase):
     def test_edgeBackgroundYBelow0_stretch(self):
         roi = [0, 40, 10, 60]
         # Compare patches.
-        actual_patch, transform = util_boxes.cropPatch(self.image,
-                                                       roi,
-                                                       'background',
-                                                       target_height=40,
-                                                       target_width=40)
+        actual_patch, transform = boxes_utils.cropPatch(self.image,
+                                                        roi,
+                                                        'background',
+                                                        target_height=40,
+                                                        target_width=40)
         expected_patch = TestCropPatch.makeGradientImage(height=30,
                                                          width=40,
                                                          min_y=0,
@@ -520,11 +520,11 @@ class TestCropPatch(unittest.TestCase):
     def test_edgeBackground_float_stretch(self):
         roi = [9.5, 9.5, 20.5, 30.5]
         # Compare patches.
-        actual_patch, transform = util_boxes.cropPatch(self.image,
-                                                       roi,
-                                                       'background',
-                                                       target_height=40,
-                                                       target_width=40)
+        actual_patch, transform = boxes_utils.cropPatch(self.image,
+                                                        roi,
+                                                        'background',
+                                                        target_height=40,
+                                                        target_width=40)
         expected_patch = TestCropPatch.makeGradientImage(height=40,
                                                          width=40,
                                                          min_y=5,
@@ -549,26 +549,26 @@ class TestGetTransformBetweenRois(unittest.TestCase):
         roi = [10, 20, 30, 40]
         np.testing.assert_array_equal(
             np.eye(3, 3, dtype=float),
-            np.array(util_boxes._getTransformBetweenRois(roi, roi)))
+            np.array(boxes_utils._getTransformBetweenRois(roi, roi)))
 
     def test_X2(self):
         roi1 = [10, 20, 30, 40]
         roi2 = [10, 20, 50, 60]
         np.testing.assert_array_equal(
             np.array([[2, 0, -10], [0, 2, -20], [0, 0, 1]]),
-            np.array(util_boxes._getTransformBetweenRois(roi1, roi2)))
+            np.array(boxes_utils._getTransformBetweenRois(roi1, roi2)))
 
     def test_invalidRoi1(self):
         roi1 = [10, 20, 0, 0]
         roi2 = [10, 20, 50, 60]
         with self.assertRaises(ValueError):
-            util_boxes._getTransformBetweenRois(roi1, roi2)
+            boxes_utils._getTransformBetweenRois(roi1, roi2)
 
     def test_invalidRoi2(self):
         roi1 = [10, 20, 50, 60]
         roi2 = [10, 20, 0, 0]
         with self.assertRaises(ValueError):
-            util_boxes._getTransformBetweenRois(roi1, roi2)
+            boxes_utils._getTransformBetweenRois(roi1, roi2)
 
 
 class TestApplyTransformToRoi(unittest.TestCase):
@@ -576,7 +576,7 @@ class TestApplyTransformToRoi(unittest.TestCase):
     def test_identity(self):
         transform = np.eye(3, 3, dtype=float)
         roi = (10, 20, 30, 40)
-        actual_roi = util_boxes.applyTransformToRoi(transform, roi)
+        actual_roi = boxes_utils.applyTransformToRoi(transform, roi)
         self.assertEqual(actual_roi, roi)
 
     def test_X2(self):
@@ -585,7 +585,7 @@ class TestApplyTransformToRoi(unittest.TestCase):
         transform[1, 1] = 2
         roi = [10, 20, 30, 40]
         expected_roi = (20, 40, 60, 80)
-        actual_roi = util_boxes.applyTransformToRoi(transform, roi)
+        actual_roi = boxes_utils.applyTransformToRoi(transform, roi)
         self.assertEqual(actual_roi, expected_roi)
 
 
@@ -595,14 +595,14 @@ class Test_applyTransformToRoi(unittest.TestCase):
         roi = (10, 20, 30, 40)
 
         transform = np.eye(2, 3)
-        self.assertEqual(util_boxes.applyTransformToRoi(transform, roi), roi)
+        self.assertEqual(boxes_utils.applyTransformToRoi(transform, roi), roi)
 
         transform = np.array([[1, 0, 10], [0, 1, 20]])
-        self.assertEqual(util_boxes.applyTransformToRoi(transform, roi),
+        self.assertEqual(boxes_utils.applyTransformToRoi(transform, roi),
                          (20, 40, 40, 60))
 
         tranform = np.array([[1, 1, 0], [1, 1, 0]])
-        self.assertEqual(util_boxes.applyTransformToRoi(tranform, roi),
+        self.assertEqual(boxes_utils.applyTransformToRoi(tranform, roi),
                          (30, 30, 70, 70))
 
 
@@ -611,22 +611,24 @@ class Test_clipRoiToShape(unittest.TestCase):
     def test_normal(self):
         shape = (100, 200, 3)
         # Normal.
-        self.assertEqual(util_boxes.clipRoiToShape((10, 20, 30, 40), shape),
+        self.assertEqual(boxes_utils.clipRoiToShape((10, 20, 30, 40), shape),
                          (10, 20, 30, 40))
         # Out of boundaries.
-        self.assertEqual(util_boxes.clipRoiToShape((-10, 20, 30, 40), shape),
+        self.assertEqual(boxes_utils.clipRoiToShape((-10, 20, 30, 40), shape),
                          (0, 20, 30, 40))
-        self.assertEqual(util_boxes.clipRoiToShape((10, -20, 30, 40), shape),
+        self.assertEqual(boxes_utils.clipRoiToShape((10, -20, 30, 40), shape),
                          (10, 0, 30, 40))
-        self.assertEqual(util_boxes.clipRoiToShape((10, 20, 300, 40), shape),
+        self.assertEqual(boxes_utils.clipRoiToShape((10, 20, 300, 40), shape),
                          (10, 20, 100, 40))
-        self.assertEqual(util_boxes.clipRoiToShape((10, 20, 30, 400), shape),
+        self.assertEqual(boxes_utils.clipRoiToShape((10, 20, 30, 400), shape),
                          (10, 20, 30, 200))
         # Float.
-        self.assertEqual(util_boxes.clipRoiToShape((10, 20, 30, 400.5), shape),
-                         (10, 20, 30, 200))
-        self.assertEqual(util_boxes.clipRoiToShape((-10.5, 20, 30, 40), shape),
-                         (0, 20, 30, 40))
+        self.assertEqual(
+            boxes_utils.clipRoiToShape((10, 20, 30, 400.5), shape),
+            (10, 20, 30, 200))
+        self.assertEqual(
+            boxes_utils.clipRoiToShape((-10.5, 20, 30, 40), shape),
+            (0, 20, 30, 40))
 
 
 if __name__ == '__main__':

@@ -6,7 +6,7 @@ from ast import literal_eval
 from pprint import pformat
 import imageio
 
-from shuffler.utils import util
+from shuffler.utils import general as general_utils
 from shuffler.backend import backend_db
 from shuffler.backend import backend_media
 
@@ -156,12 +156,14 @@ def examineImages(c, args):
         if maskfile is not None:
             mask = imreader.maskread(maskfile)
             if args.mask_aside:
-                image = util.drawMaskAside(image, mask, labelmap=labelmap)
+                image = general_utils.drawMaskAside(image,
+                                                    mask,
+                                                    labelmap=labelmap)
             elif args.mask_alpha is not None:
-                image = util.drawMaskOnImage(image,
-                                             mask,
-                                             alpha=args.mask_alpha,
-                                             labelmap=labelmap)
+                image = general_utils.drawMaskOnImage(image,
+                                                      mask,
+                                                      alpha=args.mask_alpha,
+                                                      labelmap=labelmap)
         else:
             logging.info('No mask for this image.')
 
@@ -186,13 +188,16 @@ def examineImages(c, args):
                     polygon = [(int(backend_db.polygonField(p, 'x')),
                                 int(backend_db.polygonField(p, 'y')))
                                for p in polygon_entries]
-                    util.drawScoredPolygon(image,
-                                           polygon,
-                                           label=name,
-                                           score=score)
+                    general_utils.drawScoredPolygon(image,
+                                                    polygon,
+                                                    label=name,
+                                                    score=score)
                 elif roi is not None:
                     logging.info('showing object with a bounding box.')
-                    util.drawScoredRoi(image, roi, label=name, score=score)
+                    general_utils.drawScoredRoi(image,
+                                                roi,
+                                                label=name,
+                                                score=score)
                 else:
                     logging.warning(
                         'Neither polygon, nor bbox is available for objectid %d',
@@ -203,13 +208,13 @@ def examineImages(c, args):
         scaled_image = cv2.resize(image, dsize=(0, 0), fx=scale, fy=scale)
         # Overlay imagefile.
         if args.with_imagefile:
-            util.drawTextOnImage(
+            general_utils.drawTextOnImage(
                 scaled_image,
                 op.basename(backend_media.normalizeSeparators(imagefile)))
         # Overlay score.
         # TODO: add y offset, if necessary
         if args.with_score:
-            util.drawTextOnImage(scaled_image, '%.3f' % imscore)
+            general_utils.drawTextOnImage(scaled_image, '%.3f' % imscore)
         # Display
         cv2.imshow('examineImages', scaled_image[:, :, ::-1])
         action = key_reader.parse(cv2.waitKey(-1))
@@ -331,10 +336,16 @@ def examineObjects(c, args):
                 polygon = [(int(scale * x), int(scale * y))
                            for x, y in polygon]
                 logging.debug('scaled polygon: %s', pformat(polygon))
-                util.drawScoredPolygon(image, polygon, label=None, score=score)
+                general_utils.drawScoredPolygon(image,
+                                                polygon,
+                                                label=None,
+                                                score=score)
             elif roi is not None:
                 logging.info('showing object with a bounding box.')
-                util.drawScoredRoi(image, scaledroi, label=None, score=score)
+                general_utils.drawScoredRoi(image,
+                                            scaledroi,
+                                            label=None,
+                                            score=score)
             else:
                 raise Exception(
                     'Neither polygon, nor bbox is available for objectid %d' %
@@ -348,15 +359,15 @@ def examineObjects(c, args):
                 properties.append(('score', score))
             for iproperty, (key, value) in enumerate(properties):
                 cv2.putText(image, '%s: %s' % (key, value),
-                            (scaledroi[3] + 10,
-                             scaledroi[0] - 10 + util.SCALE * (iproperty + 1)),
-                            util.FONT, util.FONT_SIZE, (0, 0, 0),
-                            util.THICKNESS)
+                            (scaledroi[3] + 10, scaledroi[0] - 10 +
+                             general_utils.SCALE * (iproperty + 1)),
+                            general_utils.FONT, general_utils.FONT_SIZE,
+                            (0, 0, 0), general_utils.THICKNESS)
                 cv2.putText(image, '%s: %s' % (key, value),
-                            (scaledroi[3] + 10,
-                             scaledroi[0] - 10 + util.SCALE * (iproperty + 1)),
-                            util.FONT, util.FONT_SIZE, (255, 255, 255),
-                            util.THICKNESS - 1)
+                            (scaledroi[3] + 10, scaledroi[0] - 10 +
+                             general_utils.SCALE * (iproperty + 1)),
+                            general_utils.FONT, general_utils.FONT_SIZE,
+                            (255, 255, 255), general_utils.THICKNESS - 1)
                 logging.info('objectid: %d. %s = %s.', objectid, key, value)
 
         # Display an image, wait for the key from user, and parse that key.
@@ -471,14 +482,17 @@ def labelObjects(c, args):
                 polygon = [(int(scale * p[0]), int(scale * p[1]))
                            for p in polygon]
                 logging.debug('scaled polygon: %s', pformat(polygon))
-                util.drawScoredPolygon(image, polygon, label=None, score=None)
+                general_utils.drawScoredPolygon(image,
+                                                polygon,
+                                                label=None,
+                                                score=None)
             elif roi is not None:
                 logging.info('showing object with a bounding box.')
                 logging.debug('nonscaled roi: %s', pformat(roi))
                 roi = [int(scale * r)
                        for r in roi]  # For displaying the scaled image.
                 logging.debug('scaled roi: %s', pformat(roi))
-                util.drawScoredRoi(image, roi, label=None, score=None)
+                general_utils.drawScoredRoi(image, roi, label=None, score=None)
             else:
                 raise Exception(
                     'Neither polygon, nor bbox is available for objectid %d' %
@@ -499,12 +513,13 @@ def labelObjects(c, args):
 
             for iproperty, (key, value) in enumerate(properties):
                 cv2.putText(image, '%s: %s' % (key, value),
-                            (10, util.SCALE * (iproperty + 1)), util.FONT,
-                            util.FONT_SIZE, (0, 0, 0), util.THICKNESS)
+                            (10, general_utils.SCALE * (iproperty + 1)),
+                            general_utils.FONT, general_utils.FONT_SIZE,
+                            (0, 0, 0), general_utils.THICKNESS)
                 cv2.putText(image, '%s: %s' % (key, value),
-                            (10, util.SCALE * (iproperty + 1)), util.FONT,
-                            util.FONT_SIZE, (255, 255, 255),
-                            util.THICKNESS - 1)
+                            (10, general_utils.SCALE * (iproperty + 1)),
+                            general_utils.FONT, general_utils.FONT_SIZE,
+                            (255, 255, 255), general_utils.THICKNESS - 1)
                 logging.info('objectid: %d. %s = %s.', objectid, key, value)
 
         cv2.imshow('labelObjects', image[:, :, ::-1])
@@ -596,7 +611,7 @@ def examineMatches(c, args):
             score = backend_db.objectField(object_entry, 'score')
 
             image = imreader.imread(imagefile)
-            util.drawScoredRoi(image, roi, score=score)
+            general_utils.drawScoredRoi(image, roi, score=score)
 
             scale = float(args.winsize) / max(image.shape[0:2])
             image = cv2.resize(image, dsize=(0, 0), fx=scale, fy=scale)
@@ -662,8 +677,8 @@ def _drawMatch(img, roi1, roi2, yoffset):
 
     roi2[0] += yoffset
     roi2[2] += yoffset
-    util.drawScoredRoi(img, roi1)
-    util.drawScoredRoi(img, roi2)
+    general_utils.drawScoredRoi(img, roi1)
+    general_utils.drawScoredRoi(img, roi2)
     center1 = _getCenter(roi1)
     center2 = _getCenter(roi2)
     cv2.line(img, center1, center2, [0, 0, 255], thickness=2)
@@ -751,9 +766,11 @@ def labelMatches(c, args):
 
         # draw cars in both images
         for object_ in objects1:
-            util.drawScoredRoi(img1, backend_db.objectField(object_, 'roi'))
+            general_utils.drawScoredRoi(img1,
+                                        backend_db.objectField(object_, 'roi'))
         for object_ in objects2:
-            util.drawScoredRoi(img2, backend_db.objectField(object_, 'roi'))
+            general_utils.drawScoredRoi(img2,
+                                        backend_db.objectField(object_, 'roi'))
 
         i1 = i2 = None  # Matches selected with a mouse.
 

@@ -7,10 +7,10 @@ import nose
 
 from shuffler.backend import backend_db
 from shuffler.operations import evaluate
-from shuffler.utils import test_utils
+from shuffler.utils import testing as testing_utils
 
 
-class Test_evaluateDetectionForClass_Base(test_utils.Test_emptyDb):
+class Test_evaluateDetectionForClass_Base(testing_utils.Test_emptyDb):
 
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')

@@ -6,8 +6,8 @@ import simplejson as json
 from progressbar import progressbar
 
 from shuffler.backend import backend_media
-from shuffler.utils import util
-from shuffler.utils import util_boxes
+from shuffler.utils import general as general_utils
+from shuffler.utils import boxes as boxes_utils
 
 
 def add_parsers(subparsers):
@@ -103,8 +103,8 @@ def importBdd(c, args):
                     width = int(float(box2d['x2']) - x1)
                     height = int(float(box2d['y2']) - y1)
                     if args.display:
-                        roi = util_boxes.bbox2roi((x1, y1, width, height))
-                        util.drawScoredRoi(img, roi, object_name)
+                        roi = boxes_utils.bbox2roi((x1, y1, width, height))
+                        general_utils.drawScoredRoi(img, roi, object_name)
 
                 c.execute(
                     'INSERT INTO objects(imagefile,x1,y1,width,height,name) '
@@ -124,10 +124,9 @@ def importBdd(c, args):
                             'VALUES (?,?,?,?)',
                             (objectid, pt[0], pt[1], polygon_name))
                     if args.display:
-                        util.drawScoredPolygon(img,
-                                               [(int(x[0]), int(x[1]))
-                                                for x in polygon['vertices']],
-                                               object_name)
+                        general_utils.drawScoredPolygon(
+                            img, [(int(x[0]), int(x[1]))
+                                  for x in polygon['vertices']], object_name)
 
                 # Insert image-level and object-level attributes into
                 # "properties" table.
@@ -151,7 +150,7 @@ def importBdd(c, args):
 
             if args.display:
                 mask = imreader.maskread(maskfile)
-                img = util.drawMaskAside(img, mask, labelmap=None)
+                img = general_utils.drawMaskAside(img, mask, labelmap=None)
 
         # Maybe display.
         if args.display:

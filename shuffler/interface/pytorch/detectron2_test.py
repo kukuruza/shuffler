@@ -6,7 +6,7 @@ import unittest
 import numpy as np
 import detectron2
 
-from shuffler.utils import test_utils
+from shuffler.utils import testing as testing_utils
 from shuffler.interface.pytorch import detectron2 as shuffler_detectron2
 
 
@@ -19,11 +19,12 @@ class TestHelperFunctions(unittest.TestCase):
         self.assertTrue('image' in sample)
 
 
-class TestObjectDataset(test_utils.Test_carsDb):
+class TestObjectDataset(testing_utils.Test_carsDb):
 
     def setUp(self):
         self.tmp_in_db_file = tempfile.NamedTemporaryFile().name
-        shutil.copy(test_utils.Test_carsDb.CARS_DB_PATH, self.tmp_in_db_file)
+        shutil.copy(testing_utils.Test_carsDb.CARS_DB_PATH,
+                    self.tmp_in_db_file)
 
     def tearDown(self):
         if os.path.exists(self.tmp_in_db_file):
@@ -33,7 +34,7 @@ class TestObjectDataset(test_utils.Test_carsDb):
         shuffler_detectron2.register_object_dataset(
             "dataset1",
             self.tmp_in_db_file,
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR)
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR)
         dataset = detectron2.data.DatasetCatalog.get("dataset1")
         self.assertEqual(len(dataset), 3)  # 3 objects.
         sample = dataset[0]
@@ -49,7 +50,7 @@ class TestObjectDataset(test_utils.Test_carsDb):
         shuffler_detectron2.register_object_dataset(
             "dataset2",
             self.tmp_in_db_file,
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             used_keys=['mask', 'score'])
         dataset = detectron2.data.DatasetCatalog.get("dataset2")
         self.assertEqual(len(dataset), 3)  # 3 objects.
@@ -64,7 +65,7 @@ class TestObjectDataset(test_utils.Test_carsDb):
         shuffler_detectron2.register_object_dataset(
             "dataset3",
             self.tmp_in_db_file,
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             where_object='name == "car"')
         dataset = detectron2.data.DatasetCatalog.get("dataset3")
         # 2 cars out of 3 objects in the dataset.

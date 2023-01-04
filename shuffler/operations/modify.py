@@ -14,8 +14,8 @@ from ast import literal_eval
 
 from shuffler.backend import backend_db
 from shuffler.backend import backend_media
-from shuffler.utils import util
-from shuffler.utils import util_boxes
+from shuffler.utils import general as general_utils
+from shuffler.utils import boxes as boxes_utils
 
 
 def add_parsers(subparsers):
@@ -57,7 +57,7 @@ def bboxesToPolygons(c, args):
     c.execute('SELECT objectid FROM objects WHERE objectid NOT IN '
               '(SELECT objectid FROM polygons)')
     for objectid, in progressbar(c.fetchall()):
-        util.bboxes2polygons(c, objectid)
+        general_utils.bboxes2polygons(c, objectid)
 
 
 def polygonsToBboxesParser(subparsers):
@@ -73,7 +73,7 @@ def polygonsToBboxes(c, args):
     c.execute('SELECT objectid FROM objects WHERE objectid IN '
               '(SELECT DISTINCT(objectid) FROM polygons)')
     for objectid, in progressbar(c.fetchall()):
-        util.polygons2bboxes(c, objectid)
+        general_utils.polygons2bboxes(c, objectid)
 
 
 def sqlParser(subparsers):
@@ -327,8 +327,9 @@ def expandObjects(c, args):
         if args.target_ratio:
             # Expand the bbox, if present in "objects" table.
             if old_roi is not None:
-                roi = util_boxes.expandRoiUpToRatio(old_roi, args.target_ratio)
-                roi = util_boxes.expandRoi(
+                roi = boxes_utils.expandRoiUpToRatio(old_roi,
+                                                     args.target_ratio)
+                roi = boxes_utils.expandRoi(
                     roi, (args.expand_perc, args.expand_perc))
                 logging.debug('Roi changed from %s to %s for object %d',
                               str(old_roi), str(roi), objectid)
@@ -339,7 +340,7 @@ def expandObjects(c, args):
         else:
             # Expand the bbox, if present in "objects" table.
             if old_roi is not None:
-                roi = util_boxes.expandRoi(
+                roi = boxes_utils.expandRoi(
                     old_roi, (args.expand_perc, args.expand_perc))
                 logging.debug('Roi changed from %s to %s for object %d',
                               str(old_roi), str(roi), objectid)
@@ -348,7 +349,7 @@ def expandObjects(c, args):
                 ids = [backend_db.polygonField(p, 'id') for p in old_polygon]
                 old_xs = [backend_db.polygonField(p, 'x') for p in old_polygon]
                 old_ys = [backend_db.polygonField(p, 'y') for p in old_polygon]
-                xs, ys = util_boxes.expandPolygon(
+                xs, ys = boxes_utils.expandPolygon(
                     old_xs, old_ys, (args.expand_perc, args.expand_perc))
                 polygon = zip(ids, xs, ys)
                 logging.debug('Polygon changed from %s to %s for object %d',
@@ -359,7 +360,7 @@ def expandObjects(c, args):
         if old_roi is not None:
             c.execute(
                 'UPDATE objects SET x1=?, y1=?,width=?,height=? WHERE objectid=?',
-                tuple(util_boxes.roi2bbox(roi) + [objectid]))
+                tuple(boxes_utils.roi2bbox(roi) + [objectid]))
         if len(old_polygon):
             for id, x, y in polygon:
                 c.execute('UPDATE polygons SET x=?, y=? WHERE id=?',
@@ -814,7 +815,7 @@ def mergeIntersectingObjectsParser(subparsers):
         'mergeIntersectingObjects',
         description='Merge objects that intersect. '
         'Currently only pairwise, does not merge groups (that is future work.) '
-        'Currently implements only intersection by bounding boxes. '
+        'Currently implements only intersection by bounding boxes_utils. '
         'A merged object has polygons and properties from both source objects.'
     )
     parser.set_defaults(func=mergeIntersectingObjects)
@@ -877,10 +878,8 @@ def mergeIntersectingObjects(c, args):
         logging.debug('Image %s has %d and %d objects to match', imagefile,
                       len(objects1), len(objects2))
 
-        pairs_to_merge = util.getIntersectingObjects(objects1,
-                                                     objects2,
-                                                     args.IoU_threshold,
-                                                     same_id_ok=False)
+        pairs_to_merge = general_utils.getIntersectingObjects(
+            objects1, objects2, args.IoU_threshold, same_id_ok=False)
 
         if args.filterObjectsByIoU and len(pairs_to_merge) > 0:
             image = imreader.imread(imagefile)
@@ -894,8 +893,8 @@ def mergeIntersectingObjects(c, args):
             old_roi2 = backend_db.objectField(c.fetchone(), 'roi')
 
             if args.filterObjectsByIoU:
-                util.drawScoredRoi(image, old_roi1, score=0)
-                util.drawScoredRoi(image, old_roi2, score=0.25)
+                general_utils.drawScoredRoi(image, old_roi1, score=0)
+                general_utils.drawScoredRoi(image, old_roi2, score=0.25)
 
             # Change the name to the target first.
             if args.target_name is not None:
@@ -903,7 +902,7 @@ def mergeIntersectingObjects(c, args):
                           (args.target_name, objectid1, objectid2))
 
             new_objectid = _mergeNObjects(c, [objectid1, objectid2])
-            util.polygons2bboxes(c, new_objectid)
+            general_utils.polygons2bboxes(c, new_objectid)
 
             c.execute('SELECT * FROM objects WHERE objectid=?',
                       (new_objectid, ))
@@ -912,7 +911,7 @@ def mergeIntersectingObjects(c, args):
                          old_roi2, new_roi)
 
             if args.filterObjectsByIoU:
-                util.drawScoredRoi(image, new_roi, score=1)
+                general_utils.drawScoredRoi(image, new_roi, score=1)
 
         if args.filterObjectsByIoU and len(pairs_to_merge) > 0:
             logging.getLogger().handlers[0].flush()
@@ -1007,8 +1006,8 @@ def syncObjectidsWithDb(c, args):
         logging.debug('Image %s has %d and %d objects to match', imagefile,
                       len(objects), len(objects_ref))
         objectid_this_to_ref_map = dict(
-            util.getIntersectingObjects(objects, objects_ref,
-                                        args.IoU_threshold))
+            general_utils.getIntersectingObjects(objects, objects_ref,
+                                                 args.IoU_threshold))
         logging.debug(pformat(objectid_this_to_ref_map))
 
         for object_ in objects:
@@ -1097,8 +1096,8 @@ def syncPolygonIdsWithDb(c, args):
         logging.debug('Objectid %d has %d and %d polygons to match', objectid,
                       len(polygons), len(polygons_ref))
         polygon_ids_active_to_ref_map = dict(
-            util.getMatchPolygons(polygons, polygons_ref, args.epsilon,
-                                  args.ignore_name))
+            general_utils.getMatchPolygons(polygons, polygons_ref,
+                                           args.epsilon, args.ignore_name))
         logging.debug(pformat(polygon_ids_active_to_ref_map))
 
         for polygon in polygons:

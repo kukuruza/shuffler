@@ -6,7 +6,7 @@ from progressbar import progressbar
 
 from shuffler.backend import backend_db
 from shuffler.backend import backend_media
-from shuffler.utils import util
+from shuffler.utils import general as general_utils
 
 
 def add_parsers(subparsers):
@@ -208,7 +208,7 @@ def importKitti(c, args):
                     name = backend_db.objectField(object_entry, 'name')
                     roi = backend_db.objectField(object_entry, 'roi')
                     score = backend_db.objectField(object_entry, 'score')
-                    util.drawScoredRoi(img, roi, name, score=score)
+                    general_utils.drawScoredRoi(img, roi, name, score=score)
 
         # Segmentation annotations.
         if args.segmentation_dir:
@@ -225,7 +225,7 @@ def importKitti(c, args):
 
             if args.display:
                 mask = imreader.maskread(maskfile)
-                img = util.drawMaskAside(img, mask, labelmap=None)
+                img = general_utils.drawMaskAside(img, mask, labelmap=None)
 
         # Maybe display.
         if args.display:

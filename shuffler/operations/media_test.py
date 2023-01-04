@@ -9,10 +9,10 @@ import nose
 from shuffler.backend import backend_db
 from shuffler.operations import media
 from shuffler.operations import modify
-from shuffler.utils import test_utils
+from shuffler.utils import testing as testing_utils
 
 
-class Test_cropObjects_emptyDb(test_utils.Test_emptyDb):
+class Test_cropObjects_emptyDb(testing_utils.Test_emptyDb):
 
     def assertEmpty(self, c):
         c.execute('SELECT COUNT(1) FROM images')
@@ -61,12 +61,12 @@ class Test_cropObjects_emptyDb(test_utils.Test_emptyDb):
         self.assertEmpty(c)
 
 
-class Test_cropObjects_carsDb(test_utils.Test_carsDb):
+class Test_cropObjects_carsDb(testing_utils.Test_carsDb):
 
     def test_general(self):
         c = self.conn.cursor()
         args = argparse.Namespace(
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             media='mock',
             image_path='mock_media',
             mask_path='mock_mask_media',
@@ -94,7 +94,7 @@ class Test_cropObjects_carsDb(test_utils.Test_carsDb):
     def test_mask_path_not_provided(self):
         c = self.conn.cursor()
         args = argparse.Namespace(
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             media='mock',
             image_path='mock_media',
             mask_path=None,
@@ -115,7 +115,7 @@ class Test_cropObjects_carsDb(test_utils.Test_carsDb):
     def test_mask_does_not_exist(self):
         c = self.conn.cursor()
         args = argparse.Namespace(
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             media='mock',
             image_path='mock_media',
             mask_path='mock_mask_media',
@@ -138,7 +138,7 @@ class Test_cropObjects_carsDb(test_utils.Test_carsDb):
     def test_video_not_allowed_if_edges_original(self, mock_imwriter):
         c = self.conn.cursor()
         args = argparse.Namespace(
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             media='video',
             image_path='mock_video.avi',
             mask_path=None,
@@ -156,7 +156,7 @@ class Test_cropObjects_carsDb(test_utils.Test_carsDb):
     def test_only_buses(self):
         c = self.conn.cursor()
         args = argparse.Namespace(
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             media='mock',
             image_path='mock_media',
             mask_path=None,
@@ -179,7 +179,7 @@ class Test_cropObjects_carsDb(test_utils.Test_carsDb):
     def test_keep_all_other_objects(self):
         c = self.conn.cursor()
         args = argparse.Namespace(
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             media='mock',
             image_path='mock_media',
             mask_path=None,
@@ -200,7 +200,7 @@ class Test_cropObjects_carsDb(test_utils.Test_carsDb):
     def test_keep_other_buses(self):
         c = self.conn.cursor()
         args = argparse.Namespace(
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             media='mock',
             image_path='mock_media',
             mask_path=None,
@@ -224,7 +224,7 @@ class Test_cropObjects_carsDb(test_utils.Test_carsDb):
         mock_imwriter.return_value.imwrite.side_effect = ['foo', 'bar', 'baz']
         c = self.conn.cursor()
         args = argparse.Namespace(
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             media='pictures',
             image_path='mock_media',
             mask_path=None,
@@ -252,7 +252,7 @@ class Test_cropObjects_carsDb(test_utils.Test_carsDb):
         mock_imwriter.return_value.imwrite.side_effect = ['foo', 'bar', 'baz']
         c = self.conn.cursor()
         args = argparse.Namespace(
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             media='pictures',
             image_path='mock_media',
             mask_path=None,
@@ -281,7 +281,7 @@ class Test_cropObjects_carsDb(test_utils.Test_carsDb):
         mock_imwriter.return_value.imwrite.side_effect = ['foo', 'bar', 'baz']
         c = self.conn.cursor()
         args = argparse.Namespace(
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             media='pictures',
             image_path='mock_media',
             mask_path=None,
@@ -316,7 +316,7 @@ class Test_cropObjects_SyntheticDb(unittest.TestCase):
                   'VALUES ("image0",0,40,20,40,20)')
         c.execute('INSERT INTO polygons(objectid,x,y) VALUES (0,40,20)')
 
-    @mock.patch('shuffler.operations.media.util_boxes.cropPatch')
+    @mock.patch('shuffler.operations.media.boxes_utils.cropPatch')
     @mock.patch.object(media.backend_media.MediaReader, 'imread')
     def test_xy(self, mocked_imread, mocked_crop_patch):
         mocked_imread.return_value = np.zeros((100, 100, 3), dtype=np.uint8)
@@ -365,7 +365,7 @@ class Test_cropObjects_SyntheticDb(unittest.TestCase):
         np.testing.assert_array_equal(transform, transform_recorded)
 
 
-class Test_tileObjects_carsDb(test_utils.Test_carsDb):
+class Test_tileObjects_carsDb(testing_utils.Test_carsDb):
 
     def _test_consistency(self, num_cells_Y, num_cells_X, split_by_name,
                           image_icon):
@@ -380,7 +380,7 @@ class Test_tileObjects_carsDb(test_utils.Test_carsDb):
         c.execute("CREATE TABLE polygons_ref AS SELECT * FROM polygons")
         # Run tiling.
         args = argparse.Namespace(
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             media='mock',
             image_path='mock_media',
             mask_path='mock_mask_media',

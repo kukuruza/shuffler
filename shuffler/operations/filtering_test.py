@@ -8,13 +8,13 @@ import nose
 
 from shuffler.backend import backend_db
 from shuffler.operations import filtering
-from shuffler.utils import test_utils
+from shuffler.utils import testing as testing_utils
 
 
-class Test_filterBadImages_CarsDb(test_utils.Test_carsDb):
+class Test_filterBadImages_CarsDb(testing_utils.Test_carsDb):
 
     def setUp(self):
-        test_utils.Test_carsDb.setUp(self)
+        testing_utils.Test_carsDb.setUp(self)
         # Make a corrupted image file.
         self.bad_jpg_path = tempfile.NamedTemporaryFile(suffix='.jpg').name
         with open(self.bad_jpg_path, 'w') as f:
@@ -23,14 +23,14 @@ class Test_filterBadImages_CarsDb(test_utils.Test_carsDb):
     def tearDown(self):
         if op.exists(self.bad_jpg_path):
             os.remove(self.bad_jpg_path)
-        test_utils.Test_carsDb.tearDown(self)
+        testing_utils.Test_carsDb.tearDown(self)
 
     def test_single_thread_all_ok(self):
         ''' Tests the single-thread mode when all images are ok. '''
 
         c = self.conn.cursor()
         args = argparse.Namespace(
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             force_single_thread=True)
         filtering.filterBadImages(c, args)
         c.execute('SELECT COUNT(1) FROM images')
@@ -41,7 +41,7 @@ class Test_filterBadImages_CarsDb(test_utils.Test_carsDb):
 
         c = self.conn.cursor()
         args = argparse.Namespace(
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             force_single_thread=False)
         filtering.filterBadImages(c, args)
         c.execute('SELECT COUNT(1) FROM images')
@@ -53,7 +53,7 @@ class Test_filterBadImages_CarsDb(test_utils.Test_carsDb):
         c = self.conn.cursor()
         c.execute('INSERT INTO images(imagefile) VALUES ("non-existent.jpg")')
         args = argparse.Namespace(
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             force_single_thread=True)
         filtering.filterBadImages(c, args)
         c.execute('SELECT COUNT(1) FROM images')
@@ -65,10 +65,10 @@ class Test_filterBadImages_CarsDb(test_utils.Test_carsDb):
         # Add the corrrupted image to the db.
         c = self.conn.cursor()
         c.execute('INSERT INTO images(imagefile) VALUES (?)', (op.relpath(
-            self.bad_jpg_path, test_utils.Test_carsDb.CARS_DB_ROOTDIR), ))
+            self.bad_jpg_path, testing_utils.Test_carsDb.CARS_DB_ROOTDIR), ))
 
         args = argparse.Namespace(
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             force_single_thread=True)
         filtering.filterBadImages(c, args)
         c.execute('SELECT COUNT(1) FROM images')
@@ -80,10 +80,10 @@ class Test_filterBadImages_CarsDb(test_utils.Test_carsDb):
         # Add the corrrupted image to the db.
         c = self.conn.cursor()
         c.execute('INSERT INTO images(imagefile) VALUES (?)', (op.relpath(
-            self.bad_jpg_path, test_utils.Test_carsDb.CARS_DB_ROOTDIR), ))
+            self.bad_jpg_path, testing_utils.Test_carsDb.CARS_DB_ROOTDIR), ))
 
         args = argparse.Namespace(
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             force_single_thread=False)
         filtering.filterBadImages(c, args)
         c.execute('SELECT COUNT(1) FROM images')

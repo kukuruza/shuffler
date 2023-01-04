@@ -7,7 +7,7 @@ import argparse
 import logging
 import pandas as pd
 
-from shuffler.utils import util
+from shuffler.utils import general as general_utils
 from shuffler.operations import evaluate
 
 
@@ -57,8 +57,8 @@ def evaluateSegmentationOneImage(args):
     if len(mask_gt.shape) == 3:
         mask_gt = mask_gt[:, :, 0]
 
-    mask_gt = util.applyLabelMappingToMask(mask_gt, labelmap_gt)
-    mask_pr = util.applyLabelMappingToMask(mask_pr, labelmap_pr)
+    mask_gt = general_utils.applyLabelMappingToMask(mask_gt, labelmap_gt)
+    mask_pr = general_utils.applyLabelMappingToMask(mask_pr, labelmap_pr)
     assert mask_gt.dtype == float
     assert mask_pr.dtype == float
     mask_pr = cv2.resize(mask_pr, (mask_gt.shape[1], mask_gt.shape[0]),

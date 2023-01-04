@@ -10,8 +10,8 @@ import math
 
 from shuffler.backend import backend_media
 from shuffler.backend import backend_db
-from shuffler.utils import util_boxes
-from shuffler.utils import util
+from shuffler.utils import boxes as boxes_utils
+from shuffler.utils import general as general_utils
 
 
 def add_parsers(subparsers):
@@ -208,25 +208,27 @@ def cropObjects(c, args):
         name, score, old_maskfile, timestamp in progressbar.progressbar(old_entries):
         logging.debug('Processing object %d from imagefile %s.', old_objectid,
                       old_imagefile)
-        old_roi = util_boxes.bbox2roi((old_x1, old_y1, old_width, old_height))
+        old_roi = boxes_utils.bbox2roi((old_x1, old_y1, old_width, old_height))
 
         # Write image.
         if prev_old_imagefile != old_imagefile:
             old_image = imreader.imread(old_imagefile)
         logging.debug('Cropping roi=%s from image of shape %s', old_roi,
                       old_image.shape)
-        new_image, transform = util_boxes.cropPatch(old_image, old_roi,
-                                                    args.edges,
-                                                    args.target_height,
-                                                    args.target_width)
+        new_image, transform = boxes_utils.cropPatch(old_image, old_roi,
+                                                     args.edges,
+                                                     args.target_height,
+                                                     args.target_width)
         if args.split_into_folders_by_object_name:
             # TODO: Do something about names with special characters.
             #       Cant use validateFileName because two names may get mapped
             #       into one filename.
-            namehint = '%s/%09d' % (util.maybeDecode(name), old_objectid)
+            namehint = '%s/%09d' % (general_utils.maybeDecode(name),
+                                    old_objectid)
         elif args.add_object_name_to_filename:
             # TODO: Ditto.
-            namehint = '%s %09d' % (util.maybeDecode(name), old_objectid)
+            namehint = '%s %09d' % (general_utils.maybeDecode(name),
+                                    old_objectid)
         else:
             namehint = '%09d' % old_objectid
         new_imagefile = imwriter.imwrite(new_image, namehint=namehint)
@@ -242,9 +244,9 @@ def cropObjects(c, args):
         if args.mask_path is not None and old_maskfile is not None:
             if prev_old_imagefile != old_imagefile:
                 old_mask = imreader.maskread(old_maskfile)
-            new_mask, _ = util_boxes.cropPatch(old_mask, old_roi, args.edges,
-                                               args.target_height,
-                                               args.target_width)
+            new_mask, _ = boxes_utils.cropPatch(old_mask, old_roi, args.edges,
+                                                args.target_height,
+                                                args.target_width)
             new_maskfile = imwriter.maskwrite(new_mask, namehint=namehint)
         else:
             new_maskfile = None
@@ -397,7 +399,7 @@ def tileObjects(c, args):
 
     def _recordCollage(c, collage, namehint):
         new_imagefile = imwriter.imwrite(
-            collage, namehint=util.validateFileName(namehint))
+            collage, namehint=general_utils.validateFileName(namehint))
         # Insert image values.
         logging.debug('Recording imagefile with namehint: %s', namehint)
         logging.info('Recording imagefile %s', new_imagefile)
@@ -424,7 +426,7 @@ def tileObjects(c, args):
         if old_width * old_height == 0:
             raise ValueError('objectid %d is degenerate with size: %dx%d' %
                              (objectid, old_width, old_height))
-        old_roi = util_boxes.bbox2roi((old_x1, old_y1, old_width, old_height))
+        old_roi = boxes_utils.bbox2roi((old_x1, old_y1, old_width, old_height))
 
         # Record the collage when the previous collage is full or name changed.
         if i_cell == num_cells_per_collage - 1 or (args.split_by_name
@@ -443,18 +445,18 @@ def tileObjects(c, args):
         old_image = imreader.imread(old_imagefile)
         logging.debug('Cropping roi=%s from image of shape %s', old_roi,
                       old_image.shape)
-        crop, transform = util_boxes.cropPatch(old_image, old_roi, args.edges,
-                                               args.cell_height,
-                                               args.cell_width)
+        crop, transform = boxes_utils.cropPatch(old_image, old_roi, args.edges,
+                                                args.cell_height,
+                                                args.cell_width)
 
         # A small copy of the image.
         if args.image_icon:
-            image_icon, transform_icon = util_boxes.cropPatch(
+            image_icon, transform_icon = boxes_utils.cropPatch(
                 old_image, [0, 0, old_image.shape[0], old_image.shape[1]],
                 'constant', args.cell_height, args.cell_width)
-            roi_icon = util_boxes.applyTransformToRoi(transform_icon, old_roi)
+            roi_icon = boxes_utils.applyTransformToRoi(transform_icon, old_roi)
             roi_icon = [int(x) for x in roi_icon]
-            roi_icon = util_boxes.clipRoiToShape(roi_icon, image_icon.shape)
+            roi_icon = boxes_utils.clipRoiToShape(roi_icon, image_icon.shape)
             old_image = cv2.rectangle(image_icon, (roi_icon[1], roi_icon[0]),
                                       (roi_icon[3], roi_icon[2]),
                                       color=(255, 255, 255),
@@ -599,19 +601,19 @@ def writeMedia(c, args):
             mask = imreader.maskread(maskfile)
             if args.image_path is not None:
                 if args.mask_aside:
-                    image = util.drawMaskAside(image, mask, labelmap=labelmap)
+                    image = general_utils.drawMaskAside(image,
+                                                        mask,
+                                                        labelmap=labelmap)
                 elif args.mask_alpha is not None:
-                    image = util.drawMaskOnImage(image,
-                                                 mask,
-                                                 alpha=args.mask_alpha,
-                                                 labelmap=labelmap)
+                    image = general_utils.drawMaskOnImage(
+                        image, mask, alpha=args.mask_alpha, labelmap=labelmap)
         else:
             mask = None
             logging.debug('No mask for this image.')
 
         # Overlay imagefile.
         if args.with_imageid:
-            util.drawTextOnImage(image, op.basename(imagefile))
+            general_utils.drawTextOnImage(image, op.basename(imagefile))
 
         # Draw objects as polygons (preferred) or ROI.
         if args.with_objects:
@@ -631,13 +633,16 @@ def writeMedia(c, args):
                     polygon = [(backend_db.polygonField(p, 'x'),
                                 backend_db.polygonField(p, 'y'))
                                for p in polygon_entries]
-                    util.drawScoredPolygon(image,
-                                           polygon,
-                                           label=name,
-                                           score=score)
+                    general_utils.drawScoredPolygon(image,
+                                                    polygon,
+                                                    label=name,
+                                                    score=score)
                 elif roi is not None:
                     logging.debug('showing object with a bounding box.')
-                    util.drawScoredRoi(image, roi, label=name, score=score)
+                    general_utils.drawScoredRoi(image,
+                                                roi,
+                                                label=name,
+                                                score=score)
                 else:
                     raise Exception(
                         'Neither polygon, nor bbox is available for objectid %d'
@@ -892,7 +897,8 @@ def writeMediaGridByTime(c, args):
             image = cv2.resize(image, dsize=(width, height))
             assert len(image.shape) == 3  # Now only color images.
             if args.with_timestamp:
-                util.drawTextOnImage(image, backend_db.makeTimeString(in_time))
+                general_utils.drawTextOnImage(
+                    image, backend_db.makeTimeString(in_time))
 
             # Lazy initialization.
             if grid is None:
@@ -965,8 +971,8 @@ def repaintMask(c, args):
             # Read mask.
             mask = imreader.maskread(maskfile)
             # Repaint mask.
-            mask = util.applyLabelMappingToMask(mask,
-                                                labelmap).astype(np.uint8)
+            mask = general_utils.applyLabelMappingToMask(
+                mask, labelmap).astype(np.uint8)
             # Write mask to video and to the db.
             maskfile_new = imwriter.maskwrite(
                 mask, namehint=(maskfile if use_namehint else None))

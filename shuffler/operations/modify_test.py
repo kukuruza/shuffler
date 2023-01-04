@@ -8,10 +8,10 @@ import nose
 
 from shuffler.backend import backend_db
 from shuffler.operations import modify
-from shuffler.utils import test_utils
+from shuffler.utils import testing as testing_utils
 
 
-class Test_bboxesToPolygons_SyntheticDb(test_utils.Test_DB):
+class Test_bboxesToPolygons_SyntheticDb(testing_utils.Test_DB):
 
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
@@ -40,7 +40,7 @@ class Test_bboxesToPolygons_SyntheticDb(test_utils.Test_DB):
         self.assertEqual(set(actual), set(expected))
 
 
-class Test_polygonsToBboxes_SyntheticDb(test_utils.Test_DB):
+class Test_polygonsToBboxes_SyntheticDb(testing_utils.Test_DB):
 
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
@@ -89,7 +89,7 @@ class Test_polygonsToBboxes_SyntheticDb(test_utils.Test_DB):
             modify.polygonsToBboxes(c, args)
 
 
-class Test_addVideo_SyntheticDb(test_utils.Test_DB):
+class Test_addVideo_SyntheticDb(testing_utils.Test_DB):
 
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
@@ -136,7 +136,7 @@ class Test_addVideo_SyntheticDb(test_utils.Test_DB):
         self.assertEqual(actual, expected)
 
 
-class Test_addPictures_SyntheticDb(test_utils.Test_DB):
+class Test_addPictures_SyntheticDb(testing_utils.Test_DB):
 
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')

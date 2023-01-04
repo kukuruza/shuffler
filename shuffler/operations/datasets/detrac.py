@@ -6,8 +6,8 @@ from lxml import etree as ET
 from progressbar import progressbar
 
 from shuffler.backend import backend_media
-from shuffler.utils import util
-from shuffler.utils import util_boxes
+from shuffler.utils import general as general_utils
+from shuffler.utils import boxes as boxes_utils
 
 
 def add_parsers(subparsers):
@@ -139,8 +139,8 @@ def importDetrac(c, args):
                          str(trajectory_length)))
 
                     if args.display:
-                        util.drawScoredRoi(
-                            img, util_boxes.bbox2roi([x1, y1, width, height]),
+                        general_utils.drawScoredRoi(
+                            img, boxes_utils.bbox2roi([x1, y1, width, height]),
                             vehicle_type)
 
                 # Maybe display.

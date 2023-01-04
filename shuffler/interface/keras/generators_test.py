@@ -7,9 +7,8 @@ import progressbar
 import shutil
 import tempfile
 import unittest
-import numpy as np
 
-from shuffler.utils import test_utils
+from shuffler.utils import testing as testing_utils
 from shuffler.interface.keras import generators
 
 
@@ -85,11 +84,12 @@ class TestFilterKeys(unittest.TestCase):
             generators._filterKeys({'x': 'X'}, {})
 
 
-class TestImageGenerator(test_utils.Test_carsDb):
+class TestImageGenerator(testing_utils.Test_carsDb):
 
     def setUp(self):
         self.tmp_in_db_file = tempfile.NamedTemporaryFile().name
-        shutil.copy(test_utils.Test_carsDb.CARS_DB_PATH, self.tmp_in_db_file)
+        shutil.copy(testing_utils.Test_carsDb.CARS_DB_PATH,
+                    self.tmp_in_db_file)
 
     def tearDown(self):
         if os.path.exists(self.tmp_in_db_file):
@@ -98,8 +98,8 @@ class TestImageGenerator(test_utils.Test_carsDb):
     def test_general(self):
         batch_size = 2
         generator = generators.ImageGenerator(
-            test_utils.Test_carsDb.CARS_DB_PATH,
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            testing_utils.Test_carsDb.CARS_DB_PATH,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             batch_size=batch_size)
         self.assertEqual(len(generator), 2)  # 2 batches (with 2 and 1 images).
         batch = generator[0]
@@ -130,8 +130,8 @@ class TestImageGenerator(test_utils.Test_carsDb):
     def test_used_keys_list(self):
         batch_size = 2
         generator = generators.ImageGenerator(
-            test_utils.Test_carsDb.CARS_DB_PATH,
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            testing_utils.Test_carsDb.CARS_DB_PATH,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             used_keys=['mask', 'score'],
             batch_size=batch_size)
         self.assertEqual(len(generator), 2)  # 2 batches (with 2 and 1 images).
@@ -142,8 +142,8 @@ class TestImageGenerator(test_utils.Test_carsDb):
     def test_used_keys_dict(self):
         batch_size = 2
         generator = generators.ImageGenerator(
-            test_utils.Test_carsDb.CARS_DB_PATH,
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            testing_utils.Test_carsDb.CARS_DB_PATH,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             used_keys={
                 'mask': 'mask_',
                 'score': 'score_'
@@ -158,35 +158,36 @@ class TestImageGenerator(test_utils.Test_carsDb):
 
     def test_where_image(self):
         generator = generators.ImageGenerator(
-            test_utils.Test_carsDb.CARS_DB_PATH,
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            testing_utils.Test_carsDb.CARS_DB_PATH,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             where_image='imagefile == "images/000000.jpg"')
         self.assertEqual(len(generator), 1)  # 1 image.
 
     def test_where_object(self):
         # All objects should be "cars".
         generator = generators.ImageGenerator(
-            test_utils.Test_carsDb.CARS_DB_PATH,
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            testing_utils.Test_carsDb.CARS_DB_PATH,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             where_object='name == "car"')
         batch = generator[0]
         self.assertEqual(len(batch['objects']), 1)  # 1 car in the 1st image.
 
         # All objects should be "bus".
         generator = generators.ImageGenerator(
-            test_utils.Test_carsDb.CARS_DB_PATH,
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            testing_utils.Test_carsDb.CARS_DB_PATH,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             where_object='name == "bus"')
         batch = generator[0]
         self.assertEqual(len(batch['objects'][0]),
                          0)  # No buses in the 1st image.
 
 
-class TestObjectGenerator(test_utils.Test_carsDb):
+class TestObjectGenerator(testing_utils.Test_carsDb):
 
     def setUp(self):
         self.tmp_in_db_file = tempfile.NamedTemporaryFile().name
-        shutil.copy(test_utils.Test_carsDb.CARS_DB_PATH, self.tmp_in_db_file)
+        shutil.copy(testing_utils.Test_carsDb.CARS_DB_PATH,
+                    self.tmp_in_db_file)
 
     def tearDown(self):
         if os.path.exists(self.tmp_in_db_file):
@@ -196,7 +197,7 @@ class TestObjectGenerator(test_utils.Test_carsDb):
         batch_size = 2
         generator = generators.ObjectGenerator(
             self.tmp_in_db_file,
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             mode='w',
             batch_size=batch_size)
         self.assertEqual(len(generator), 2)  # 2 batches, with 1 and 2 objects.
@@ -220,8 +221,8 @@ class TestObjectGenerator(test_utils.Test_carsDb):
     def test_used_keys_list(self):
         batch_size = 2
         generator = generators.ImageGenerator(
-            test_utils.Test_carsDb.CARS_DB_PATH,
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            testing_utils.Test_carsDb.CARS_DB_PATH,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             used_keys=['mask', 'score'],
             batch_size=batch_size)
         self.assertEqual(len(generator), 2)  # 2 batches (with 2 and 1 objects)
@@ -232,8 +233,8 @@ class TestObjectGenerator(test_utils.Test_carsDb):
     def test_used_keys_dict(self):
         batch_size = 2
         generator = generators.ImageGenerator(
-            test_utils.Test_carsDb.CARS_DB_PATH,
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            testing_utils.Test_carsDb.CARS_DB_PATH,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             used_keys={
                 'mask': 'mask_',
                 'score': 'score_'
@@ -249,8 +250,8 @@ class TestObjectGenerator(test_utils.Test_carsDb):
     def test_where_object(self):
         # All objects should be "cars".
         generator = generators.ObjectGenerator(
-            test_utils.Test_carsDb.CARS_DB_PATH,
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            testing_utils.Test_carsDb.CARS_DB_PATH,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             where_object='name == "car"')
         # 2 cars out of 3 objects in the generator.
         self.assertEqual(len(generator), 2)  # Each batch is one car.

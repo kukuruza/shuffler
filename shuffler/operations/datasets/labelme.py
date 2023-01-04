@@ -10,7 +10,7 @@ from datetime import datetime
 
 from shuffler.backend import backend_db
 from shuffler.backend import backend_media
-from shuffler.utils import util
+from shuffler.utils import general as general_utils
 from shuffler.utils import parser as parser_utils
 
 
@@ -196,7 +196,8 @@ def importLabelme(c, args):
                     'INSERT INTO properties(objectid,key,value) VALUES (?,?,?);',
                     (objectid, attrib.text, 'true'))
 
-            util.polygons2bboxes(c, objectid)  # Generate a bounding box.
+            general_utils.polygons2bboxes(c,
+                                          objectid)  # Generate a bounding box.
 
 
 def exportLabelmeParser(subparsers):
@@ -289,7 +290,7 @@ def exportLabelme(c, args):
             occluded = 'yes' if occluded is not None and occluded == 'true' else 'no'
 
             # In case bboxes were not recorded as polygons.
-            util.bboxes2polygons(c, objectid)
+            general_utils.bboxes2polygons(c, objectid)
 
             el_object = ET.SubElement(el_root, "object")
             ET.SubElement(el_object,
@@ -356,9 +357,9 @@ def exportLabelme(c, args):
                   (imagefile, imagefile))
 
         # Write image.
-        image_path = util.makeExportedImageName(args.images_dir, imagefile,
-                                                args.dirtree_level_for_name,
-                                                args.fix_invalid_image_names)
+        image_path = general_utils.makeExportedImageName(
+            args.images_dir, imagefile, args.dirtree_level_for_name,
+            args.fix_invalid_image_names)
         # Labelme supports only JPG.
         if op.splitext(image_path)[1] != '.jpg':
             image_path = op.splitext(image_path)[0] + '.jpg'

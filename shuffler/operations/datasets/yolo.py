@@ -3,7 +3,7 @@ import logging
 import shutil
 import progressbar
 
-from shuffler.utils import util
+from shuffler.utils import general as general_utils
 from shuffler.utils import parser as parser_utils
 
 
@@ -87,7 +87,7 @@ def _exportImageAsPolygons(c, imagefile, imwidth, imheight, classes):
               (imagefile, ))
     for objectid, name in c.fetchall():
         # In case bboxes were not recorded as polygons.
-        util.bboxes2polygons(c, objectid)
+        general_utils.bboxes2polygons(c, objectid)
 
         try:
             label_id = classes.index(name)
@@ -148,9 +148,9 @@ def exportYolo(c, args):
                 "Image not found at %s (using rootdir %s)." %
                 (src_image_path, args.rootdir))
 
-        image_path = util.makeExportedImageName(image_dir, imagefile,
-                                                args.dirtree_level_for_name,
-                                                args.fix_invalid_image_names)
+        image_path = general_utils.makeExportedImageName(
+            image_dir, imagefile, args.dirtree_level_for_name,
+            args.fix_invalid_image_names)
         if args.copy_images:
             shutil.copyfile(src_image_path, image_path)
         elif args.symlink_images:
@@ -167,7 +167,7 @@ def exportYolo(c, args):
 
         # Write to labels file.
         if len(lines) > 0:
-            labels_path = util.makeExportedImageName(
+            labels_path = general_utils.makeExportedImageName(
                 labels_dir, imagefile, args.dirtree_level_for_name,
                 args.fix_invalid_image_names)
             labels_path = op.splitext(labels_path)[0] + '.txt'

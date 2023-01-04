@@ -10,8 +10,8 @@ from progressbar import progressbar
 
 from shuffler.backend import backend_db
 from shuffler.backend import backend_media
-from shuffler.utils import util
-from shuffler.utils import util_boxes
+from shuffler.utils import general as general_utils
+from shuffler.utils import boxes as boxes_utils
 from shuffler.utils import parser as parser_utils
 
 
@@ -303,13 +303,11 @@ def filterObjectsAtImageEdges(c, args):
                     polygon = [(backend_db.polygonField(p, 'x'),
                                 backend_db.polygonField(p, 'y'))
                                for p in polygon_entries]
-                    util.drawScoredPolygon(image,
-                                           polygon,
-                                           score=(0 if for_deletion else 1))
+                    general_utils.drawScoredPolygon(
+                        image, polygon, score=(0 if for_deletion else 1))
                 elif roi is not None:
-                    util.drawScoredRoi(image,
-                                       roi,
-                                       score=(0 if for_deletion else 1))
+                    general_utils.drawScoredRoi(
+                        image, roi, score=(0 if for_deletion else 1))
 
             # Delete if necessary
             if for_deletion:
@@ -403,16 +401,15 @@ def filterObjectsByIntersection(c, args):
 
             if args.display:
                 image = imreader.imread(imagefile)
-                util.drawScoredRoi(image,
-                                   roi1,
-                                   score=(1 if good_objects[iobject1] else 0))
+                general_utils.drawScoredRoi(
+                    image, roi1, score=(1 if good_objects[iobject1] else 0))
                 for iobject2, object_entry2 in enumerate(object_entries):
                     if iobject1 == iobject2:
                         continue
                     roi2 = backend_db.objectField(object_entry2, 'roi')
                     if roi2 is None:
                         continue
-                    util.drawScoredRoi(image, roi2, score=0.5)
+                    general_utils.drawScoredRoi(image, roi2, score=0.5)
                 cv2.imshow('filterObjectsByIntersection', image[:, :, ::-1])
                 key = cv2.waitKey(-1)
                 if key == 27:
@@ -538,7 +535,7 @@ def filterObjectsInsideCertainObjects(c, args):
             center_yx = c.fetchone()
             # If polygon does not exist, use bbox.
             if center_yx[0] is None:
-                roi = util_boxes.bbox2roi(
+                roi = boxes_utils.bbox2roi(
                     backend_db.objectField(object_entry, 'bbox'))
                 center_yx = (roi[0] + roi[2]) / 2, (roi[1] + roi[3]) / 2
             logging.debug('center_yx: %s', str(center_yx))
@@ -558,7 +555,7 @@ def filterObjectsInsideCertainObjects(c, args):
                     logging.debug('Object %d is %sinside polygon', objectid,
                                   ' ' if is_inside else 'not ')
                 else:
-                    shadow_roi = util_boxes.bbox2roi(
+                    shadow_roi = boxes_utils.bbox2roi(
                         backend_db.objectField(shadow_object_entry, 'bbox'))
                     is_inside = (center_yx[0] > shadow_roi[0]
                                  and center_yx[0] < shadow_roi[2]

@@ -8,10 +8,10 @@ import numpy as np
 import nose
 
 from shuffler.operations.datasets import yolo
-from shuffler.utils import test_utils
+from shuffler.utils import testing as testing_utils
 
 
-class Test_exportYolo_carsDb(test_utils.Test_carsDb):
+class Test_exportYolo_carsDb(testing_utils.Test_carsDb):
 
     def setUp(self):
         super(Test_exportYolo_carsDb, self).setUp()
@@ -65,7 +65,7 @@ class Test_exportYolo_carsDb(test_utils.Test_carsDb):
     def test_carsOnly(self):
         c = self.conn.cursor()
         args = argparse.Namespace(
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             yolo_dir=op.join(self.temp_dir),
             copy_images=True,
             symlink_images=False,
@@ -80,7 +80,7 @@ class Test_exportYolo_carsDb(test_utils.Test_carsDb):
     def test_carsAndBuses(self):
         c = self.conn.cursor()
         args = argparse.Namespace(
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             yolo_dir=op.join(self.temp_dir),
             copy_images=True,
             symlink_images=False,
@@ -96,7 +96,7 @@ class Test_exportYolo_carsDb(test_utils.Test_carsDb):
         ''' Only check if symlinks exist. '''
         c = self.conn.cursor()
         args = argparse.Namespace(
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             yolo_dir=op.join(self.temp_dir),
             copy_images=False,
             symlink_images=True,
@@ -123,7 +123,7 @@ class Test_exportYolo_carsDb(test_utils.Test_carsDb):
         ''' Only check if image and label names are correct. '''
         c = self.conn.cursor()
         args = argparse.Namespace(
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             yolo_dir=op.join(self.temp_dir),
             copy_images=False,
             symlink_images=True,
@@ -151,7 +151,7 @@ class Test_exportYolo_carsDb(test_utils.Test_carsDb):
 
         c = self.conn.cursor()
         args = argparse.Namespace(
-            rootdir=test_utils.Test_carsDb.CARS_DB_ROOTDIR,
+            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
             yolo_dir=op.join(self.temp_dir),
             copy_images=True,
             symlink_images=False,

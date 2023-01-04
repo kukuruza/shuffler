@@ -6,8 +6,8 @@ from glob import glob
 from progressbar import progressbar
 
 from shuffler.backend import backend_media
-from shuffler.utils import util
-from shuffler.utils import util_boxes
+from shuffler.utils import general as general_utils
+from shuffler.utils import boxes as boxes_utils
 
 
 def add_parsers(subparsers):
@@ -99,8 +99,8 @@ def importPascalVoc2012(c, args):
                 c.execute(s, (objectid, 'occluded', occluded))
 
                 if args.display:
-                    roi = util_boxes.bbox2roi((x1, y1, width, height))
-                    util.drawScoredRoi(img, roi, name)
+                    roi = boxes_utils.bbox2roi((x1, y1, width, height))
+                    general_utils.drawScoredRoi(img, roi, name)
 
                 for part in object_.findall('part'):
                     # Each part is inserted as a 4-point polygon with the name
@@ -119,7 +119,10 @@ def importPascalVoc2012(c, args):
 
                     if args.display:
                         pts = [[x1, y1], [x1, y2], [x2, y2], [x2, y1]]
-                        util.drawScoredPolygon(img, pts, name, score=1)
+                        general_utils.drawScoredPolygon(img,
+                                                        pts,
+                                                        name,
+                                                        score=1)
 
         # Class egmentation annotations.
         if args.segmentation_class:
@@ -135,7 +138,7 @@ def importPascalVoc2012(c, args):
                           (maskfile, imagefile))
                 if args.display:
                     mask = imreader.maskread(maskfile)
-                    img = util.drawMaskAside(img, mask, labelmap=None)
+                    img = general_utils.drawMaskAside(img, mask, labelmap=None)
 
         # Object segmentation annotations.
         elif args.segmentation_object:
@@ -151,7 +154,7 @@ def importPascalVoc2012(c, args):
                           (maskfile, imagefile))
                 if args.display:
                     mask = imreader.maskread(maskfile)
-                    img = util.drawMaskAside(img, mask, labelmap=None)
+                    img = general_utils.drawMaskAside(img, mask, labelmap=None)
 
         # Maybe display.
         if args.display:

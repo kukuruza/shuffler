@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import re
 
 from shuffler.backend import backend_db
-from shuffler.utils import util_boxes
+from shuffler.utils import boxes as boxes_utils
 
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 SCALE = 28
@@ -427,7 +427,7 @@ def getIntersectingObjects(objects1, objects2, IoU_threshold, same_id_ok=True):
             else:
                 roi1 = backend_db.objectField(object1, 'roi')
                 roi2 = backend_db.objectField(object2, 'roi')
-                pairwise_IoU[i1, i2] = util_boxes.getIoU(roi1, roi2)
+                pairwise_IoU[i1, i2] = boxes_utils.getIoU(roi1, roi2)
     logging.debug('getIntersectingObjects got Pairwise_IoU:\n%s',
                   np.array2string(pairwise_IoU, precision=1))
 
