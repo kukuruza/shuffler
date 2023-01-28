@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "dataset-shuffler"
-version = "0.1.0"
+version = "0.1.1"
 description = "Data engineering tool for learning-based computer vision."
 readme = "README.md"
 authors = [{ name = "Evgeny Toropov", email = "toropov.evgeny@gmail.com" }]
