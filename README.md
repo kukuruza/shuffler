@@ -171,7 +171,7 @@ python -m shuffler \
   importKitti --images_dir ${IMAGES_DIR} --detection_dir ${OBJECT_LABELS_DIR}  '|' \
   filterObjectsByName --good_names 'car' 'truck' 'bus'  '|' \
   filterObjectsSQL --sql "SELECT objectid FROM objects WHERE width < 64 OR height < 64"  '|' \
-  expandObjects --expand_perc 0.2  '|' \
+  expandObjects --expand_fraction 0.2  '|' \
   cropObjects --media 'pictures' --image_path ${NEW_CROPPED_IMAGE_PATH} --target_width 224 --target_height 224  '|' \
   exportImagenet2012 --imagenet_home ${NEW_IMAGENET_DIRECTORY} --symlink_images
 ```

@@ -279,8 +279,8 @@ def exportCityscapesParser(subparsers):
         '--was_imported_from_cityscapes',
         action='store_true',
         help='"Imagefiles" with underscore are parsed as '
-        '\{city\}_\{name\}_\{type\}\{ext\}, '
-        '\{City\} and \{type\} are changed according to the export settings.')
+        '{city}_{name}_{type}{ext}, '
+        '{City} and {type} are changed according to the export settings.')
 
 
 def exportCityscapes(c, args):

@@ -40,10 +40,27 @@ def filterImagesViaAnotherDbParser(subparsers):
         'Imagefile entries from this .db file will be kept / deleted from the open db.'
     )
     parser.add_argument(
-        '--use_basename',
-        action='store_true',
-        help='If specified, compare files based on their basename, not paths.')
+        '--dirtree_level',
+        type=int,
+        help='If specified, will use this many levels of the directory '
+        'structure for comparison. '
+        'E.g. consider imagefiles "my/fancy/image.jpg" and "other/image.jpg". '
+        'If dirtree_level=1, they match because filenames "image.jpg" match. '
+        'If dirtree_level=2, they do NOT match because "fancy/image.jpg" is '
+        'different from "other/image.jpg". '
+        'Useful when images in different dirs have the same filename. '
+        'If not specified (default), will compare the whole path.')
     parser_utils.addKeepOrDeleteArguments(parser)
+
+
+def takeSubpath(path, dirtree_level=None):
+    ' Takes dirtree_level parts from the path from the end and removes os.sep. '
+    if dirtree_level is None:
+        return path
+    path = path[::-1]
+    path = path.replace(op.sep, "", dirtree_level - 1)
+    path = path[::-1]
+    return op.basename(path)
 
 
 def filterImagesViaAnotherDb(c, args):
@@ -63,18 +80,16 @@ def filterImagesViaAnotherDb(c, args):
     imagefiles = [imagefile for imagefile, in c.fetchall()]
     logging.info('Before filtering have %d files', len(imagefiles))
 
-    maybe_basename = lambda x: op.basename(x) if args.use_basename else x
-    if args.use_basename:
-        imagefiles_ref = [op.basename(x) for x in imagefiles_ref]
-
     # imagefiles_del are either must be or must not be in the other database.
     if args.keep:
         imagefiles_del = [
-            x for x in imagefiles if maybe_basename(x) not in imagefiles_ref
+            x for x in imagefiles
+            if takeSubpath(x, args.dirtree_level) not in imagefiles_ref
         ]
     else:
         imagefiles_del = [
-            x for x in imagefiles if maybe_basename(x) in imagefiles_ref
+            x for x in imagefiles
+            if takeSubpath(x, args.dirtree_level) in imagefiles_ref
         ]
     logging.info('Will delete %d images', len(imagefiles_del))
 
@@ -329,10 +344,11 @@ def filterObjectsByIntersectionParser(subparsers):
         description='Remove objects that intersect with other objects.')
     parser.set_defaults(func=filterObjectsByIntersection)
     parser.add_argument(
-        '--threshold',
+        '--IoA_threshold',
         default=0.1,
         type=float,
-        help='How much an object has to intersect with others.')
+        help='Minimal Intersection over AREA of the object. If an object '
+        'has IoA > IoA_threshold with some other object, it is deleted.')
     parser.add_argument(
         '--display',
         action='store_true',
@@ -386,8 +402,8 @@ def filterObjectsByIntersection(c, args):
                 roi2 = backend_db.objectField(object_entry2, 'roi')
                 if roi2 is None:
                     continue
-                intersection = getRoiIntersection(roi1, roi2) / float(area1)
-                if intersection > args.threshold:
+                IoA = getRoiIntersection(roi1, roi2) / float(area1)
+                if IoA > args.IoA_threshold:
                     good_objects[iobject1] = False
                     break
 

@@ -520,7 +520,7 @@ def labelObjects(c, args):
         action = key_reader.parse(cv2.waitKey(-1))
         if action == 'exit':
             break
-        elif action == 'delete_label' and any_object_in_focus:
+        elif action == 'delete_label':
             logging.info('Remove label from objectid "%s"', objectid)
             c.execute('DELETE FROM properties WHERE objectid=? AND key=?',
                       (objectid, args.property))
@@ -528,8 +528,8 @@ def labelObjects(c, args):
         elif action is not None and action not in ['previous', 'next']:
             # User pressed something else which has an assigned action,
             # assume it is a new value.
-            logging.info('Setting label "%s" to objectid "%s"',
-                         (action, objectid))
+            logging.info('Setting label "%s" to objectid "%s"', action,
+                         objectid)
             if len(properties) > 0:
                 c.execute('DELETE FROM properties WHERE objectid=? AND key=?',
                           (objectid, args.property))

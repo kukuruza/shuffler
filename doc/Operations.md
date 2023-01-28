@@ -235,11 +235,11 @@ python -m shuffler --rootdir 'test' \
 # Expand bounding boxes
 python -m shuffler --rootdir 'test' \
   --in_db_file 'testdata/cars/micro1_v5.db' \
-  expandBoxes --expand_perc 0.2 --display
+  expandBoxes --expand_fraction 0.2 --display
 # or to try match the target_ratio
 python -m shuffler --rootdir 'test' \
   --in_db_file 'testdata/cars/micro1_v5.db' \
-  expandBoxes --expand_perc 0.2 --target_ratio 0.75 --display
+  expandBoxes --expand_fraction 0.2 --target_ratio 0.75 --display
 
 # To move the directory of images or masks
 python -m shuffler --rootdir 'test' \

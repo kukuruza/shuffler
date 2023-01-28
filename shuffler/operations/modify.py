@@ -34,13 +34,13 @@ def add_parsers(subparsers):
     addDbParser(subparsers)
     splitDbParser(subparsers)
     mergeIntersectingObjectsParser(subparsers)
-    renameObjectsParser(subparsers)
-    resizeAnnotationsParser(subparsers)
-    propertyToObjectsFieldParser(subparsers)
     syncObjectidsWithDbParser(subparsers)
     syncPolygonIdsWithDbParser(subparsers)
     syncObjectsDataWithDbParser(subparsers)
     syncRoundedCoordinatesWithDbParser(subparsers)
+    renameObjectsParser(subparsers)
+    resizeAnnotationsParser(subparsers)
+    propertyToObjectsFieldParser(subparsers)
     revertObjectTransformsParser(subparsers)
     upgradeV4toV5Parser(subparsers)
 
@@ -305,12 +305,18 @@ def expandObjectsParser(subparsers):
         'expandObjects',
         description='Expand bbox and polygons in all four directions.')
     parser.set_defaults(func=expandObjects)
-    parser.add_argument('--expand_perc', type=float, required=True)
+    parser.add_argument(
+        '--expand_fraction',
+        type=float,
+        required=True,
+        help='Each side will be move by this percentage. '
+        'So expand_fraction=1 (=100%%) means the dimensions will increase by 3x.'
+    )
     parser.add_argument(
         '--target_ratio',
         type=float,
         help='If specified, expand to match this height/width ratio, '
-        'and if that is less than "expand_perc", then expand more.')
+        'and if that is less than "expand_fraction", then expand more.')
 
 
 def expandObjects(c, args):
@@ -331,7 +337,7 @@ def expandObjects(c, args):
                 roi = boxes_utils.expandRoiUpToRatio(old_roi,
                                                      args.target_ratio)
                 roi = boxes_utils.expandRoi(
-                    roi, (args.expand_perc, args.expand_perc))
+                    roi, (args.expand_fraction, args.expand_fraction))
                 logging.debug('Roi changed from %s to %s for object %d',
                               str(old_roi), str(roi), objectid)
             # Expand polygons, if present in "polygons" table.
@@ -342,7 +348,7 @@ def expandObjects(c, args):
             # Expand the bbox, if present in "objects" table.
             if old_roi is not None:
                 roi = boxes_utils.expandRoi(
-                    old_roi, (args.expand_perc, args.expand_perc))
+                    old_roi, (args.expand_fraction, args.expand_fraction))
                 logging.debug('Roi changed from %s to %s for object %d',
                               str(old_roi), str(roi), objectid)
             # Expand polygons, if present in "polygons" table.
@@ -351,7 +357,8 @@ def expandObjects(c, args):
                 old_xs = [backend_db.polygonField(p, 'x') for p in old_polygon]
                 old_ys = [backend_db.polygonField(p, 'y') for p in old_polygon]
                 xs, ys = boxes_utils.expandPolygon(
-                    old_xs, old_ys, (args.expand_perc, args.expand_perc))
+                    old_xs, old_ys,
+                    (args.expand_fraction, args.expand_fraction))
                 polygon = zip(ids, xs, ys)
                 logging.debug('Polygon changed from %s to %s for object %d',
                               str(list(zip(old_xs, old_ys))),
@@ -479,19 +486,19 @@ def moveRootdirParser(subparsers):
         description='Change imagefile and maskfile entries to be relative '
         'to the provided rootdir.')
     parser.set_defaults(func=moveRootdir)
-    parser.add_argument('--newrootdir',
-                        help='All paths will be relative to the newrootdir.')
+    parser.add_argument('--new_rootdir',
+                        help='All paths will be relative to the new_rootdir.')
 
 
-def _moveRootDir(c, oldrootdir, newrootdir):
-    logging.info('Moving from rootdir %s to new rootdir %s', oldrootdir,
-                 newrootdir)
+def _moveRootDir(c, old_rootdir, new_rootdir):
+    logging.info('Moving from rootdir %s to new rootdir %s', old_rootdir,
+                 new_rootdir)
 
     c.execute('SELECT imagefile FROM images')
     for oldfile, in progressbar(c.fetchall()):
         if oldfile is not None:
-            path = op.normpath(op.abspath(op.join(oldrootdir, oldfile)))
-            newfile = op.relpath(path, newrootdir)
+            path = op.normpath(op.abspath(op.join(old_rootdir, oldfile)))
+            newfile = op.relpath(path, new_rootdir)
             logging.debug('Abs path "%s" has a relative path "%s".', path,
                           newfile)
             c.execute('UPDATE images SET imagefile=? WHERE imagefile=?',
@@ -502,14 +509,14 @@ def _moveRootDir(c, oldrootdir, newrootdir):
     c.execute('SELECT maskfile FROM images')
     for oldfile, in progressbar(c.fetchall()):
         if oldfile is not None:
-            path = op.normpath(op.abspath(op.join(oldrootdir, oldfile)))
-            newfile = op.relpath(path, newrootdir)
+            path = op.normpath(op.abspath(op.join(old_rootdir, oldfile)))
+            newfile = op.relpath(path, new_rootdir)
             c.execute('UPDATE images SET maskfile=? WHERE maskfile=?',
                       (newfile, oldfile))
 
 
 def moveRootdir(c, args):
-    _moveRootDir(c, args.rootdir, args.newrootdir)
+    _moveRootDir(c, args.rootdir, args.new_rootdir)
 
 
 def addDbParser(subparsers):

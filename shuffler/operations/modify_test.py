@@ -12,7 +12,6 @@ from shuffler.utils import testing as testing_utils
 
 
 class Test_bboxesToPolygons_SyntheticDb(testing_utils.Test_DB):
-
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
         backend_db.createDb(self.conn)
@@ -41,7 +40,6 @@ class Test_bboxesToPolygons_SyntheticDb(testing_utils.Test_DB):
 
 
 class Test_polygonsToBboxes_SyntheticDb(testing_utils.Test_DB):
-
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
         backend_db.createDb(self.conn)
@@ -90,7 +88,6 @@ class Test_polygonsToBboxes_SyntheticDb(testing_utils.Test_DB):
 
 
 class Test_addVideo_SyntheticDb(testing_utils.Test_DB):
-
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
         backend_db.createDb(self.conn)
@@ -137,7 +134,6 @@ class Test_addVideo_SyntheticDb(testing_utils.Test_DB):
 
 
 class Test_addPictures_SyntheticDb(testing_utils.Test_DB):
-
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
         backend_db.createDb(self.conn)
@@ -232,7 +228,6 @@ class Test_addPictures_SyntheticDb(testing_utils.Test_DB):
 
 
 class Test_revertObjectTransforms_SyntheticDb(unittest.TestCase):
-
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
         backend_db.createDb(self.conn)
@@ -269,7 +264,6 @@ class Test_revertObjectTransforms_SyntheticDb(unittest.TestCase):
 
 
 class Test_moveRootdir_SyntheticDb(unittest.TestCase):
-
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
         backend_db.createDb(self.conn)
@@ -286,10 +280,10 @@ class Test_moveRootdir_SyntheticDb(unittest.TestCase):
         num_same = c.fetchone()[0]
         self.assertEqual(num_images, num_same)
 
-    def _assertResult(self, rootdir, newrootdir, expected):
+    def _assertResult(self, rootdir, new_rootdir, expected):
         c = self.conn.cursor()
         args = argparse.Namespace(rootdir=rootdir,
-                                  newrootdir=newrootdir,
+                                  new_rootdir=new_rootdir,
                                   verify_paths=False)
         modify.moveRootdir(c, args)
         self._assertImagesAndObjectsConsistency(c)
@@ -298,17 +292,16 @@ class Test_moveRootdir_SyntheticDb(unittest.TestCase):
         self.assertEqual(imagefile, expected)
 
     def test1(self):
-        self._assertResult(rootdir='.', newrootdir='.', expected='a/b')
+        self._assertResult(rootdir='.', new_rootdir='.', expected='a/b')
 
     def test2(self):
-        self._assertResult(rootdir='.', newrootdir='a', expected='b')
+        self._assertResult(rootdir='.', new_rootdir='a', expected='b')
 
     def test3(self):
-        self._assertResult(rootdir='.', newrootdir='c', expected='../a/b')
+        self._assertResult(rootdir='.', new_rootdir='c', expected='../a/b')
 
 
 class Test_propertyToObjectsField_SyntheticDb(unittest.TestCase):
-
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
         backend_db.createDb(self.conn)
@@ -445,7 +438,6 @@ class Test_propertyToObjectsField_SyntheticDb(unittest.TestCase):
 
 
 class Test_syncPolygonIdsWithDb_SyntheticDb(unittest.TestCase):
-
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
         backend_db.createDb(self.conn)
@@ -563,7 +555,6 @@ class Test_syncPolygonIdsWithDb_SyntheticDb(unittest.TestCase):
 
 
 class Test_syncRoundedCoordinatesWithDb_SyntheticDb(unittest.TestCase):
-
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
         backend_db.createDb(self.conn)
