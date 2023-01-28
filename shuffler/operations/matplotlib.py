@@ -8,9 +8,10 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import matplotlib.patheffects as path_effects
 
-from shuffler.utils import general as general_utils
 from shuffler.backend import backend_db
 from shuffler.backend import backend_media
+from shuffler.utils import general as general_utils
+from shuffler.utils import parser as parser_utils
 
 
 def add_parsers(subparsers):
@@ -93,9 +94,6 @@ def displayImagesPltParser(subparsers):
                         type=int,
                         default=1,
                         help='How many images to put into a plot.')
-    parser.add_argument('--where_image',
-                        default='TRUE',
-                        help='the SQL "where" clause for the "images" table.')
     parser.add_argument('--mask_mapping_dict',
                         help='A mapping to display values in maskfile. '
                         'E.g. "{\'[1,254]\': [0,0,0], 255: [128,128,30]}"')
@@ -122,6 +120,7 @@ def displayImagesPltParser(subparsers):
                         type=int,
                         default=1,
                         help='Number of columns for matplotlib figure.')
+    parser_utils.addWhereImageArgument(parser)
 
 
 def displayImagesPlt(c, args):

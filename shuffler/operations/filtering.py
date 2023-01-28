@@ -92,13 +92,8 @@ def filterImagesWithoutObjectsParser(subparsers):
     parser = subparsers.add_parser(
         'filterImagesWithoutObjects',
         description='Delete images that have no objects.')
-    parser.add_argument(
-        '--where_image',
-        default='TRUE',
-        help='the SQL "where" clause for "images" table. '
-        'E.g. to change imagefile of JPG pictures from directory "from/mydir" '
-        'only, use: \'imagefile LIKE "from/mydir/%%"\'')
     parser.set_defaults(func=filterImagesWithoutObjects)
+    parser_utils.addWhereImageArgument(parser)
 
 
 def filterImagesWithoutObjects(c, args):
@@ -143,7 +138,6 @@ def filterBadImagesParser(subparsers):
 
 
 def filterBadImages(c, args):
-
     def isImageOk(imreader, imagefile, maskfile):
         if imagefile is not None:
             try:
@@ -218,7 +212,6 @@ def filterObjectsAtImageEdgesParser(subparsers):
 
 
 def filterObjectsAtImageEdges(c, args):
-
     def isPolygonAtImageEdge(polygon_entries, imwidth, imheight, threshold):
         '''
         A polygon is considered to be at image edge iff at least one point is
@@ -349,7 +342,6 @@ def filterObjectsByIntersectionParser(subparsers):
 
 
 def filterObjectsByIntersection(c, args):
-
     def getRoiIntersection(roi1, roi2):
         dy = min(roi1[2], roi2[2]) - max(roi1[0], roi2[0])
         dx = min(roi1[3], roi2[3]) - max(roi1[1], roi2[1])
@@ -476,20 +468,16 @@ def filterObjectsInsideCertainObjectsParser(subparsers):
         required=True,
         help='SQL "where" clause that queries for "objectid". '
         'Everything with the center inside these objects '
-        '(subject to "where_objects") will be deleted. '
+        '(subject to "where_object") will be deleted. '
         'Whether a point is "inside" an object is determined by its polygon '
         'if it exists, otherwise the bounding box. '
         'Queries table "objects". Example: \'objects.name == "bus"\'')
-    parser.add_argument(
-        '--where_objects',
-        default='TRUE',
-        help='SQL "where" clause that queries for "objectid" to crop. '
-        'Queries table "objects". Example: \'objects.name == "car"\'')
+    parser_utils.addWhereObjectArgument(parser)
     parser_utils.addKeepOrDeleteArguments(parser)
 
 
 def filterObjectsInsideCertainObjects(c, args):
-    c.execute('SELECT COUNT(1) FROM objects WHERE (%s)' % args.where_objects)
+    c.execute('SELECT COUNT(1) FROM objects WHERE (%s)' % args.where_object)
     count_before = c.fetchone()[0]
     count_deleted = 0
 
@@ -520,7 +508,7 @@ def filterObjectsInsideCertainObjects(c, args):
         # Get all the objects that can be considered.
         c.execute(
             'SELECT * FROM objects WHERE imagefile=? AND (%s)' %
-            args.where_objects, (imagefile, ))
+            args.where_object, (imagefile, ))
         object_entries = c.fetchall()
         logging.debug('Total %d objects satisfying the condition.',
                       len(object_entries))

@@ -12,7 +12,6 @@ from shuffler.utils import testing as testing_utils
 
 
 class Test_filterBadImages_CarsDb(testing_utils.Test_carsDb):
-
     def setUp(self):
         testing_utils.Test_carsDb.setUp(self)
         # Make a corrupted image file.
@@ -103,11 +102,11 @@ class Test_filterObjectsInsideCertainObjects_SyntheticDb(unittest.TestCase):
         c = self.conn.cursor()
         c.execute('INSERT INTO images(imagefile) VALUES ("image0")')
         args = argparse.Namespace(where_shadowing_objects='TRUE',
-                                  where_objects='TRUE',
+                                  where_object='TRUE',
                                   keep=False)
         filtering.filterObjectsInsideCertainObjects(c, args)
         args = argparse.Namespace(where_shadowing_objects='TRUE',
-                                  where_objects='TRUE',
+                                  where_object='TRUE',
                                   keep=True)
         filtering.filterObjectsInsideCertainObjects(c, args)
 
@@ -122,7 +121,7 @@ class Test_filterObjectsInsideCertainObjects_SyntheticDb(unittest.TestCase):
             'INSERT INTO objects(imagefile,objectid,x1,y1,width,height,name) '
             'VALUES ("image0",1,40,20,40,20,"shadowing")')
         args = argparse.Namespace(where_shadowing_objects='TRUE',
-                                  where_objects='TRUE',
+                                  where_object='TRUE',
                                   keep=False)
         filtering.filterObjectsInsideCertainObjects(c, args)
         c.execute('SELECT objectid FROM objects')
@@ -142,7 +141,7 @@ class Test_filterObjectsInsideCertainObjects_SyntheticDb(unittest.TestCase):
         c.execute('INSERT INTO objects(imagefile,objectid,x1,y1,width,height) '
                   'VALUES ("image0",2,140,120,40,20)')
         args = argparse.Namespace(where_shadowing_objects='name="shadowing"',
-                                  where_objects='TRUE',
+                                  where_object='TRUE',
                                   keep=False)
         filtering.filterObjectsInsideCertainObjects(c, args)
         c.execute('SELECT objectid FROM objects')
@@ -162,7 +161,7 @@ class Test_filterObjectsInsideCertainObjects_SyntheticDb(unittest.TestCase):
         c.execute('INSERT INTO objects(imagefile,objectid,x1,y1,width,height) '
                   'VALUES ("image0",2,40,20,40,20)')
         args = argparse.Namespace(where_shadowing_objects='name="shadowing"',
-                                  where_objects='TRUE',
+                                  where_object='TRUE',
                                   keep=False)
         filtering.filterObjectsInsideCertainObjects(c, args)
         c.execute('SELECT objectid FROM objects')
@@ -184,7 +183,7 @@ class Test_filterObjectsInsideCertainObjects_SyntheticDb(unittest.TestCase):
             'INSERT INTO objects(imagefile,objectid,x1,y1,width,height,name) '
             'VALUES ("image0",2,40,20,40,20,"keep")')
         args = argparse.Namespace(where_shadowing_objects='name="shadowing"',
-                                  where_objects='name!="keep"',
+                                  where_object='name!="keep"',
                                   keep=False)
         filtering.filterObjectsInsideCertainObjects(c, args)
         c.execute('SELECT objectid FROM objects')
@@ -208,7 +207,7 @@ class Test_filterObjectsInsideCertainObjects_SyntheticDb(unittest.TestCase):
         c.execute('INSERT INTO polygons(objectid,x,y) VALUES (2,80,40)')
         c.execute('INSERT INTO polygons(objectid,x,y) VALUES (2,40,40)')
         args = argparse.Namespace(where_shadowing_objects='name="shadowing"',
-                                  where_objects='TRUE',
+                                  where_object='TRUE',
                                   keep=False)
         filtering.filterObjectsInsideCertainObjects(c, args)
         c.execute('SELECT objectid FROM objects')
@@ -232,7 +231,7 @@ class Test_filterObjectsInsideCertainObjects_SyntheticDb(unittest.TestCase):
         c.execute('INSERT INTO polygons(objectid,x,y) VALUES (2,180,140)')
         c.execute('INSERT INTO polygons(objectid,x,y) VALUES (2,140,140)')
         args = argparse.Namespace(where_shadowing_objects='name="shadowing"',
-                                  where_objects='TRUE',
+                                  where_object='TRUE',
                                   keep=False)
         filtering.filterObjectsInsideCertainObjects(c, args)
         c.execute('SELECT objectid FROM objects')
@@ -255,7 +254,7 @@ class Test_filterObjectsInsideCertainObjects_SyntheticDb(unittest.TestCase):
         c.execute('INSERT INTO objects(imagefile,objectid,x1,y1,width,height) '
                   'VALUES ("image0",2,40,20,40,20)')
         args = argparse.Namespace(where_shadowing_objects='name="shadowing"',
-                                  where_objects='TRUE',
+                                  where_object='TRUE',
                                   keep=False)
         filtering.filterObjectsInsideCertainObjects(c, args)
         c.execute('SELECT objectid FROM objects')
@@ -278,7 +277,7 @@ class Test_filterObjectsInsideCertainObjects_SyntheticDb(unittest.TestCase):
         c.execute('INSERT INTO objects(imagefile,objectid,x1,y1,width,height) '
                   'VALUES ("image0",2,40,20,40,20)')
         args = argparse.Namespace(where_shadowing_objects='name="shadowing"',
-                                  where_objects='TRUE',
+                                  where_object='TRUE',
                                   keep=False)
         filtering.filterObjectsInsideCertainObjects(c, args)
         c.execute('SELECT objectid FROM objects')

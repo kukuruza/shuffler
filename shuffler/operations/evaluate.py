@@ -12,6 +12,7 @@ import PIL
 from shuffler.backend import backend_db
 from shuffler.backend import backend_media
 from shuffler.utils import general as general_utils
+from shuffler.utils import parser as parser_utils
 
 
 def add_parsers(subparsers):
@@ -21,7 +22,6 @@ def add_parsers(subparsers):
 
 
 def _evaluateDetectionForClassPascal(c, c_gt, name, args):
-
     def _voc_ap(rec, prec):
         """ Compute VOC AP given precision and recall. """
 
@@ -150,15 +150,15 @@ def _evaluateDetectionForClassPascal(c, c_gt, name, args):
     return aps
 
 
-def _writeCurveValues(out_dir, X, Y, metrics_name, name, header):
+def _writeCurveValues(out_directory, X, Y, metrics_name, name, header):
     if name is not None:
         name = general_utils.validateFileName(name)
         stem = '%s-%s' % (metrics_name, name)
     else:
         stem = metrics_name
-    plt.savefig(op.join(out_dir, '%s.png' % stem))
-    plt.savefig(op.join(out_dir, '%s.eps' % stem))
-    with open(op.join(out_dir, '%s.txt' % stem), 'w') as f:
+    plt.savefig(op.join(out_directory, '%s.png' % stem))
+    plt.savefig(op.join(out_directory, '%s.eps' % stem))
+    with open(op.join(out_directory, '%s.txt' % stem), 'w') as f:
         f.write('%s\n' % header)
         for x, y in zip(X, Y):
             f.write('%f %f\n' % (x, y))
@@ -314,7 +314,7 @@ def _evaluateDetectionForClassSklearn(c, c_gt, class_name, args, sklearn):
     if 'precision_recall_curve' in args.extra_metrics:
         precision, recall, _ = sklearn.metrics.precision_recall_curve(
             y_true=y_true, probas_pred=y_score)
-        if args.out_dir:
+        if args.out_directory:
             plt.clf()
             plt.plot(recall, precision)
             plt.xlim([0, 1])
@@ -322,7 +322,7 @@ def _evaluateDetectionForClassSklearn(c, c_gt, class_name, args, sklearn):
             plt.xlabel('Recall')
             plt.ylabel('Precision')
             _beautifyPlot(plt.gca())
-            _writeCurveValues(args.out_dir, recall, precision,
+            _writeCurveValues(args.out_directory, recall, precision,
                               'precision-recall', class_name,
                               'recall precision')
 
@@ -330,7 +330,7 @@ def _evaluateDetectionForClassSklearn(c, c_gt, class_name, args, sklearn):
         fpr, tpr, _ = sklearn.metrics.roc_curve(y_true=y_true,
                                                 probas_pred=y_score)
         sklearn.metrics.auc(x=fpr, y=tpr)
-        if args.out_dir:
+        if args.out_directory:
             plt.clf()
             plt.plot(fpr, tpr)
             plt.xlim([0, 1])
@@ -338,7 +338,7 @@ def _evaluateDetectionForClassSklearn(c, c_gt, class_name, args, sklearn):
             plt.xlabel('FPR')
             plt.ylabel('TPR')
             _beautifyPlot(plt.gca())
-            _writeCurveValues(args.out_dir, fpr, tpr, 'roc', class_name,
+            _writeCurveValues(args.out_directory, fpr, tpr, 'roc', class_name,
                               'fpr tpr')
 
     # Compute all metrics for this class.
@@ -358,9 +358,8 @@ def evaluateDetectionParser(subparsers):
     parser.set_defaults(func=evaluateDetection)
     parser.add_argument('--gt_db_file', required=True)
     parser.add_argument('--IoU_thresh', type=float, default=0.5)
-    parser.add_argument('--where_object_gt', default='TRUE')
     parser.add_argument(
-        '--out_dir',
+        '--out_directory',
         help='If specified, plots and text files are written here.')
     parser.add_argument(
         '--extra_metrics',
@@ -393,6 +392,7 @@ def evaluateDetectionParser(subparsers):
         'class "dog" and 1 object of class "cat" affect AP proportionally.\n'
         '"class-agnostic" ignores classes. "dog" detected as "animal" is okay.'
     )
+    parser_utils.addWhereObjectArgument(parser, '--where_object_gt')
 
 
 def evaluateDetection(c, args):
@@ -429,9 +429,9 @@ def evaluateDetection(c, args):
         assert False
     conn_gt.close()
 
-    if args.out_dir:
-        os.makedirs(args.out_dir, exist_ok=True)
-        with open(op.join(args.out_dir, 'average_precision.txt'), 'w') as f:
+    if args.out_directory:
+        os.makedirs(args.out_directory, exist_ok=True)
+        with open(op.join(args.out_directory, 'average_precision.txt'), 'w') as f:
             for result in results:
                 f.write('%s\n' % str(result))
 
@@ -534,10 +534,9 @@ def evaluateSegmentationIoUParser(subparsers):
         description='Evaluate mask segmentation w.r.t. a ground truth db.')
     parser.set_defaults(func=evaluateSegmentationIoU)
     parser.add_argument('--gt_db_file', required=True)
-    parser.add_argument('--where_image', default='TRUE')
     parser.add_argument(
-        '--out_dir',
-        help='If specified, output files with be written to "out_dir".')
+        '--out_directory',
+        help='If specified, output files with be written to "out_directory".')
     parser.add_argument(
         '--out_prefix',
         default='',
@@ -563,6 +562,7 @@ def evaluateSegmentationIoUParser(subparsers):
         '--out_summary_file',
         help='Text file, where the summary is going to be appended as just one '
         'line of format: out_prefix \\t IoU_class1 \\t IoU_class2 \\t etc.')
+    parser_utils.addWhereImageArgument(parser)
 
 
 def evaluateSegmentationIoU(c, args):
@@ -599,9 +599,9 @@ def evaluateSegmentationIoU(c, args):
     for imagefile, maskfile_pr, maskfile_gt in progressbar(entries):
 
         # Load masks and bring them to comparable form.
-        mask_gt = general_utils.applyLabelMappingToMask(
+        mask_gt = general_utils.applyMaskMapping(
             imreader.maskread(maskfile_gt), labelmap_gt)
-        mask_pr = general_utils.applyLabelMappingToMask(
+        mask_pr = general_utils.applyMaskMapping(
             imreader.maskread(maskfile_pr), labelmap_pr)
         mask_pr = cv2.resize(mask_pr, (mask_gt.shape[1], mask_gt.shape[0]),
                              interpolation=cv2.INTER_NEAREST)
@@ -652,11 +652,11 @@ def evaluateSegmentationIoU(c, args):
     result_ser = result_ser[["pixAcc", "mAcc", "fwIoU", "mIoU"]]
     result_ser *= 100  # change to percent ratio
 
-    if args.out_dir is not None:
-        if not op.exists(args.out_dir):
-            os.makedirs(args.out_dir)
+    if args.out_directory is not None:
+        if not op.exists(args.out_directory):
+            os.makedirs(args.out_directory)
 
-        out_summary_path = op.join(args.out_dir, args.out_summary_file)
+        out_summary_path = op.join(args.out_directory, args.out_summary_file)
         logging.info('Will add summary to: %s', out_summary_path)
         with open(out_summary_path, 'a') as f:
             f.write(args.out_prefix + '\t' +
@@ -668,7 +668,7 @@ def evaluateSegmentationIoU(c, args):
                            hist.sum(axis=1)[:, np.newaxis])
 
         plot_confusion_matrix(normalized_hist, classes=class_names)
-        outfigfn = op.join(args.out_dir, "%sconf_mat.pdf" % args.out_prefix)
+        outfigfn = op.join(args.out_directory, "%sconf_mat.pdf" % args.out_prefix)
         fig.savefig(outfigfn,
                     transparent=True,
                     bbox_inches='tight',
@@ -676,11 +676,11 @@ def evaluateSegmentationIoU(c, args):
                     dpi=300)
         print("Confusion matrix was saved to %s" % outfigfn)
 
-        outdffn = op.join(args.out_dir,
+        outdffn = op.join(args.out_directory,
                           "%seval_result_df.csv" % args.out_prefix)
         result_df.to_csv(outdffn)
         print('Info per class was saved at %s !' % outdffn)
-        outserfn = op.join(args.out_dir,
+        outserfn = op.join(args.out_directory,
                            "%seval_result_ser.csv" % args.out_prefix)
         result_ser.to_csv(outserfn)
         print('Total result is saved at %s !' % outserfn)
@@ -713,14 +713,13 @@ def evaluateBinarySegmentationParser(subparsers):
         'Evaluate mask segmentation ROC curve w.r.t. a ground truth db. '
         'Ground truth values must be 0 for background, 255 for foreground, '
         'and the rest for "dontcare".'
-        'Predicted mask must be grayscale in [0,255], '
-        'with brightness meaning probability of foreground.')
+        'Predicted mask must be grayscale in range [0,255], '
+        'with brightness corresponding to the probability of foreground.')
     parser.set_defaults(func=evaluateBinarySegmentation)
     parser.add_argument('--gt_db_file', required=True)
-    parser.add_argument('--where_image', default='TRUE')
     parser.add_argument(
-        '--out_dir',
-        help='If specified, result files with be written to "out_dir".')
+        '--out_directory',
+        help='If specified, result files with be written to "out_directory".')
     parser.add_argument(
         '--out_prefix',
         default='',
@@ -729,6 +728,7 @@ def evaluateBinarySegmentationParser(subparsers):
     parser.add_argument('--display_images_roc',
                         action='store_true',
                         help='Specify to display on screen')
+    parser_utils.addWhereImageArgument(parser)
 
 
 def evaluateBinarySegmentation(c, args):
@@ -745,7 +745,7 @@ def evaluateBinarySegmentation(c, args):
               'ORDER BY pr.imagefile ASC' % args.where_image)
     entries = c.fetchall()
     logging.info(
-        'Total %d images in both the open and the ground truth databases.' %
+        'Total %d images in both the open and the ground truth databases.',
         len(entries))
     logging.debug(pprint.pformat(entries))
 
@@ -829,16 +829,16 @@ def evaluateBinarySegmentation(c, args):
         "Average across image area under the Precision-Recall curve, perc: %.2f"
         % (area * 100.))
 
-    if args.out_dir is not None:
-        if not op.exists(args.out_dir):
-            os.makedirs(args.out_dir)
+    if args.out_directory is not None:
+        if not op.exists(args.out_directory):
+            os.makedirs(args.out_directory)
         fig = plt.figure()
         plt.xlabel('recall')
         plt.ylabel('precision')
         plt.xlim(0, 1)
         plt.ylim(0, 1)
         plt.plot(ROC[:, 0], ROC[:, 1], 'bo-', linewidth=2, markersize=6)
-        out_plot_path = op.join(args.out_dir,
+        out_plot_path = op.join(args.out_directory,
                                 '%srecall-prec.png' % args.out_prefix)
         fig.savefig(out_plot_path,
                     transparent=True,

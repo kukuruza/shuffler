@@ -417,7 +417,6 @@ def dumpDbParser(subparsers):
 
 
 def dumpDb(c, args):
-
     def _dumpTable(tablename):
         print('Table: "%s":' % tablename)
         if args.limit:
@@ -440,9 +439,14 @@ def diffDbParser(subparsers):
     parser.add_argument('--ref_db_file',
                         required=True,
                         help='The database to take diff against.')
-    parser.add_argument('--where_object',
-                        default='TRUE',
-                        help='SQL "where" clause for the "objects" table.')
+    # Can't use utils.parser.addWhereObjectArgument because need table alias "obj."
+    parser.add_argument(
+        '--where_object',
+        default='TRUE',
+        help='an SQL "where" clause for the "objects" table. '
+        'Prefix "object" table fields with "obj." (for this operation only). '
+        'E.g. to limit objects to those named "car", use '
+        '\'obj.name == "car"\'')
 
 
 def diffDb(c, args):
@@ -463,7 +467,7 @@ def diffDb(c, args):
     results['images'] = {
         'remaining': len(imagefiles_both),
         'new': len(imagefiles_new),
-        'old': len(imagefiles_old),
+        'deleted': len(imagefiles_old),
     }
 
     # Object statistics.
@@ -493,7 +497,7 @@ def diffDb(c, args):
     results['objects'] = {
         'remaining': num_remaining,
         'new': num_new,
-        'old': num_old,
+        'deleted': num_old,
         'remaining_moved': num_moved,
         'remaining_not_renamed': num_not_renamed,
     }

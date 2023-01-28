@@ -1,14 +1,15 @@
 import os, os.path as op
+from collections import Mapping  # For checking argument type.
 import numpy as np
 import logging
 from pprint import pformat
 import sqlite3
 import argparse
 from datetime import datetime
-from collections import Mapping  # For checking argument type.
 
 from shuffler.backend.backend_db import createDb, makeTimeString
 from shuffler.backend.backend_media import MediaWriter, getPictureSize
+from shuffler.utils import parser as parser_utils
 
 
 class DatasetWriter:
@@ -20,7 +21,6 @@ class DatasetWriter:
     are written on disk and the new path is recorded into the database), or as
     a path to an image (in that case, that path is recorded into the database)
     '''
-
     def __init__(self,
                  out_db_file,
                  rootdir='.',
@@ -361,31 +361,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-o', '--out_db_file', required=True)
     parser.add_argument(
-        '--media',
-        choices=['pictures', 'video'],
-        default='pictures',
-        help='Whether to write images as JPG/PNG files or as frames in a video.'
-    )
-    parser.add_argument(
-        '--image_path',
-        help=
-        'If media is "pictures", pass the path to the new folder with pictures. '
-        'If media is "video", pass the path to that video.')
-    parser.add_argument(
-        '--mask_path',
-        help=
-        'If media is "pictures", pass the path to the new folder with pictures. '
-        'If media is "video", pass the path to that video.')
-    parser.add_argument(
         '--rootdir',
         default='.',
         help=
         'Directory that "imagefile" and "maskfile" entries will be relative to.'
     )
-    parser.add_argument(
-        '--overwrite',
-        action='store_true',
-        help='Recreate images and the database, if they already exist.')
+    parser_utils.addMediaOutputArguments(
+        parser,
+        image_path=parser_utils.ArgumentType.OPTIONAL,
+        mask_path=parser_utils.ArgumentType.OPTIONAL)
     args = parser.parse_args()
 
     # Create an instance of DatasetWriter

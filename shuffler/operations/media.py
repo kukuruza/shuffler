@@ -12,44 +12,32 @@ from shuffler.backend import backend_media
 from shuffler.backend import backend_db
 from shuffler.utils import boxes as boxes_utils
 from shuffler.utils import general as general_utils
+from shuffler.utils import parser as parser_utils
 
 
 def add_parsers(subparsers):
-    writeMediaParser(subparsers)
     cropMediaParser(subparsers)
     cropObjectsParser(subparsers)
+    tileObjectsParser(subparsers)
+    writeMediaParser(subparsers)
     polygonsToMaskParser(subparsers)
     writeMediaGridByTimeParser(subparsers)
     repaintMaskParser(subparsers)
-    tileObjectsParser(subparsers)
 
 
 def cropMediaParser(subparsers):
     parser = subparsers.add_parser('cropMedia',
                                    description='Crops images to a single ROI.')
     parser.set_defaults(func=cropMedia)
-    parser.add_argument(
-        '--media',
-        choices=['pictures', 'video'],
-        required=True,
-        help='Output either a directory with pictures or a video file.')
-    parser.add_argument(
-        '--out_rootdir',
-        help='Specify, if rootdir changed for the output imagery.')
-    parser.add_argument('--image_path',
-                        required=True,
-                        help='The directory for pictures OR video file, '
-                        'where crops from images are written to.')
-    parser.add_argument('--mask_path',
-                        help='the directory for pictures OR video file, '
-                        'where crops from masks are written to.')
     parser.add_argument('--x1', type=int, required=True)
     parser.add_argument('--y1', type=int, required=True)
     parser.add_argument('--x2', type=int, required=True)
     parser.add_argument('--y2', type=int, required=True)
-    parser.add_argument('--overwrite',
-                        action='store_true',
-                        help='Overwrite video if it exists.')
+    parser_utils.addMediaOutputArguments(
+        parser,
+        image_path=parser_utils.ArgumentType.REQUIRED,
+        mask_path=parser_utils.ArgumentType.OPTIONAL,
+        out_rootdir=True)
 
 
 def cropMedia(c, args):
@@ -117,23 +105,6 @@ def cropObjectsParser(subparsers):
         'will be written to properties under key "original_objectid"')
     parser.set_defaults(func=cropObjects)
     parser.add_argument(
-        '--media',
-        choices=['pictures', 'video'],
-        required=True,
-        help='output either a directory with pictures or a video file.')
-    parser.add_argument('--image_path',
-                        required=True,
-                        help='The directory for pictures OR video file, '
-                        'where cropped images are written to.')
-    parser.add_argument('--mask_path',
-                        help='the directory for pictures OR video file, '
-                        'where cropped masks are written to.')
-    parser.add_argument(
-        '--where_object',
-        default='TRUE',
-        help='SQL "where" clause that specifies which objects to crop. '
-        'Queries table "objects". Example: \'objects.name == "car"\'')
-    parser.add_argument(
         '--where_other_objects',
         default='FALSE',
         help='SQL "where" clause that specifies which other objects from '
@@ -151,9 +122,6 @@ def cropObjectsParser(subparsers):
         '"background" keeps the ratio but includes image background. '
         '"original" does not change the crop dimensions. Target width and height are ignored.'
     )
-    parser.add_argument('--overwrite',
-                        action='store_true',
-                        help='overwrite video if it exists.')
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
         '--split_into_folders_by_object_name',
@@ -164,6 +132,11 @@ def cropObjectsParser(subparsers):
         '--add_object_name_to_filename',
         action='store_true',
         help='Object name is added to image name, if media=""pictures".')
+    parser_utils.addWhereObjectArgument(parser)
+    parser_utils.addMediaOutputArguments(
+        parser,
+        image_path=parser_utils.ArgumentType.REQUIRED,
+        mask_path=parser_utils.ArgumentType.OPTIONAL)
 
 
 def cropObjects(c, args):
@@ -311,20 +284,6 @@ def tileObjectsParser(subparsers):
         'The purpose of the function is to create collages for the convenient '
         'inspection of objects. Masks are not supported at this moment.')
     parser.set_defaults(func=tileObjects)
-    parser.add_argument(
-        '--media',
-        choices=['pictures', 'video'],
-        required=True,
-        help='Output either a directory with pictures or a video file.')
-    parser.add_argument('--image_path',
-                        required=True,
-                        help='The directory for pictures OR video file, '
-                        'where cropped images are written to.')
-    parser.add_argument(
-        '--where_object',
-        default='TRUE',
-        help='SQL "where" clause that specifies which objects to crop. '
-        'Queries table "objects". Example: \'objects.name == "car"\'')
     parser.add_argument('--num_cells_Y',
                         type=int,
                         default=5,
@@ -345,9 +304,6 @@ def tileObjectsParser(subparsers):
         choices={'constant', 'background'},
         help='"constant" keeps the ratio but pads the patch with zeros, '
         '"background" keeps the ratio but includes image background.')
-    parser.add_argument('--overwrite',
-                        action='store_true',
-                        help='overwrite video if it exists.')
     parser.add_argument('--split_by_name',
                         action='store_true',
                         help='Start a new collage with every new name.')
@@ -356,6 +312,9 @@ def tileObjectsParser(subparsers):
         action='store_true',
         help='If specified, adds an icon of the whole image with object white.'
     )
+    parser_utils.addWhereObjectArgument(parser)
+    parser_utils.addMediaOutputArguments(
+        parser, image_path=parser_utils.ArgumentType.REQUIRED)
 
 
 def tileObjects(c, args):
@@ -527,27 +486,6 @@ def writeMediaParser(subparsers):
         'and change the database imagefiles and maskfiles to match the recordings.'
     )
     parser.set_defaults(func=writeMedia)
-    parser.add_argument(
-        '--out_rootdir',
-        help='Specify, if rootdir changed for the output imagery.')
-    parser.add_argument('--where_image',
-                        default='TRUE',
-                        help='SQL where clause for the "images" table.')
-    parser.add_argument(
-        '--media',
-        choices=['pictures', 'video'],
-        required=True,
-        help='output either a directory with pictures or a video file.')
-    parser.add_argument(
-        '--image_path',
-        help=
-        'The directory for pictures OR video file, where images are written to.'
-    )
-    parser.add_argument(
-        '--mask_path',
-        help=
-        'The directory for pictures OR video file, where masks are written to.'
-    )
     parser.add_argument('--mask_mapping_dict',
                         help='How values in maskfile are drawn. '
                         'E.g. "{\'[1,254]\': [0,0,0], 255: [128,128,30]}"')
@@ -565,9 +503,12 @@ def writeMediaParser(subparsers):
     parser.add_argument('--with_objects',
                         action='store_true',
                         help='draw objects on top.')
-    parser.add_argument('--overwrite',
-                        action='store_true',
-                        help='overwrite video if it exists.')
+    parser_utils.addWhereImageArgument(parser)
+    parser_utils.addMediaOutputArguments(
+        parser,
+        image_path=parser_utils.ArgumentType.OPTIONAL,
+        mask_path=parser_utils.ArgumentType.OPTIONAL,
+        out_rootdir=True)
 
 
 def writeMedia(c, args):
@@ -685,19 +626,6 @@ def polygonsToMaskParser(subparsers):
         'The result is a black-and-white mask when there is only one polygon, '
         'and a grayscale mask when there are multiple polygons.')
     parser.set_defaults(func=polygonsToMask)
-    parser.add_argument(
-        '--media',
-        choices=['pictures', 'video'],
-        required=True,
-        help='output either a directory with pictures or a video file')
-    parser.add_argument(
-        '--mask_path',
-        help=
-        'The directory for pictures OR video file, where masks are written to.'
-    )
-    parser.add_argument('--overwrite',
-                        action='store_true',
-                        help='overwrite images or video.')
     parser.add_argument('--skip_empty_masks',
                         action='store_true',
                         help='Do not write black masks with no objects.')
@@ -705,6 +633,8 @@ def polygonsToMaskParser(subparsers):
         '--substitute_with_box',
         action='store_true',
         help='if a polygon is not available, allow to use the bounding box.')
+    parser_utils.addMediaOutputArguments(
+        parser, mask_path=parser_utils.ArgumentType.OPTIONAL)
 
 
 def polygonsToMask(c, args):
@@ -785,20 +715,9 @@ def writeMediaGridByTimeParser(subparsers):
         'writeMediaGridByTime',
         description=
         'Export images, arranged in a grid, as a directory with pictures or as a video. '
-        'Grid arranged by directory of imagefile (imagedir), and can be set manually.'
-    )
+        'Grid arranged by directory of imagefile (imagedir), and can be set manually. '
+        'Uses "timestamp" field from "images" table.')
     parser.set_defaults(func=writeMediaGridByTime)
-    parser.add_argument(
-        '--media',
-        choices=['pictures', 'video'],
-        required=True,
-        help='output either a directory with pictures or a video file.')
-    parser.add_argument(
-        '--image_path',
-        required=True,
-        help=
-        'The directory for pictures OR video file, where images are written to.'
-    )
     parser.add_argument('--winwidth',
                         type=int,
                         default=360,
@@ -820,9 +739,8 @@ def writeMediaGridByTimeParser(subparsers):
     parser.add_argument('--with_timestamp',
                         action='store_true',
                         help='Draw time on top.')
-    parser.add_argument('--overwrite',
-                        action='store_true',
-                        help='overwrite video if it exists.')
+    parser_utils.addMediaOutputArguments(
+        parser, image_path=parser_utils.ArgumentType.REQUIRED)
 
 
 def writeMediaGridByTime(c, args):
@@ -920,27 +838,9 @@ def repaintMaskParser(subparsers):
         'repaintMask',
         description='Repaint specific colors in mask into different colors.')
     parser.set_defaults(func=repaintMask)
-    parser.add_argument(
-        '--media',
-        choices=['pictures', 'video'],
-        required=True,
-        help='Output either a directory with pictures or a video file.')
-    parser.add_argument(
-        '--mask_path',
-        help='the directory for pictures OR video file, where to write masks. '
-        'Can not overwrite the same mask dir / video.')
-    parser.add_argument(
-        '--mask_mapping_dict',
-        required=True,
-        help=
-        'values mapping for repainting. E.g. "{\'[1,254]\': [0,0,0], 255: [128,128,30]}"'
-    )
-    parser.add_argument('--overwrite',
-                        action='store_true',
-                        help='overwrite images or video.')
-    parser.add_argument(
-        '--out_rootdir',
-        help='Specify, if rootdir changed for the output imagery.')
+    parser_utils.addMaskMappingArgument(parser)
+    parser_utils.addMediaOutputArguments(
+        parser, mask_path=parser_utils.ArgumentType.REQUIRED)
 
 
 def repaintMask(c, args):
@@ -948,9 +848,7 @@ def repaintMask(c, args):
     logging.info('Parsed mask_mapping_dict to %s', pprint.pformat(labelmap))
 
     imreader = backend_media.MediaReader(rootdir=args.rootdir)
-
-    out_rootdir = args.out_rootdir if args.out_rootdir is not None else args.rootdir
-    imwriter = backend_media.MediaWriter(rootdir=out_rootdir,
+    imwriter = backend_media.MediaWriter(rootdir=args.rootdir,
                                          media_type=args.media,
                                          mask_media=args.mask_path,
                                          overwrite=args.overwrite)
@@ -971,8 +869,8 @@ def repaintMask(c, args):
             # Read mask.
             mask = imreader.maskread(maskfile)
             # Repaint mask.
-            mask = general_utils.applyLabelMappingToMask(
-                mask, labelmap).astype(np.uint8)
+            mask = general_utils.applyMaskMapping(mask,
+                                                  labelmap).astype(np.uint8)
             # Write mask to video and to the db.
             maskfile_new = imwriter.maskwrite(
                 mask, namehint=(maskfile if use_namehint else None))

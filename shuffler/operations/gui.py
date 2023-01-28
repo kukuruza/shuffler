@@ -6,9 +6,10 @@ from ast import literal_eval
 from pprint import pformat
 import imageio
 
-from shuffler.utils import general as general_utils
 from shuffler.backend import backend_db
 from shuffler.backend import backend_media
+from shuffler.utils import general as general_utils
+from shuffler.utils import parser as parser_utils
 
 
 def add_parsers(subparsers):
@@ -23,7 +24,6 @@ class KeyReader:
     '''
     A mapper from keyboard buttons to actions.
     '''
-
     def __init__(self, keysmap_str):
         '''
         Args:
@@ -77,9 +77,6 @@ def examineImagesParser(subparsers):
         'examineImages',
         description='Loop through images. Possibly, assign names to images.')
     parser.set_defaults(func=examineImages)
-    parser.add_argument('--where_image',
-                        default='TRUE',
-                        help='the SQL "where" clause for the "images" table.')
     parser.add_argument('--mask_mapping_dict',
                         help='A mapping to display values in maskfile. '
                         'E.g. "{\'[1,254]\': [0,0,0], 255: [128,128,30]}"')
@@ -111,6 +108,7 @@ def examineImagesParser(subparsers):
     parser.add_argument(
         '--snapshot_dir',
         help='If provided, snapshots will be written to "snapshot_dir".')
+    parser_utils.addWhereImageArgument(parser)
 
 
 def examineImages(c, args):
@@ -260,15 +258,13 @@ def examineObjectsParser(subparsers):
                                    description='Loop through objects.')
     parser.set_defaults(func=examineObjects)
     parser.add_argument('--shuffle', action='store_true')
-    parser.add_argument('--where_object',
-                        default='TRUE',
-                        help='the SQL "where" clause for the "objects" table.')
     parser.add_argument('--winsize', type=int, default=1000)
     parser.add_argument(
         '--key_dict',
         default=
         '{"-": "previous", "=": "next", 27: "exit", 127: "delete", " ": "unname"}'
     )
+    parser_utils.addWhereObjectArgument(parser)
     # TODO: add display of mask.
 
 
@@ -410,9 +406,6 @@ def labelObjectsParser(subparsers):
         'i.e. assign the value of user-defined property.')
     parser.set_defaults(func=labelObjects)
     parser.add_argument('--shuffle', action='store_true')
-    parser.add_argument('--where_object',
-                        default='TRUE',
-                        help='the SQL "where" clause for the "objects" table.')
     parser.add_argument('--winsize', type=int, default=1000)
     parser.add_argument('--property',
                         required=True,
@@ -422,6 +415,7 @@ def labelObjectsParser(subparsers):
         default=
         '{"-": "previous", "=": "next", 27: "exit", 127: "delete_label", '
         ' "r": "red", "g": "green", "b": "blue"}')
+    parser_utils.addWhereObjectArgument(parser)
 
 
 def labelObjects(c, args):
@@ -670,7 +664,6 @@ def _monitorPressRelease(event, x, y, flags, param):
 
 
 def _drawMatch(img, roi1, roi2, yoffset):
-
     def _getCenter(roi):
         return int(0.5 * roi[1] + 0.5 * roi[3]), int(0.25 * roi[0] +
                                                      0.75 * roi[2])
@@ -709,15 +702,13 @@ def labelMatchesParser(subparsers):
         'Press "exit" (key "Esc" by default) to save changes and exit. '
         'Pass "min_imagefile" to start with a certain image pair.')
     parser.set_defaults(func=labelMatches)
-    parser.add_argument('--where_image',
-                        default='TRUE',
-                        help='the SQL "where" clause for the "images" table.')
     parser.add_argument('--shuffle', action='store_true')
     parser.add_argument('--winsize', type=int, default=1000)
     parser.add_argument(
         '--key_dict',
         default=
         '{"-": "previous", "=": "next", 127: "delete_match", 27: "exit"}')
+    parser_utils.addWhereImageArgument(parser)
 
 
 def labelMatches(c, args):

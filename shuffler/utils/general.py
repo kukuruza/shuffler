@@ -145,16 +145,27 @@ def drawTextOnImage(img, text):
                     thickness - 1)
 
 
-def applyLabelMappingToMask(mask, labelmap):
+def applyMaskMapping(mask, labelmap):
     '''
+    Applies the provided mapping to each of mask pixels.
     Args:
-      mask:     numpy 2-dim array, the same HxW as img.
-      labelmap: dict from mask values to output values Key->Value, where:
-                Key is scalar int in [0, 255] or a str type ">=N", "<=N", or "[M,N]".
-                If Value is a scalar, the mask stays grayscale,
-                if Value is a tuple (r,g,b), the mask is transformed to color.
-                Examples {1: 255, 2: 128} or {1: (255,255,255), 2: (128,255,0)}.
-                If not specified, the mask is used as is.
+      mask:     numpy 2-dim array. Color masks are not supported now.
+      labelmap: a dict for remapping mask values.
+                Keys can be a combination of:
+                - Scalar int in range [0, 255].
+                - Strings ">N", "<N", ">=N", "<=N", or "[M,N]". Treated as a range.
+                - If there is a map pixel not in the map, it is left unchanged.
+                Values can be:
+                - Scalars. Then the mask stays grayscale,
+                - Tuple (r,g,b). Then the mask is transformed to color.
+
+                Examples:
+                - {1: 255, 2: 128}
+                        remaps 1 to 255, 2 to 128.
+                - {1: (255,255,255), 2: (128,255,0)}
+                        remaps 1 to (255,255,255) and 2 to (128,255,0)
+                - {"[0, 254]": 0, 255: 1}
+                        remaps any pixel in range [0, 254] to 0 and 255 to 1.
     Returns:
       mask      Mapped mask of type float
     '''
@@ -237,7 +248,7 @@ def drawMaskOnImage(img, mask, alpha=0.5, labelmap=None):
     Args:
       img:      numpy array
       mask:     numpy 2-dim array, the same HxW as img.
-      labelmap: same as arguments of applyLabelMappingToMask
+      labelmap: same as arguments of applyMaskMapping
       alpha:    float, alpha=0 means mask is not visible,
                        alpha=1 means img is not visible.
     Returns:
@@ -247,7 +258,7 @@ def drawMaskOnImage(img, mask, alpha=0.5, labelmap=None):
         raise NotImplementedError('Only color images are supported now.')
 
     if labelmap is not None:
-        mask = applyLabelMappingToMask(mask, labelmap).astype(np.uint8)
+        mask = applyMaskMapping(mask, labelmap).astype(np.uint8)
 
     if len(mask.shape) == 2:
         mask = cv2.cvtColor(mask, cv2.COLOR_GRAY2RGB)
@@ -274,14 +285,14 @@ def drawMaskAside(img, mask, labelmap=None):
     Args:
       img:      numpy array
       mask:     numpy array, the same HxW as img.
-      labelmap: see arguments for applyLabelMappingToMask.
+      labelmap: see arguments for applyMaskMapping.
     Returns:
       Output image.
     '''
     logging.debug('Image shape: %s, image dtype: %s', img.shape, img.dtype)
     logging.debug('Mask shape: %s, mask dtype: %s', mask.shape, mask.dtype)
     if labelmap is not None:
-        mask = applyLabelMappingToMask(mask, labelmap)
+        mask = applyMaskMapping(mask, labelmap)
 
     if len(mask.shape) == 3 and mask.shape[2] == 4 and len(
             img.shape) == 3 and img.shape[2] == 3:

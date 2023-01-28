@@ -8,6 +8,7 @@ import logging
 import pandas as pd
 
 from shuffler.utils import general as general_utils
+from shuffler.utils import parser as parser_utils
 from shuffler.operations import evaluate
 
 
@@ -42,6 +43,7 @@ def getParser():
         type=int,
         choices={10, 20, 30, 40},
         help='Log debug (10), info (20), warning (30), error (40).')
+    parser_utils.addMaskMappingArgument(parser)
     return parser
 
 
@@ -57,8 +59,8 @@ def evaluateSegmentationOneImage(args):
     if len(mask_gt.shape) == 3:
         mask_gt = mask_gt[:, :, 0]
 
-    mask_gt = general_utils.applyLabelMappingToMask(mask_gt, labelmap_gt)
-    mask_pr = general_utils.applyLabelMappingToMask(mask_pr, labelmap_pr)
+    mask_gt = general_utils.applyMaskMapping(mask_gt, labelmap_gt)
+    mask_pr = general_utils.applyMaskMapping(mask_pr, labelmap_pr)
     assert mask_gt.dtype == float
     assert mask_pr.dtype == float
     mask_pr = cv2.resize(mask_pr, (mask_gt.shape[1], mask_gt.shape[0]),

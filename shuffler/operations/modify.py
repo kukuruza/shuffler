@@ -16,6 +16,7 @@ from shuffler.backend import backend_db
 from shuffler.backend import backend_media
 from shuffler.utils import general as general_utils
 from shuffler.utils import boxes as boxes_utils
+from shuffler.utils import parser as parser_utils
 
 
 def add_parsers(subparsers):
@@ -372,12 +373,6 @@ def moveMediaParser(subparsers):
         'moveMedia', description='Change imagefile and maskfile.')
     parser.set_defaults(func=moveMedia)
     parser.add_argument(
-        '--where_image',
-        default='TRUE',
-        help='the SQL "where" clause for "images" table. '
-        'For example, to change imagefile of JPG pictures from directory '
-        '"from/mydir" only, use: \'imagefile LIKE "from/mydir/%%"\'')
-    parser.add_argument(
         '--image_path',
         help='the directory for pictures OR video file of images')
     parser.add_argument(
@@ -395,10 +390,10 @@ def moveMediaParser(subparsers):
         '--adjust_size',
         action='store_true',
         help='Check the size of target media, and scale annotations')
+    parser_utils.addWhereImageArgument(parser)
 
 
 def moveMedia(c, args):
-
     def splitall(path):
         allparts = []
         while 1:
@@ -829,27 +824,12 @@ def mergeIntersectingObjectsParser(subparsers):
         help='Name to assign to merged objects. If not specified, '
         'the name is assigned only if the names of the two merged objects match.'
     )
-    parser.add_argument(
-        '--where_object1',
-        default='TRUE',
-        help=
-        'SQL "where" clause for the "from" objects. The default is any object. '
-        'Objects "from" are merged with objects "to".')
-    parser.add_argument(
-        '--where_object2',
-        default='TRUE',
-        help=
-        'SQL "where" clause for the "to" objects. The default is any object. '
-        'Objects "from" are merged with objects "to".')
-    parser.add_argument(
-        '--where_image',
-        default='TRUE',
-        help='the SQL "where" clause for "images" table. '
-        'E.g. to change imagefile of JPG pictures from directory '
-        '"from/mydir" only, use: \'imagefile LIKE "from/mydir/%%"\'')
     parser.add_argument('--filterObjectsByIoU',
                         action='store_true',
                         help='Until <Esc> key, display merged opjects.')
+    parser_utils.addWhereImageArgument(parser)
+    parser_utils.addWhereObjectArgument(parser, '--where_object1')
+    parser_utils.addWhereObjectArgument(parser, '--where_object2')
 
 
 def mergeIntersectingObjects(c, args):
@@ -939,7 +919,6 @@ def syncObjectidsWithDbParser(subparsers):
 
 
 def syncObjectidsWithDb(c, args):
-
     def _getNextObjectidInDb(c):
         # Find the maximum objectid in this db. Will create new objectids greater.
         c.execute('SELECT MAX(objectid) FROM objects')
@@ -1061,7 +1040,6 @@ def syncPolygonIdsWithDbParser(subparsers):
 
 
 def syncPolygonIdsWithDb(c, args):
-
     def _getNextPolygonidInDb(c):
         # Find the maximum objectid in this db. Will create new objectids greater.
         c.execute('SELECT MAX(id) FROM polygons')
@@ -1298,14 +1276,12 @@ def renameObjectsParser(subparsers):
         help=
         'Map from old names to new names. E.g. \'{"Car": "car", "Truck": "car"}\''
     )
-    parser.add_argument('--where_object',
-                        default='TRUE',
-                        help='SQL "where" clause for the "objects" table.')
     parser.add_argument(
         '--discard_other_objects',
         action='store_true',
         help='Discard objects with names neither in the keys or the values '
         'of "names_dict".')
+    parser_utils.addWhereObjectArgument(parser)
 
 
 def renameObjects(c, args):
@@ -1336,12 +1312,6 @@ def resizeAnnotationsParser(subparsers):
         'This command does not scale images themselves. '
         'The "old" image size is obtrained from "images" table.')
     parser.set_defaults(func=resizeAnnotations)
-    parser.add_argument(
-        '--where_image',
-        default='TRUE',
-        help='the SQL "where" clause for "images" table. '
-        'E.g. to change imagefile of JPG pictures from directory '
-        '"from/mydir" only, use: \'imagefile LIKE "from/mydir/%%"\'')
     parser.add_argument('--target_width',
                         type=int,
                         required=False,
@@ -1350,6 +1320,7 @@ def resizeAnnotationsParser(subparsers):
                         type=int,
                         required=False,
                         help='The height each image was scaled to.')
+    parser_utils.addWhereImageArgument(parser)
 
 
 def resizeAnnotations(c, args):
