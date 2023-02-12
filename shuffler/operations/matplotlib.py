@@ -54,7 +54,7 @@ def drawScoredPolygon(ax, polygon, label=None, score=None):
     Draw a polygon on top of Matplotlib axes.
     Args:
       ax:       Matplotlib axes.
-      polygon:  List of tuples (x,y)
+      polygon:  List of tuples (y, x)
       label:    String to print near the bounding box or None.
       score:    A float in range [0, 1] or None.
     Returns:
@@ -192,14 +192,11 @@ def displayImagesPlt(c, args):
                 name = backend_db.objectField(object_entry, 'name')
                 logging.info('objectid: %d, roi: %s, score: %s, name: %s',
                              objectid, roi, score, name)
-                c.execute('SELECT * FROM polygons WHERE objectid=?',
+                c.execute('SELECT y, x FROM polygons WHERE objectid=?',
                           (objectid, ))
-                polygon_entries = c.fetchall()
-                if len(polygon_entries) > 0:
+                polygon = c.fetchall()
+                if len(polygon) > 0:
                     logging.info('showing object with a polygon.')
-                    polygon = [(int(backend_db.polygonField(p, 'x')),
-                                int(backend_db.polygonField(p, 'y')))
-                               for p in polygon_entries]
                     drawScoredPolygon(ax, polygon, label=name, score=score)
                 elif roi is not None:
                     logging.info('showing object with a bounding box.')

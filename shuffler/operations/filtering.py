@@ -294,7 +294,8 @@ def filterObjectsAtImageEdges(c, args):
             if len(polygon_entries) > 0:
                 if isPolygonAtImageEdge(polygon_entries, imwidth, imheight,
                                         args.threshold):
-                    logging.debug('Found a polygon at edge %s', str(polygon))
+                    logging.debug('Found a polygon at edge %s',
+                                  str(polygon_entries))
                     for_deletion = True
             elif roi is not None:
                 if isRoiAtImageEdge(roi, imwidth, imheight, args.threshold):
@@ -308,8 +309,8 @@ def filterObjectsAtImageEdges(c, args):
             # Draw polygon or roi.
             if args.display:
                 if len(polygon_entries) > 0:
-                    polygon = [(backend_db.polygonField(p, 'x'),
-                                backend_db.polygonField(p, 'y'))
+                    polygon = [(backend_db.polygonField(p, 'y'),
+                                backend_db.polygonField(p, 'x'))
                                for p in polygon_entries]
                     general_utils.drawScoredPolygon(
                         image, polygon, score=(0 if for_deletion else 1))

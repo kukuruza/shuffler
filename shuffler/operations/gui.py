@@ -178,14 +178,11 @@ def examineImages(c, args):
                 name = backend_db.objectField(object_entry, 'name')
                 logging.info('objectid: %d, roi: %s, score: %s, name: %s',
                              objectid, roi, score, name)
-                c.execute('SELECT * FROM polygons WHERE objectid=?',
+                c.execute('SELECT y, x FROM polygons WHERE objectid=?',
                           (objectid, ))
-                polygon_entries = c.fetchall()
-                if len(polygon_entries) > 0:
+                polygon = c.fetchall()
+                if len(polygon) > 0:
                     logging.info('showing object with a polygon.')
-                    polygon = [(int(backend_db.polygonField(p, 'x')),
-                                int(backend_db.polygonField(p, 'y')))
-                               for p in polygon_entries]
                     general_utils.drawScoredPolygon(image,
                                                     polygon,
                                                     label=name,
@@ -321,16 +318,13 @@ def examineObjects(c, args):
                          for r in roi]  # For displaying the scaled image.
             logging.info('objectid: %d, roi: %s, score: %s, name: %s',
                          objectid, roi, score, name)
-            c.execute('SELECT * FROM polygons WHERE objectid=?', (objectid, ))
+            c.execute('SELECT y, x FROM polygons WHERE objectid=?',
+                      (objectid, ))
             polygon_entries = c.fetchall()
             if len(polygon_entries) > 0:
                 logging.info('showing object with a polygon.')
-                polygon = [(int(backend_db.polygonField(p, 'x')),
-                            int(backend_db.polygonField(p, 'y')))
-                           for p in polygon_entries]
                 logging.debug('nonscaled polygon: %s', pformat(polygon))
-                polygon = [(int(scale * x), int(scale * y))
-                           for x, y in polygon]
+                polygon = [(scale * y, scale * x) for y, x in polygon]
                 logging.debug('scaled polygon: %s', pformat(polygon))
                 general_utils.drawScoredPolygon(image,
                                                 polygon,
@@ -465,16 +459,13 @@ def labelObjects(c, args):
             image = cv2.resize(image, dsize=(0, 0), fx=scale, fy=scale)
 
             logging.info('objectid: %d, roi: %s', objectid, roi)
-            c.execute('SELECT * FROM polygons WHERE objectid=?', (objectid, ))
-            polygon_entries = c.fetchall()
-            if len(polygon_entries) > 0:
+            c.execute('SELECT y, x FROM polygons WHERE objectid=?',
+                      (objectid, ))
+            polygon = c.fetchall()
+            if len(polygon) > 0:
                 logging.info('showing object with a polygon.')
-                polygon = [(int(backend_db.polygonField(p, 'x')),
-                            int(backend_db.polygonField(p, 'y')))
-                           for p in polygon_entries]
                 logging.debug('nonscaled polygon: %s', pformat(polygon))
-                polygon = [(int(scale * p[0]), int(scale * p[1]))
-                           for p in polygon]
+                polygon = [(scale * y, scale * x) for y, x in polygon]
                 logging.debug('scaled polygon: %s', pformat(polygon))
                 general_utils.drawScoredPolygon(image,
                                                 polygon,

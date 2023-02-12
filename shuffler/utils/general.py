@@ -56,7 +56,112 @@ def copyWithBackup(in_path, out_path):
         shutil.copyfile(in_path, out_path)
 
 
-def drawScoredRoi(img, roi, label=None, score=None):
+def _drawFilledRoi(img, roi, color, fill_opacity):
+    ''' 
+    Draw a filled rectangle in the image. 
+    Correctly processes ROI out of image boundary.
+    Args:
+      img:       Color or grayscale
+      polygon:   [y1, x1, y2, x2]
+      color:     Tuple of length 3 OR int based on whether image is grayscale.
+    '''
+    assert (
+        len(img.shape) == 3 and len(color) == 3
+        or len(img.shape) == 2 and isinstance(color, int)
+    ), 'Expect color image and RGB color or grayscale image and INT color.'
+    is_color = len(img.shape) == 3
+
+    roi = [int(a) for a in roi]
+    roi[0] = max(roi[0], 0)
+    roi[1] = max(roi[1], 0)
+    roi[2] = min(roi[2], img.shape[0])
+    roi[3] = min(roi[3], img.shape[1])
+    shape = roi[2] - roi[0], roi[3] - roi[1], (3 if is_color else 1)
+
+    sub_img = img[roi[0]:roi[2], roi[1]:roi[3]]
+    sub_filled = np.zeros(shape, dtype=np.uint8)
+    sub_filled[:] = color
+
+    assert sub_img.shape == np.squeeze(sub_filled).shape, (
+        "Roi %s created a misshaped rect: sub_img.shape=%s vs sub_filled.shape=%s"
+        % (roi, sub_img.shape, sub_filled.shape))
+    sub_overlayed = cv2.addWeighted(sub_img, (1. - fill_opacity), sub_filled,
+                                    fill_opacity, 1.0)
+
+    # Putting the image back to its position
+    logging.debug('_drawFilledRoi roi: %s', roi)
+    img[roi[0]:roi[2], roi[1]:roi[3]] = sub_overlayed
+
+
+def _drawFilledPolygon(img, polygon, color, fill_opacity):
+    '''
+    Draw a filled rectangle in the image.
+    Args:
+      img:      Color or grayscale
+      polygon:  [[y1, x1], [y2, x2], ...]
+      color:    Tuple of length 3 OR int based on whether image is grayscale.
+    '''
+    assert (
+        len(img.shape) == 3 and len(color) == 3
+        or len(img.shape) == 2 and isinstance(color, int)
+    ), 'Expect color image and RGB color or grayscale image and INT color.'
+    is_color = len(img.shape) == 3
+
+    polygon = np.array(polygon, np.int32)
+    ymin = polygon[:, 0].min()
+    xmin = polygon[:, 1].min()
+    ymax = polygon[:, 0].max()
+    xmax = polygon[:, 1].max()
+
+    # Process polygons that are out of image boundary.
+    if ymin < 0 or xmin < 0 or ymax >= img.shape[0] or xmax >= img.shape[1]:
+        ymin_orig = ymin
+        ymax_orig = ymax
+        xmin_orig = xmin
+        xmax_orig = xmax
+        ymin = max(0, ymin)
+        ymax = min(ymax, img.shape[0])
+        xmin = max(0, xmin)
+        xmax = min(xmax, img.shape[1])
+        sub_img = img[ymin:ymax, xmin:xmax]
+
+        # Pad the image so that the polygon is all within the image.
+        pady = max(0, -ymin_orig), max(0, ymax_orig - img.shape[0])
+        padx = max(0, -xmin_orig), max(0, xmax_orig - img.shape[1])
+        pad = (pady, padx, (0, 0)) if is_color else (pady, padx)
+        img_padded = np.pad(img, pad)
+        # Crop from the padded image.
+        polygon[:, 0] -= ymin_orig
+        polygon[:, 1] -= xmin_orig
+        sub_filled = img_padded[ymin_orig + pady[0]:ymax_orig + pady[0],
+                                xmin_orig + padx[0]:xmax_orig + padx[0]]
+        cv2.fillPoly(sub_filled, [polygon[:, ::-1]], color)
+        sub_filled = sub_filled[pady[0]:ymax - ymin + pady[0],
+                                padx[0]:xmax - xmin + padx[0]]
+    else:
+        sub_img = img[ymin:ymax, xmin:xmax]
+        sub_filled = sub_img.copy()
+        polygon[:, 0] -= ymin
+        polygon[:, 1] -= xmin
+        cv2.fillPoly(sub_filled, [polygon[:, ::-1]], color)
+
+    assert sub_img.shape == sub_filled.shape, (
+        "Polygon %s created a misshaped rect: sub_img.shape=%s vs sub_filled.shape=%s"
+        % (polygon, sub_img.shape, sub_filled.shape))
+    sub_overlayed = cv2.addWeighted(sub_img, (1 - fill_opacity), sub_filled,
+                                    fill_opacity, 1.0)
+
+    # Putting the image back to its position
+    img[ymin:ymax, xmin:xmax] = sub_overlayed
+
+
+def drawScoredRoi(img,
+                  roi,
+                  label=None,
+                  score=None,
+                  fill_opacity=0.,
+                  colormap='inferno_r',
+                  **kwargs):
     '''
     Draw a bounding box on top of image.
     Args:
@@ -64,6 +169,9 @@ def drawScoredRoi(img, roi, label=None, score=None):
       roi:      List/tuple [y1, x1, y2, x2].
       label:    String to print near the bounding box or None.
       score:    A float in range [0, 1] or None.
+      fill_opacity:     If > 0, fill in the bounding box with specified opacity.
+      colormap: Name of the Matplotlib colormap.
+      kwargs:   Ignored.
     Return:
       Nothing, 'img' is changed in place.
     '''
@@ -75,24 +183,38 @@ def drawScoredRoi(img, roi, label=None, score=None):
     label = maybeDecode(label)
     if score is None:
         score = 1
-    color = tuple([int(x * 255)
-                   for x in plt.cm.afmhot_r(float(score))][0:3])[::-1]
+    color = tuple([
+        int(x * 255) for x in plt.cm.get_cmap(colormap)(float(score))
+    ][0:3][::-1])
     roi = [int(a) for a in roi]
-    cv2.rectangle(img, (roi[1], roi[0]), (roi[3], roi[2]), color, THICKNESS)
+
     text_coords = (roi[1], roi[0] - SCALE)
     cv2.putText(img, label, text_coords, FONT, FONT_SIZE, TEXT_COLOR,
                 THICKNESS)
     cv2.putText(img, label, text_coords, FONT, FONT_SIZE, TEXT_BACKCOLOR,
                 THICKNESS - 1)
 
+    if fill_opacity > 0:
+        _drawFilledRoi(img, roi, color, fill_opacity)
+    cv2.rectangle(img, (roi[1], roi[0]), (roi[3], roi[2]), color, THICKNESS)
 
-def drawScoredPolygon(img, polygon, label=None, score=None):
+
+def drawScoredPolygon(img,
+                      polygon,
+                      label=None,
+                      score=None,
+                      fill_opacity=0.,
+                      colormap='inferno_r',
+                      **kwargs):
     '''
     Args:
       img:      Numpy color image.
-      polygon:  List of tuples (x,y)
+      polygon:  [[y1, x1], [y2, x2], ...]
       label:    String to print near the bounding box or None.
       score:    A float in range [0, 1] or None.
+      fill_opacity:     If > 0, fill in the bounding box with specified opacity.
+      colormap: Name of the Matplotlib colormap.
+      kwargs:   Ignored.
     Returns:
       Nothing, 'img' is changed in place.
     '''
@@ -103,23 +225,25 @@ def drawScoredPolygon(img, polygon, label=None, score=None):
     label = maybeDecode(label)
     if score is None:
         score = 1
-    color = tuple([int(x * 255)
-                   for x in plt.cm.afmhot_r(float(score))][0:3])[::-1]
-    polygon = [(int(x), int(y)) for x, y in polygon]
-    for i1 in range(len(polygon)):
-        i2 = (i1 + 1) % len(polygon)
-        cv2.line(img, tuple(polygon[i1]), tuple(polygon[i2]), color, THICKNESS)
+    color = tuple([
+        int(x * 255) for x in plt.cm.get_cmap(colormap)(float(score))
+    ][0:3][::-1])
+    polygon = np.array(polygon, np.int32)
+
     # Draw a label.
-    xmin = polygon[0][0]
-    ymin = polygon[0][1]
-    for i in range(len(polygon) - 1):
-        xmin = min(xmin, polygon[i][0])
-        ymin = min(ymin, polygon[i][1])
+    ymin = polygon[:, 0].min()
+    xmin = polygon[:, 1].min()
     text_coords = (xmin, ymin - SCALE)
+    logging.debug('polygon:\n%s', polygon)
+    logging.debug('text_coords: %s', text_coords)
     cv2.putText(img, label, text_coords, FONT, FONT_SIZE, TEXT_COLOR,
                 THICKNESS)
     cv2.putText(img, label, text_coords, FONT, FONT_SIZE, TEXT_BACKCOLOR,
                 THICKNESS - 1)
+
+    if fill_opacity > 0:
+        _drawFilledPolygon(img, polygon, color, fill_opacity)
+    cv2.polylines(img, [polygon[:, ::-1]], True, color, THICKNESS)
 
 
 def drawTextOnImage(img, text):

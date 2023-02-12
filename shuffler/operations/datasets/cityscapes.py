@@ -173,12 +173,10 @@ def importCityscapes(c, args):
                         (imagefile, ))
                     for objectid, name in c.fetchall():
                         # Draw polygon.
-                        c.execute('SELECT x,y FROM polygons WHERE objectid=?',
+                        c.execute('SELECT y, x FROM polygons WHERE objectid=?',
                                   (objectid, ))
                         polygon = c.fetchall()
-                        general_utils.drawScoredPolygon(
-                            img, [(int(pt[0]), int(pt[1])) for pt in polygon],
-                            name)
+                        general_utils.drawScoredPolygon(img, polygon, name)
                     cv2.imshow('importCityscapes', img[:, :, ::-1])
                     if cv2.waitKey(-1) == 27:
                         args.display = False

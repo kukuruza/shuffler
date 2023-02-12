@@ -118,11 +118,8 @@ def importPascalVoc2012(c, args):
                     c.execute(s, (objectid, x2, y1, name))
 
                     if args.display:
-                        pts = [[x1, y1], [x1, y2], [x2, y2], [x2, y1]]
-                        general_utils.drawScoredPolygon(img,
-                                                        pts,
-                                                        name,
-                                                        score=1)
+                        general_utils.drawScoredRoi(img, (y1, x1, y2, x2),
+                                                    name)
 
         # Class egmentation annotations.
         if args.segmentation_class:

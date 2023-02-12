@@ -509,6 +509,7 @@ def writeMediaParser(subparsers):
         image_path=parser_utils.ArgumentType.OPTIONAL,
         mask_path=parser_utils.ArgumentType.OPTIONAL,
         out_rootdir=True)
+    parser_utils.addDrawingStyleArguments(parser)
 
 
 def writeMedia(c, args):
@@ -566,24 +567,27 @@ def writeMedia(c, args):
                 roi = backend_db.objectField(object_entry, 'roi')
                 score = backend_db.objectField(object_entry, 'score')
                 name = backend_db.objectField(object_entry, 'name')
-                c.execute('SELECT * FROM polygons WHERE objectid=?',
+                c.execute('SELECT y, x FROM polygons WHERE objectid=?',
                           (objectid, ))
-                polygon_entries = c.fetchall()
-                if len(polygon_entries) > 0:
+                polygon = c.fetchall()
+
+                c.execute(
+                    'SELECT value FROM properties WHERE objectid=? AND key="campaign"',
+                    (objectid, ))
+                if len(polygon) > 0:
                     logging.debug('showing object with a polygon.')
-                    polygon = [(backend_db.polygonField(p, 'x'),
-                                backend_db.polygonField(p, 'y'))
-                               for p in polygon_entries]
                     general_utils.drawScoredPolygon(image,
                                                     polygon,
                                                     label=name,
-                                                    score=score)
+                                                    score=score,
+                                                    **vars(args))
                 elif roi is not None:
                     logging.debug('showing object with a bounding box.')
                     general_utils.drawScoredRoi(image,
                                                 roi,
                                                 label=name,
-                                                score=score)
+                                                score=score,
+                                                **vars(args))
                 else:
                     raise Exception(
                         'Neither polygon, nor bbox is available for objectid %d'

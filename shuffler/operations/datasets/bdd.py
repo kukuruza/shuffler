@@ -114,19 +114,21 @@ def importBdd(c, args):
 
                 # Get the polygon if it exists.
                 if 'poly2d' in object_:
-                    if len(object_['poly2d']) > 1:
-                        assert 0, len(object_['poly2d'])
-                    polygon = object_['poly2d'][0]
-                    polygon_name = None if polygon['closed'] else 'open_loop'
-                    for pt in polygon['vertices']:
-                        c.execute(
-                            'INSERT INTO polygons(objectid,x,y,name) '
-                            'VALUES (?,?,?,?)',
-                            (objectid, pt[0], pt[1], polygon_name))
-                    if args.display:
-                        general_utils.drawScoredPolygon(
-                            img, [(int(x[0]), int(x[1]))
-                                  for x in polygon['vertices']], object_name)
+                    polygons = object_['poly2d']
+                    for ipoly, polygon in enumerate(polygons):
+                        polygon_name = '' if polygon['closed'] else 'open_loop_'
+                        polygon_name += str(ipoly)
+                        polygon_xy = polygon['vertices']
+                        polygon_yx = [(y, x) for (x, y) in polygon_xy]
+
+                        for (y, x) in polygon_yx:
+                            c.execute(
+                                'INSERT INTO polygons(objectid,x,y,name) '
+                                'VALUES (?,?,?,?)',
+                                (objectid, x, y, polygon_name))
+                        if args.display:
+                            general_utils.drawScoredPolygon(
+                                img, polygon_yx, object_name)
 
                 # Insert image-level and object-level attributes into
                 # "properties" table.

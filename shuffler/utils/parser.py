@@ -128,3 +128,16 @@ def addMediaOutputArguments(parser: argparse.ArgumentParser,
         parser.add_argument(
             '--out_rootdir',
             help='Specify, if rootdir changed for the output imagery.')
+
+
+def addDrawingStyleArguments(parser: argparse.ArgumentParser):
+    ''' Adds a parser argument common for many operations. '''
+    parser.add_argument(
+        '--fill_opacity',
+        type=float,
+        default=0.,
+        help=
+        'Fills objects with semi-transparent color with the provided opacity.')
+    parser.add_argument('--colormap',
+                        default='inferno_r',
+                        help='Colormap for score.')
