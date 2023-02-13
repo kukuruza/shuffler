@@ -112,8 +112,9 @@ def buildObjectSample(object_entry, c, imreader):
     name = backend_db.objectField(object_entry, 'name')
     score = backend_db.objectField(object_entry, 'score')
 
-    c.execute('SELECT maskfile FROM images WHERE imagefile=?', (imagefile, ))
-    maskfile = c.fetchone()[0]
+    c.execute('SELECT width,height,maskfile FROM images WHERE imagefile=?',
+              (imagefile, ))
+    imwidth, imheight, maskfile = c.fetchone()
 
     logging.debug('Reading object %d from %s imagefile', objectid, imagefile)
 
@@ -128,6 +129,13 @@ def buildObjectSample(object_entry, c, imreader):
     roi = backend_db.objectField(object_entry, 'roi')
     logging.debug('Roi: %s', roi)
     roi = [int(x) for x in roi]
+    roi = [
+        max(roi[0], 0),
+        max(roi[1], 0),
+        min(imheight, roi[2]),
+        min(imwidth, roi[3])
+    ]
+    logging.debug('Roi after rounding and clipping into image: %s' % roi)
     image = image[roi[0]:roi[2], roi[1]:roi[3]]
     mask = mask[roi[0]:roi[2], roi[1]:roi[3]] if mask is not None else None
 
