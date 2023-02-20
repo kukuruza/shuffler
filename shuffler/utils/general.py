@@ -12,9 +12,9 @@ from shuffler.utils import boxes as boxes_utils
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 SCALE = 28
 FONT_SIZE = 1.2
-THICKNESS = 2
-TEXT_COLOR = (0, 0, 0)
-TEXT_BACKCOLOR = (255, 255, 255)
+THICKNESS = 3
+TEXT_COLOR = (255, 255, 255)
+TEXT_BACKCOLOR = (0, 0, 0)
 
 
 def validateFileName(filename):
