@@ -65,10 +65,10 @@ def takeSubpath(path, dirtree_level=None):
 
 def filterImagesViaAnotherDb(c, args):
     # Get all the imagefiles from the reference db.
-    if not op.exists(args.ref_file):
+    if not op.exists(args.ref_db_file):
         raise FileNotFoundError('Reference db does not exist: %s' %
-                                args.ref_file)
-    conn_ref = sqlite3.connect('file:%s?mode=ro' % args.ref_file, uri=True)
+                                args.ref_db_file)
+    conn_ref = sqlite3.connect('file:%s?mode=ro' % args.ref_db_file, uri=True)
     c_ref = conn_ref.cursor()
     c_ref.execute('SELECT imagefile FROM images')
     imagefiles_ref = [imagefile for imagefile, in c_ref.fetchall()]
