@@ -19,6 +19,7 @@ def add_parsers(subparsers):
     evaluateDetectionParser(subparsers)
     evaluateSegmentationIoUParser(subparsers)
     evaluateBinarySegmentationParser(subparsers)
+    evaluateClassificationParser(subparsers)
 
 
 def _evaluateDetectionForClassPascal(c, c_gt, name, args):
@@ -431,7 +432,8 @@ def evaluateDetection(c, args):
 
     if args.out_directory:
         os.makedirs(args.out_directory, exist_ok=True)
-        with open(op.join(args.out_directory, 'average_precision.txt'), 'w') as f:
+        with open(op.join(args.out_directory, 'average_precision.txt'),
+                  'w') as f:
             for result in results:
                 f.write('%s\n' % str(result))
 
@@ -668,7 +670,8 @@ def evaluateSegmentationIoU(c, args):
                            hist.sum(axis=1)[:, np.newaxis])
 
         plot_confusion_matrix(normalized_hist, classes=class_names)
-        outfigfn = op.join(args.out_directory, "%sconf_mat.pdf" % args.out_prefix)
+        outfigfn = op.join(args.out_directory,
+                           "%sconf_mat.pdf" % args.out_prefix)
         fig.savefig(outfigfn,
                     transparent=True,
                     bbox_inches='tight',
@@ -845,3 +848,36 @@ def evaluateBinarySegmentation(c, args):
                     bbox_inches='tight',
                     pad_inches=0,
                     dpi=300)
+
+
+def evaluateClassificationParser(subparsers):
+    parser = subparsers.add_parser(
+        'evaluateClassification',
+        description='Evaluate object names w.r.t. a ground truth db, '
+        'objects are matched via object_id.')
+    parser.set_defaults(func=evaluateClassification)
+    parser.add_argument('--gt_db_file', required=True)
+    parser.add_argument(
+        '--out_directory',
+        help='If specified, output files with be written to "out_directory".')
+    parser_utils.addWhereImageArgument(parser)
+
+
+def evaluateClassification(c, args):
+    import sklearn.metrics
+    import pandas as pd
+
+    if not op.exists(args.gt_db_file):
+        raise FileNotFoundError('GT db does not exist: %s', args.gt_db_file)
+    c.execute('ATTACH ? AS "gt"', (args.gt_db_file, ))
+
+    c.execute('SELECT o_eval.objectid, o_eval.name, o_gt.name '
+              'FROM objects AS o_eval JOIN gt.objects AS o_gt '
+              'ON o_eval.objectid = o_gt.objectid')
+    entries = c.fetchall()
+    logging.info('Have %d objects with matching ids.', len(entries))
+
+    df = pd.DataFrame(entries, columns=['objectid', 'name_eval', 'name_gt'])
+
+    accuracy = sklearn.metrics.accuracy_score(df['name_gt'], df['name_eval'])
+    print('Accuracy is %f', accuracy)
