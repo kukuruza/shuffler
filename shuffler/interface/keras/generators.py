@@ -23,7 +23,6 @@ class ImageGenerator(tf.keras.utils.Sequence):
     a tuple, or as a dict (if a dict, you can change keys names) by providing
     `used_keys` to the __init__ (see comments to __init__.)
     '''
-
     def __init__(self,
                  db_file,
                  rootdir='.',
@@ -121,6 +120,7 @@ class ImageGenerator(tf.keras.utils.Sequence):
         image_entry = self.image_entries[index]
         sample = utils.buildImageSample(image_entry, self.c, self.imreader,
                                         self.where_object)
+        sample['_index_'] = index
         sample = _filterKeys(self.used_keys, sample)
         sample = utils.applyTransformGroup(self.transform_group, sample)
         return sample
@@ -154,7 +154,6 @@ class ImageGenerator(tf.keras.utils.Sequence):
 
 class BareImageGenerator(ImageGenerator):
     ''' A specialization class providing only image and imagefile. '''
-
     def __init__(self,
                  db_file,
                  rootdir='.',
@@ -193,7 +192,6 @@ class ObjectGenerator(tf.keras.utils.Sequence):
     a tuple, or as a dict (if a dict, you can change keys names) by providing
     `used_keys` to the __init__ (see comments to __init__.)
     '''
-
     def __init__(self,
                  db_file,
                  rootdir='.',
@@ -284,6 +282,7 @@ class ObjectGenerator(tf.keras.utils.Sequence):
     def _loadEntry(self, index):
         object_entry = self.object_entries[index]
         sample = utils.buildObjectSample(object_entry, self.c, self.imreader)
+        sample['_index_'] = index
         sample = _filterKeys(self.used_keys, sample)
         sample = utils.applyTransformGroup(self.transform_group, sample)
         return sample
@@ -345,7 +344,6 @@ class ObjectGenerator(tf.keras.utils.Sequence):
 
 
 def _listOfWhateverToWhateverOfLists(samples):
-
     def _transposeListOfLists(samples):
         return [[samples[j][i] for j in range(len(samples))]
                 for i in range(len(samples[0]))]

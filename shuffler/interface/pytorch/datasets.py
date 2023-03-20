@@ -9,7 +9,6 @@ class ImageDataset(torch.utils.data.Dataset):
     '''
     Items of a dataset are images, each one with its objects.
     '''
-
     def __init__(self,
                  db_file,
                  rootdir='.',
@@ -106,6 +105,7 @@ class ImageDataset(torch.utils.data.Dataset):
         if sample is None:
             logging.warning('Returning None for index %d', index)
             return None
+        sample['_index_'] = index
         sample = _filterKeys(self.used_keys, sample)
         sample = utils.applyTransformGroup(self.transform_group, sample)
         return sample
@@ -113,7 +113,6 @@ class ImageDataset(torch.utils.data.Dataset):
 
 class ObjectDataset(torch.utils.data.Dataset):
     ''' Items of a dataset are objects. '''
-
     def __init__(self,
                  db_file,
                  rootdir='.',
@@ -227,6 +226,7 @@ class ObjectDataset(torch.utils.data.Dataset):
                 logging.warning('Returning None for index %d', index)
                 return None
 
+        sample['_index_'] = index
         sample = _filterKeys(self.used_keys, sample)
         sample = utils.applyTransformGroup(self.transform_group, sample)
         return sample

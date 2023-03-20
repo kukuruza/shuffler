@@ -13,7 +13,6 @@ from shuffler.interface.keras import generators
 
 
 class TestListOfWhateverToWhateverOfLists(unittest.TestCase):
-
     def test_empty(self):
         batch = generators._listOfWhateverToWhateverOfLists([])
         self.assertEqual(batch, [])
@@ -47,7 +46,6 @@ class TestListOfWhateverToWhateverOfLists(unittest.TestCase):
 
 
 class TestFilterKeys(unittest.TestCase):
-
     def setUp(self):
         self.sample = {'x': 'a', 'y': 1}
 
@@ -85,7 +83,6 @@ class TestFilterKeys(unittest.TestCase):
 
 
 class TestImageGenerator(testing_utils.Test_carsDb):
-
     def setUp(self):
         self.tmp_in_db_file = tempfile.NamedTemporaryFile().name
         shutil.copy(testing_utils.Test_carsDb.CARS_DB_PATH,
@@ -113,6 +110,7 @@ class TestImageGenerator(testing_utils.Test_carsDb):
         self.assertTrue('name' in batch)
         self.assertTrue('score' in batch)
         self.assertTrue(isinstance(batch['objects'], list))
+        self.assertTrue('_index_' in batch)  # index of an item in Dataset.
 
         # sample['objects'] has a list of dicts. Check each dict.
         self.assertEqual(len(batch['objects']), batch_size)
@@ -183,7 +181,6 @@ class TestImageGenerator(testing_utils.Test_carsDb):
 
 
 class TestObjectGenerator(testing_utils.Test_carsDb):
-
     def setUp(self):
         self.tmp_in_db_file = tempfile.NamedTemporaryFile().name
         shutil.copy(testing_utils.Test_carsDb.CARS_DB_PATH,
@@ -209,6 +206,7 @@ class TestObjectGenerator(testing_utils.Test_carsDb):
         self.assertTrue('imagefile' in batch)
         self.assertTrue('name' in batch)
         self.assertTrue('score' in batch)
+        self.assertTrue('_index_' in batch)  # index of an item in Dataset.
 
         # Add a record.
         generator.addRecord(batch['objectid'][0], "result", "0.5")

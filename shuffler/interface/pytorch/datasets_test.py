@@ -10,7 +10,6 @@ from shuffler.interface.pytorch import datasets
 
 
 class TestHelperFunctions(unittest.TestCase):
-
     def test_filterKeys(self):
         sample = {'image': np.zeros(3), 'objectid': 1}
         sample = datasets._filterKeys(['image'], sample)
@@ -19,7 +18,6 @@ class TestHelperFunctions(unittest.TestCase):
 
 
 class TestImageDataset(testing_utils.Test_carsDb):
-
     def setUp(self):
         self.tmp_in_db_file = tempfile.NamedTemporaryFile().name
         shutil.copy(testing_utils.Test_carsDb.CARS_DB_PATH,
@@ -43,6 +41,7 @@ class TestImageDataset(testing_utils.Test_carsDb):
         self.assertTrue('name' in sample)
         self.assertTrue('score' in sample)
         self.assertTrue(isinstance(sample['objects'], list))
+        self.assertTrue('_index_' in sample)  # index of an item in Dataset.
 
         # sample['objects'] has a list of dicts. Check each dict.
         self.assertEqual(len(sample['objects']), 1)
@@ -94,7 +93,6 @@ class TestImageDataset(testing_utils.Test_carsDb):
 
 
 class TestObjectDataset(testing_utils.Test_carsDb):
-
     def setUp(self):
         self.tmp_in_db_file = tempfile.NamedTemporaryFile().name
         shutil.copy(testing_utils.Test_carsDb.CARS_DB_PATH,
@@ -118,6 +116,7 @@ class TestObjectDataset(testing_utils.Test_carsDb):
         self.assertTrue('imagefile' in sample)
         self.assertTrue('name' in sample)
         self.assertTrue('score' in sample)
+        self.assertTrue('_index_' in sample)  # index of an item in Dataset.
 
         # Add a record.
         dataset.addRecord(sample['objectid'], "result", "0.5")
