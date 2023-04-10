@@ -644,7 +644,7 @@ def splitDbParser(subparsers):
         '--seed',
         type=int,
         help=
-        'If specified, used to seed random generator. Can be used with "randomly"'
+        'If specified, used for the random generator, to be used with --randomly.'
     )
 
 
@@ -817,7 +817,7 @@ def mergeIntersectingObjectsParser(subparsers):
         'mergeIntersectingObjects',
         description='Merge objects that intersect. '
         'Currently only pairwise, does not merge groups (that is future work.) '
-        'Currently implements only intersection by bounding boxes_utils. '
+        'Currently implements only intersection by bounding boxes. '
         'A merged object has polygons and properties from both source objects.'
     )
     parser.set_defaults(func=mergeIntersectingObjects)
@@ -913,9 +913,11 @@ def syncObjectidsWithDbParser(subparsers):
     parser = subparsers.add_parser(
         'syncObjectidsWithDb',
         description='Updates objectids with objectids from the reference db: '
-        'If an object is found in the reference db (found via IoU), update it. '
+        'If an object is found in the same imagefile in the reference db '
+        '(found via IoU), assign it the objectid of from the reference db. '
         'Otherwise, assign a unique objectid, which is not in either dbs. '
-        'Only works on the intersection of imagefiles between dbs.')
+        'The greedy algorithm is used to match several objects: '
+        'from max IoU and down to the IoU_threshold.')
     parser.set_defaults(func=syncObjectidsWithDb)
     parser.add_argument(
         '--IoU_threshold',
@@ -1029,10 +1031,10 @@ def syncPolygonIdsWithDbParser(subparsers):
         'syncPolygonIdsWithDb',
         description='Updates polygon ids with polygons from the reference db: '
         'If an objectid is found in the active and the reference db, find all '
-        'its polygons, and sync the ids of polygon points that are within '
-        'epsilon to each other. Ids of unmatched polygon points may change too.'
+        'its polygons, and sync the ids of polygon entries that are within '
+        'epsilon to each other. Ids of unmatched polygon entries may change too. '
         'Objectids must be already synced via syncObjectidsWithDb if needed.')
-    parser.set_defaults(func=syncObjectidsWithDb)
+    parser.set_defaults(func=syncPolygonIdsWithDb)
     parser.add_argument('--ref_db_file', required=True)
     parser.add_argument(
         '--ignore_name',
@@ -1174,7 +1176,7 @@ def syncRoundedCoordinatesWithDbParser(subparsers):
         'This function uses floating point coordinates of bboxes and polygons '
         'in ref_db_file (which was recorded before the export) to update '
         'the active database (after manual labeling/editing and reimport). '
-        'Points (corners of bboxes or point in polygons) that are subpixel '
+        'Points (corners of bboxes or point in polygons) that are epsilon '
         'distance away from the corresponding points in ref_db_file are deemed '
         'not-edited by a user and is restored from red_db_file.')
     parser.add_argument(

@@ -3,6 +3,8 @@ An unordered list of TODO items.
 - ImageNet2012 io.
 - Cover all operations with unit tests.
 - "Filter images" operations should either remove images with objects or create new tables with filtered images with objects, and retire old tables, based on what is going to take less time.
+- implement general_utils.getIntersectingObjects by polygons and update
+  operations that depend on it (currently it is only bboxes).
 - should not load a database to memory for large databases, instead it should copy the database to a temp location.
 - Rework keyboard config.
   - Add user config to ~/.shufflerrc.

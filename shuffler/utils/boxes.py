@@ -61,8 +61,8 @@ def expandRoi(roi, perc):
     if (perc_y, perc_x) == (0, 0):
         return roi
     if perc_y < -0.5 or perc_x < -0.5:
-        raise ValueError('perc_y=%f and perc_x=%f must be > -0.5', perc_y,
-                         perc_x)
+        raise ValueError('perc_y=%f and perc_x=%f must be > -0.5' %
+                         (perc_y, perc_x))
 
     half_delta_y = float(roi[2] - roi[0]) * perc_y / 2
     half_delta_x = float(roi[3] - roi[1]) * perc_x / 2
