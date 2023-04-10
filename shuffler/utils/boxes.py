@@ -74,24 +74,29 @@ def expandRoi(roi, perc):
     return roi
 
 
-def expandPolygon(xs, ys, perc):
+def expandPolygon(ys, xs, perc):
     '''
-    Expand polygon from its median center in all directions.
-    Floating-point numbers are then rounded to the nearest integer.
+    Expand polygon from its MEAN center in all directions.
     Args:
-      xs:    A list of x values.
-      ys:    A list of y values.
-      perc:  A tuple of (perc_y, perc_x). Both values are float from -1 to inf.
+      ys:    list of float y values.
+      xs:    list of float x values.
+      perc:  tuple (perc_y, perc_x). Both must be > -0.5.
     Returns:
-      xs:    A list of x values.
-      ys:    A list of y values.
+      ys:    list of float y values.
+      xs:    list of float x values.
     '''
     perc_y, perc_x = perc
-    center_x = np.array(xs, dtype=float).mean()
+    if (perc_y, perc_x) == (0, 0):
+        return ys, xs
+    if perc_y < -0.5 or perc_x < -0.5:
+        raise ValueError('perc_y=%f and perc_x=%f must be > -0.5' %
+                         (perc_y, perc_x))
     center_y = np.array(ys, dtype=float).mean()
-    xs = [int(center_x + (x - center_x) * (1 + perc_x)) for x in xs]
-    ys = [int(center_y + (y - center_y) * (1 + perc_y)) for y in ys]
-    return xs, ys
+    center_x = np.array(xs, dtype=float).mean()
+    logging.info('Center: %s', (center_x, center_y))
+    ys = [center_y + (y - center_y) * (1 + perc_y) for y in ys]
+    xs = [center_x + (x - center_x) * (1 + perc_x) for x in xs]
+    return ys, xs
 
 
 def expandRoiUpToRatio(roi, ratio):

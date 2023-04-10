@@ -7,7 +7,6 @@ from shuffler.utils import boxes as boxes_utils
 
 
 class Test_Bbox2roi(unittest.TestCase):
-
     def test_normal(self):
         self.assertEqual(boxes_utils.bbox2roi([1, 2, 3, 4]), [2, 1, 6, 4])
         self.assertEqual(boxes_utils.bbox2roi((1, 2, 3, 4)), [2, 1, 6, 4])
@@ -37,7 +36,6 @@ class Test_Bbox2roi(unittest.TestCase):
 
 
 class Test_Roi2Bbox(unittest.TestCase):
-
     def test_normal(self):
         self.assertEqual(boxes_utils.roi2bbox([2, 1, 6, 4]), [1, 2, 3, 4])
         self.assertEqual(boxes_utils.roi2bbox((2, 1, 6, 4)), [1, 2, 3, 4])
@@ -67,7 +65,6 @@ class Test_Roi2Bbox(unittest.TestCase):
 
 
 class Test_getIoU(unittest.TestCase):
-
     def test_identical(self):
         # Integer input.
         self.assertEqual(boxes_utils.getIoU([1, 2, 3, 4], [1, 2, 3, 4]), 1.)
@@ -93,7 +90,6 @@ class Test_getIoU(unittest.TestCase):
 
 
 class TestExpandRoi(unittest.TestCase):
-
     def test_identity(self):
         roi = [0.5, 0.5, 100.5, 200.5]
         np.testing.assert_array_equal(
@@ -107,9 +103,9 @@ class TestExpandRoi(unittest.TestCase):
             np.array(expected), np.array(boxes_utils.expandRoi(roi, perc)))
 
     def test_yIsGreater(self):
-        roi = [0.5, 0.5, 200.5, 100.5]
+        roi = [0.5, 0.5, 100.5, 200.5]
         perc = (1, 0.5)
-        expected = [-99.5, -24.5, 300.5, 125.5]
+        expected = [-49.5, -49.5, 150.5, 250.5]
         np.testing.assert_array_equal(
             np.array(expected), np.array(boxes_utils.expandRoi(roi, perc)))
 
@@ -118,8 +114,45 @@ class TestExpandRoi(unittest.TestCase):
             boxes_utils.expandRoi([0.5, 0.5, 100.5, 200.5], (-0.8, 0))
 
 
-class TestExpandRoiUpToRatio(unittest.TestCase):
+class TestExpandPolygon(unittest.TestCase):
+    def test_identity(self):
+        ys = [0.5, 0.5, 150.5]
+        xs = [0.5, 300.5, 0.5]
+        np.testing.assert_array_equal(
+            np.array([ys, xs]),
+            np.array(boxes_utils.expandPolygon(ys, xs, (0, 0))))
 
+    def test_xIsGreater(self):
+        ys = [0.5, 0.5, 150.5]
+        xs = [0.5, 300.5, 0.5]
+        perc = (0.5, 1)
+        expected = (
+            [-24.5, -24.5, 200.5],  # height = 150 * 1.5, gravitates to 0.
+            [-99.5, 500.5, -99.5])  # width = 300 * 2, gravitates to 0.
+        np.testing.assert_array_equal(
+            np.array(expected),
+            np.array(boxes_utils.expandPolygon(ys, xs, perc)))
+
+    def test_yIsGreater(self):
+        ys = [0.5, 0.5, 150.5]
+        xs = [0.5, 300.5, 0.5]
+        perc = (1, 0.5)
+        expected = (
+            [-49.5, -49.5, 250.5],  # height = 150 * 2, gravitates to 0.
+            [-49.5, 400.5, -49.5])  # width = 300 * 1.5, gravitates to 0.
+        np.testing.assert_array_equal(
+            np.array(expected),
+            np.array(boxes_utils.expandPolygon(ys, xs, perc)))
+
+    def test_invalid(self):
+        ys = [0.5, 0.5, 150.5]
+        xs = [0.5, 300.5, 0.5]
+        perc = (-0.8, 0)
+        with self.assertRaises(ValueError):
+            boxes_utils.expandPolygon(ys, xs, perc)
+
+
+class TestExpandRoiUpToRatio(unittest.TestCase):
     def test_identity(self):
         roi = [0.5, 0.5, 100.5, 100.5]
         ratio = 1.
@@ -136,7 +169,6 @@ class TestExpandRoiUpToRatio(unittest.TestCase):
 
 
 class TestCropPatch(unittest.TestCase):
-
     @staticmethod
     def transformRoi(transform, roi):
         if not transform.shape == (3, 3):
@@ -544,7 +576,6 @@ class TestCropPatch(unittest.TestCase):
 
 
 class TestGetTransformBetweenRois(unittest.TestCase):
-
     def test_identity(self):
         roi = [10, 20, 30, 40]
         np.testing.assert_array_equal(
@@ -572,7 +603,6 @@ class TestGetTransformBetweenRois(unittest.TestCase):
 
 
 class TestApplyTransformToRoi(unittest.TestCase):
-
     def test_identity(self):
         transform = np.eye(3, 3, dtype=float)
         roi = (10, 20, 30, 40)
@@ -590,7 +620,6 @@ class TestApplyTransformToRoi(unittest.TestCase):
 
 
 class Test_applyTransformToRoi(unittest.TestCase):
-
     def test_normal(self):
         roi = (10, 20, 30, 40)
 
@@ -607,7 +636,6 @@ class Test_applyTransformToRoi(unittest.TestCase):
 
 
 class Test_clipRoiToShape(unittest.TestCase):
-
     def test_normal(self):
         shape = (100, 200, 3)
         # Normal.

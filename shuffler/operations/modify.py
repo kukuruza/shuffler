@@ -356,8 +356,8 @@ def expandObjects(c, args):
                 ids = [backend_db.polygonField(p, 'id') for p in old_polygon]
                 old_xs = [backend_db.polygonField(p, 'x') for p in old_polygon]
                 old_ys = [backend_db.polygonField(p, 'y') for p in old_polygon]
-                xs, ys = boxes_utils.expandPolygon(
-                    old_xs, old_ys,
+                ys, xs = boxes_utils.expandPolygon(
+                    old_ys, old_xs,
                     (args.expand_fraction, args.expand_fraction))
                 polygon = zip(ids, xs, ys)
                 logging.debug('Polygon changed from %s to %s for object %d',
