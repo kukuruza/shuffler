@@ -240,12 +240,17 @@ def addPictures(c, args):
 
 def headImagesParser(subparsers):
     parser = subparsers.add_parser(
-        'headImages', description='Keep the first N image entries.')
-    parser.add_argument('-n', required=True, type=int)
+        'headImages',
+        help='Keep the first "n" image entries (with objects, etc.) '
+        'When asked for more images than the db has, keep everything.')
+    parser.add_argument('-n', required=True, type=int, help='Integer > 0.')
     parser.set_defaults(func=headImages)
 
 
 def headImages(c, args):
+    if args.n <= 0:
+        raise ValueError('--n should be > 0.')
+
     c.execute('SELECT imagefile FROM images')
     imagefiles = c.fetchall()
 
@@ -260,12 +265,17 @@ def headImages(c, args):
 
 def tailImagesParser(subparsers):
     parser = subparsers.add_parser(
-        'tailImages', description='Keep the last N image entries.')
-    parser.add_argument('-n', required=True, type=int)
+        'tailImages',
+        help='Keep the last "n" image entries (with objects, etc.) '
+        'When asked for more images than the db has, keep everything.')
+    parser.add_argument('-n', required=True, type=int, help='Integer > 0.')
     parser.set_defaults(func=tailImages)
 
 
 def tailImages(c, args):
+    if args.n <= 0:
+        raise ValueError('--n should be > 0.')
+
     c.execute('SELECT imagefile FROM images')
     imagefiles = c.fetchall()
 
@@ -279,14 +289,19 @@ def tailImages(c, args):
 
 
 def randomNImagesParser(subparsers):
-    parser = subparsers.add_parser('randomNImages',
-                                   description='Keep random N image entries.')
-    parser.add_argument('-n', required=True, type=int)
+    parser = subparsers.add_parser(
+        'randomNImages',
+        help='Keep random "n" image entries (with objects, etc.) '
+        'When asked for more images than the db has, keep everything.')
+    parser.add_argument('-n', required=True, type=int, help='Integer > 0.')
     parser.add_argument('--seed', default=0, type=int, help='Random seed.')
     parser.set_defaults(func=randomNImages)
 
 
 def randomNImages(c, args):
+    if args.n <= 0:
+        raise ValueError('--n should be > 0.')
+
     c.execute('SELECT imagefile FROM images')
     imagefiles = c.fetchall()
     random.seed(args.seed)

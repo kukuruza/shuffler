@@ -26,7 +26,7 @@ class Test_bboxesToPolygons_SyntheticDb(testing_utils.Test_DB):
             'VALUES ("image0",0,40,20,10,10), ("image0",1,20.5,30.5,20.5,10.5)'
         )
 
-        args = argparse.Namespace(rootdir='')
+        args = argparse.Namespace()
         modify.bboxesToPolygons(c, args)
 
         self.assert_objects_count_by_imagefile(c, expected=[2, 0])
@@ -56,7 +56,7 @@ class Test_polygonsToBboxes_SyntheticDb(testing_utils.Test_DB):
                   '(0,40.5,20.5), (0,50,20.5), (0,50,30), '
                   '(1,40,20), (1,50,20), (1,50,30), (1,40,30)')
 
-        args = argparse.Namespace(rootdir='')
+        args = argparse.Namespace()
         modify.polygonsToBboxes(c, args)
 
         c.execute('SELECT objectid,x1,y1,width,height FROM objects')
@@ -82,9 +82,48 @@ class Test_polygonsToBboxes_SyntheticDb(testing_utils.Test_DB):
             '(0,40.5,20.5,"p0"), (0,50,20.5,"p0"), (0,50,30,"p0"), '
             '(0,40,20,"p1"), (0,50,20,"p1"), (0,50,30,"p1"), (0,40,30,"p1")')
 
-        args = argparse.Namespace(rootdir='')
+        args = argparse.Namespace()
         with self.assertRaises(ValueError):
             modify.polygonsToBboxes(c, args)
+
+
+class Test_sql_SyntheticDb(unittest.TestCase):
+    def setUp(self):
+        self.conn = sqlite3.connect(':memory:')
+        backend_db.createDb(self.conn)
+        # Add 2 images.
+        c = self.conn.cursor()
+        c.execute(
+            'INSERT INTO images(imagefile) VALUES ("image0"), ("image1")')
+
+    def test_oneCommand(self):
+        c = self.conn.cursor()
+        args = argparse.Namespace(
+            sql=['DELETE FROM images WHERE imagefile="image0"'])
+        modify.sql(c, args)
+
+        c.execute('SELECT imagefile FROM images')
+        actual = c.fetchall()
+        expected = [
+            ("image1", ),
+        ]
+        self.assertEqual(actual, expected)
+
+    def test_multipleCommands(self):
+        c = self.conn.cursor()
+        args = argparse.Namespace(sql=[
+            'DELETE FROM images WHERE imagefile="image0"',
+            'SELECT * FROM images'
+        ])
+        modify.sql(c, args)
+
+    def test_oneCommand_MultipleStatementsFail(self):
+        c = self.conn.cursor()
+        args = argparse.Namespace(sql=[
+            'DELETE FROM images WHERE imagefile="image0"; SELECT * FROM images;'
+        ])
+        with self.assertRaises(Exception):
+            modify.sql(c, args)
 
 
 class Test_addVideo_SyntheticDb(testing_utils.Test_DB):
@@ -227,40 +266,152 @@ class Test_addPictures_SyntheticDb(testing_utils.Test_DB):
         self.assertEqual(actual, expected)
 
 
-class Test_revertObjectTransforms_SyntheticDb(unittest.TestCase):
+class Test_headImages_SyntheticDb(unittest.TestCase):
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
         backend_db.createDb(self.conn)
+        # Add 2 images, each with one object, each with one property.
         c = self.conn.cursor()
-        c.execute('INSERT INTO images(imagefile) VALUES ("image0")')
-        c.execute('INSERT INTO objects(imagefile,objectid,x1,y1,width,height) '
-                  'VALUES ("image0",0,45,25,10,10)')
-        c.execute('INSERT INTO polygons(objectid,x,y) VALUES '
-                  '(0,45,25), (0,55,25), (0,55,35), (0,45,35)')
-        # transform = [[2., 0.,   5.]
-        #              [0., 0.5, -5.]]
-        c.execute('INSERT INTO properties(objectid,key,value) VALUES '
-                  '(0,"kx","2"), (0,"ky","0.5"), (0,"bx","5"), (0,"by","-5.")')
-        # The original bbox (x1, y1, width, height).
-        self.original_bbox_gt = (20, 60, 5, 20)
-        # The original polygon [(x, y)] * N.
-        self.original_polygon_gt = [(20, 60), (25, 60), (25, 80), (20, 80)]
+        c.execute(
+            'INSERT INTO images(imagefile) VALUES ("image0"), ("image1")')
+        c.execute(
+            'INSERT INTO objects(objectid,imagefile) VALUES (0,"image0"), (1,"image1")'
+        )
+        c.execute('INSERT INTO properties(objectid) VALUES (0), (1)')
 
     def test_general(self):
         c = self.conn.cursor()
-        args = argparse.Namespace(rootdir='.')
-        modify.revertObjectTransforms(c, args)
-        # Check bbox.
-        c.execute('SELECT x1,y1,width,height FROM objects')
-        original_bboxes = c.fetchall()
-        self.assertEqual(len(original_bboxes), 1)
-        original_bbox = original_bboxes[0]
-        self.assertEqual(self.original_bbox_gt, original_bbox)
-        # Check polygons.
-        c.execute('SELECT x,y FROM polygons')
-        original_polygon = c.fetchall()
-        self.assertEqual(len(original_polygon), 4)
-        self.assertEqual(self.original_polygon_gt, original_polygon)
+        args = argparse.Namespace(n=1)
+        modify.headImages(c, args)
+
+        c.execute('SELECT o.imagefile,o.objectid FROM images i '
+                  'JOIN objects o ON i.imagefile = o.imagefile '
+                  'JOIN properties p ON o.objectid = p.objectid')
+        actual = c.fetchall()
+        expected = [("image0", 0)]
+        self.assertEqual(actual, expected)
+
+    def test_tooMuch(self):
+        ''' When asked for more images that the db has, return all images. '''
+        c = self.conn.cursor()
+        args = argparse.Namespace(n=5)
+        modify.headImages(c, args)
+
+        c.execute('SELECT imagefile FROM images')
+        actual = c.fetchall()
+        expected = [("image0", ), ("image1", )]
+        self.assertEqual(actual, expected)
+
+    def test_invalid(self):
+        ''' When asked for <= 0 images, raises an error. '''
+        c = self.conn.cursor()
+
+        args = argparse.Namespace(n=0)
+        with self.assertRaises(ValueError):
+            modify.headImages(c, args)
+
+        args = argparse.Namespace(n=-5)
+        with self.assertRaises(ValueError):
+            modify.headImages(c, args)
+
+
+class Test_tailImages_SyntheticDb(unittest.TestCase):
+    def setUp(self):
+        self.conn = sqlite3.connect(':memory:')
+        backend_db.createDb(self.conn)
+        # Add 2 images, each with one object, each with one property.
+        c = self.conn.cursor()
+        c.execute(
+            'INSERT INTO images(imagefile) VALUES ("image0"), ("image1")')
+        c.execute(
+            'INSERT INTO objects(objectid,imagefile) VALUES (0,"image0"), (1,"image1")'
+        )
+        c.execute('INSERT INTO properties(objectid) VALUES (0), (1)')
+
+    def test_general(self):
+        c = self.conn.cursor()
+        args = argparse.Namespace(n=1)
+        modify.tailImages(c, args)
+
+        c.execute('SELECT o.imagefile,o.objectid FROM images i '
+                  'JOIN objects o ON i.imagefile = o.imagefile '
+                  'JOIN properties p ON o.objectid = p.objectid')
+        actual = c.fetchall()
+        expected = [("image1", 1)]
+        self.assertEqual(actual, expected)
+
+    def test_tooMuch(self):
+        ''' When asked for more images that the db has, return all images. '''
+        c = self.conn.cursor()
+        args = argparse.Namespace(n=5)
+        modify.tailImages(c, args)
+
+        c.execute('SELECT imagefile FROM images')
+        actual = c.fetchall()
+        expected = [("image0", ), ("image1", )]
+        self.assertEqual(actual, expected)
+
+    def test_invalid(self):
+        ''' When asked for <= 0 images, raises an error. '''
+        c = self.conn.cursor()
+
+        args = argparse.Namespace(n=0)
+        with self.assertRaises(ValueError):
+            modify.tailImages(c, args)
+
+        args = argparse.Namespace(n=-5)
+        with self.assertRaises(ValueError):
+            modify.tailImages(c, args)
+
+
+class Test_randomNImages_SyntheticDb(unittest.TestCase):
+    def setUp(self):
+        self.conn = sqlite3.connect(':memory:')
+        backend_db.createDb(self.conn)
+        # Add 2 images, each with one object, each with one property.
+        c = self.conn.cursor()
+        c.execute(
+            'INSERT INTO images(imagefile) VALUES ("image0"), ("image1")')
+        c.execute(
+            'INSERT INTO objects(objectid,imagefile) VALUES (0,"image0"), (1,"image1")'
+        )
+        c.execute('INSERT INTO properties(objectid) VALUES (0), (1)')
+
+    def test_general(self):
+        c = self.conn.cursor()
+        args = argparse.Namespace(n=1, seed=0)
+        modify.randomNImages(c, args)
+
+        c.execute('SELECT o.imagefile,o.objectid FROM images i '
+                  'JOIN objects o ON i.imagefile = o.imagefile '
+                  'JOIN properties p ON o.objectid = p.objectid')
+        actual = c.fetchall()
+        expected_option1 = [("image0", 0)]
+        expected_option2 = [("image1", 1)]
+        self.assertIn(actual, [expected_option1, expected_option2])
+
+    def test_tooMuch(self):
+        ''' When asked for more images that the db has, return all images. '''
+        c = self.conn.cursor()
+        args = argparse.Namespace(n=5, seed=0)
+        modify.randomNImages(c, args)
+
+        c.execute('SELECT imagefile FROM images')
+        actual = c.fetchall()
+        expected = [("image0", ), ("image1", )]
+        self.assertEqual(actual, expected)
+
+    def test_invalid(self):
+        ''' When asked for <= 0 images, raises an error. '''
+        c = self.conn.cursor()
+
+        args = argparse.Namespace(n=0, seed=0)
+        with self.assertRaises(ValueError):
+            modify.randomNImages(c, args)
+
+        args = argparse.Namespace(n=-5)
+        with self.assertRaises(ValueError):
+            modify.randomNImages(c, args)
 
 
 class Test_moveRootdir_SyntheticDb(unittest.TestCase):
@@ -693,6 +844,42 @@ class Test_syncRoundedCoordinatesWithDb_SyntheticDb(unittest.TestCase):
         c.execute('SELECT id,x,y FROM polygons')
         entries = c.fetchall()
         self.assertEqual(entries, vals_expected)
+
+
+class Test_revertObjectTransforms_SyntheticDb(unittest.TestCase):
+    def setUp(self):
+        self.conn = sqlite3.connect(':memory:')
+        backend_db.createDb(self.conn)
+        c = self.conn.cursor()
+        c.execute('INSERT INTO images(imagefile) VALUES ("image0")')
+        c.execute('INSERT INTO objects(imagefile,objectid,x1,y1,width,height) '
+                  'VALUES ("image0",0,45,25,10,10)')
+        c.execute('INSERT INTO polygons(objectid,x,y) VALUES '
+                  '(0,45,25), (0,55,25), (0,55,35), (0,45,35)')
+        # transform = [[2., 0.,   5.]
+        #              [0., 0.5, -5.]]
+        c.execute('INSERT INTO properties(objectid,key,value) VALUES '
+                  '(0,"kx","2"), (0,"ky","0.5"), (0,"bx","5"), (0,"by","-5.")')
+        # The original bbox (x1, y1, width, height).
+        self.original_bbox_gt = (20, 60, 5, 20)
+        # The original polygon [(x, y)] * N.
+        self.original_polygon_gt = [(20, 60), (25, 60), (25, 80), (20, 80)]
+
+    def test_general(self):
+        c = self.conn.cursor()
+        args = argparse.Namespace(rootdir='.')
+        modify.revertObjectTransforms(c, args)
+        # Check bbox.
+        c.execute('SELECT x1,y1,width,height FROM objects')
+        original_bboxes = c.fetchall()
+        self.assertEqual(len(original_bboxes), 1)
+        original_bbox = original_bboxes[0]
+        self.assertEqual(self.original_bbox_gt, original_bbox)
+        # Check polygons.
+        c.execute('SELECT x,y FROM polygons')
+        original_polygon = c.fetchall()
+        self.assertEqual(len(original_polygon), 4)
+        self.assertEqual(self.original_polygon_gt, original_polygon)
 
 
 if __name__ == '__main__':
