@@ -7,6 +7,7 @@ from progressbar import progressbar
 
 from shuffler.backend import backend_media
 from shuffler.utils import general as general_utils
+from shuffler.utils import draw as draw_utils
 from shuffler.utils import boxes as boxes_utils
 
 
@@ -100,7 +101,7 @@ def importPascalVoc2012(c, args):
 
                 if args.display:
                     roi = boxes_utils.bbox2roi((x1, y1, width, height))
-                    general_utils.drawScoredRoi(img, roi, name)
+                    draw_utils.drawScoredRoi(img, roi, name)
 
                 for part in object_.findall('part'):
                     # Each part is inserted as a 4-point polygon with the name
@@ -118,8 +119,7 @@ def importPascalVoc2012(c, args):
                     c.execute(s, (objectid, x2, y1, name))
 
                     if args.display:
-                        general_utils.drawScoredRoi(img, (y1, x1, y2, x2),
-                                                    name)
+                        draw_utils.drawScoredRoi(img, (y1, x1, y2, x2), name)
 
         # Class egmentation annotations.
         if args.segmentation_class:

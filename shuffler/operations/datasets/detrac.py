@@ -6,7 +6,7 @@ from lxml import etree as ET
 from progressbar import progressbar
 
 from shuffler.backend import backend_media
-from shuffler.utils import general as general_utils
+from shuffler.utils import draw as draw_utils
 from shuffler.utils import boxes as boxes_utils
 
 
@@ -139,7 +139,7 @@ def importDetrac(c, args):
                          str(trajectory_length)))
 
                     if args.display:
-                        general_utils.drawScoredRoi(
+                        draw_utils.drawScoredRoi(
                             img, boxes_utils.bbox2roi([x1, y1, width, height]),
                             vehicle_type)
 

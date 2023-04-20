@@ -15,6 +15,7 @@ from ast import literal_eval
 from shuffler.backend import backend_db
 from shuffler.backend import backend_media
 from shuffler.utils import general as general_utils
+from shuffler.utils import draw as draw_utils
 from shuffler.utils import boxes as boxes_utils
 from shuffler.utils import parser as parser_utils
 
@@ -880,8 +881,8 @@ def mergeIntersectingObjects(c, args):
             old_roi2 = backend_db.objectField(c.fetchone(), 'roi')
 
             if args.filterObjectsByIoU:
-                general_utils.drawScoredRoi(image, old_roi1, score=0)
-                general_utils.drawScoredRoi(image, old_roi2, score=0.25)
+                draw_utils.drawScoredRoi(image, old_roi1, score=0)
+                draw_utils.drawScoredRoi(image, old_roi2, score=0.25)
 
             # Change the name to the target first.
             if args.target_name is not None:
@@ -898,7 +899,7 @@ def mergeIntersectingObjects(c, args):
                          old_roi2, new_roi)
 
             if args.filterObjectsByIoU:
-                general_utils.drawScoredRoi(image, new_roi, score=1)
+                draw_utils.drawScoredRoi(image, new_roi, score=1)
 
         if args.filterObjectsByIoU and len(pairs_to_merge) > 0:
             logging.getLogger().handlers[0].flush()

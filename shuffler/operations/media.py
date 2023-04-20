@@ -12,6 +12,7 @@ from shuffler.backend import backend_media
 from shuffler.backend import backend_db
 from shuffler.utils import boxes as boxes_utils
 from shuffler.utils import general as general_utils
+from shuffler.utils import draw as draw_utils
 from shuffler.utils import parser as parser_utils
 
 
@@ -579,11 +580,11 @@ def writeMedia(c, args):
                                                     **vars(args))
                 elif roi is not None:
                     logging.debug('showing object with a bounding box.')
-                    general_utils.drawScoredRoi(image,
-                                                roi,
-                                                label=name,
-                                                score=score,
-                                                **vars(args))
+                    draw_utils.drawScoredRoi(image,
+                                             roi,
+                                             label=name,
+                                             score=score,
+                                             **vars(args))
                 else:
                     raise Exception(
                         'Neither polygon, nor bbox is available for objectid %d'

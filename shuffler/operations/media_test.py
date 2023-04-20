@@ -13,7 +13,6 @@ from shuffler.utils import testing as testing_utils
 
 
 class Test_cropObjects_emptyDb(testing_utils.Test_emptyDb):
-
     def assertEmpty(self, c):
         c.execute('SELECT COUNT(1) FROM images')
         self.assertEqual(c.fetchone()[0], 0)
@@ -62,7 +61,6 @@ class Test_cropObjects_emptyDb(testing_utils.Test_emptyDb):
 
 
 class Test_cropObjects_carsDb(testing_utils.Test_carsDb):
-
     def test_general(self):
         c = self.conn.cursor()
         args = argparse.Namespace(
@@ -300,13 +298,12 @@ class Test_cropObjects_carsDb(testing_utils.Test_carsDb):
         # imwrite must be called 3 times.
         call_args_list = mock_imwriter.return_value.imwrite.call_args_list
         self.assertEqual(len(call_args_list), 3)
-        self.assertEqual(call_args_list[0][1], {'namehint': 'car 000000001'})
-        self.assertEqual(call_args_list[1][1], {'namehint': 'car 000000002'})
-        self.assertEqual(call_args_list[2][1], {'namehint': 'bus 000000003'})
+        self.assertEqual(call_args_list[0][1], {'namehint': 'car-000000001'})
+        self.assertEqual(call_args_list[1][1], {'namehint': 'car-000000002'})
+        self.assertEqual(call_args_list[2][1], {'namehint': 'bus-000000003'})
 
 
 class Test_cropObjects_SyntheticDb(unittest.TestCase):
-
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')
         backend_db.createDb(self.conn)
@@ -366,7 +363,6 @@ class Test_cropObjects_SyntheticDb(unittest.TestCase):
 
 
 class Test_tileObjects_carsDb(testing_utils.Test_carsDb):
-
     def _test_consistency(self, num_cells_Y, num_cells_X, split_by_name,
                           image_icon):
         '''

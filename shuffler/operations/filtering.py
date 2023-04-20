@@ -11,6 +11,7 @@ from progressbar import progressbar
 from shuffler.backend import backend_db
 from shuffler.backend import backend_media
 from shuffler.utils import general as general_utils
+from shuffler.utils import draw as draw_utils
 from shuffler.utils import boxes as boxes_utils
 from shuffler.utils import parser as parser_utils
 
@@ -305,8 +306,9 @@ def filterObjectsAtImageEdges(c, args):
                     general_utils.drawScoredPolygon(
                         image, polygon, score=(0 if for_deletion else 1))
                 elif roi is not None:
-                    general_utils.drawScoredRoi(
-                        image, roi, score=(0 if for_deletion else 1))
+                    draw_utils.drawScoredRoi(image,
+                                             roi,
+                                             score=(0 if for_deletion else 1))
 
             # Delete if necessary
             if for_deletion:
@@ -400,7 +402,7 @@ def filterObjectsByIntersection(c, args):
 
             if args.display:
                 image = imreader.imread(imagefile)
-                general_utils.drawScoredRoi(
+                draw_utils.drawScoredRoi(
                     image, roi1, score=(1 if good_objects[iobject1] else 0))
                 for iobject2, object_entry2 in enumerate(object_entries):
                     if iobject1 == iobject2:
@@ -408,7 +410,7 @@ def filterObjectsByIntersection(c, args):
                     roi2 = backend_db.objectField(object_entry2, 'roi')
                     if roi2 is None:
                         continue
-                    general_utils.drawScoredRoi(image, roi2, score=0.5)
+                    draw_utils.drawScoredRoi(image, roi2, score=0.5)
                 cv2.imshow('filterObjectsByIntersection', image[:, :, ::-1])
                 key = cv2.waitKey(-1)
                 if key == 27:

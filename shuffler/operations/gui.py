@@ -9,6 +9,7 @@ import imageio
 from shuffler.backend import backend_db
 from shuffler.backend import backend_media
 from shuffler.utils import general as general_utils
+from shuffler.utils import draw as draw_utils
 from shuffler.utils import parser as parser_utils
 
 
@@ -189,10 +190,10 @@ def examineImages(c, args):
                                                     score=score)
                 elif roi is not None:
                     logging.info('showing object with a bounding box.')
-                    general_utils.drawScoredRoi(image,
-                                                roi,
-                                                label=name,
-                                                score=score)
+                    draw_utils.drawScoredRoi(image,
+                                             roi,
+                                             label=name,
+                                             score=score)
                 else:
                     logging.warning(
                         'Neither polygon, nor bbox is available for objectid %d',
@@ -332,10 +333,10 @@ def examineObjects(c, args):
                                                 score=score)
             elif roi is not None:
                 logging.info('showing object with a bounding box.')
-                general_utils.drawScoredRoi(image,
-                                            scaledroi,
-                                            label=None,
-                                            score=score)
+                draw_utils.drawScoredRoi(image,
+                                         scaledroi,
+                                         label=None,
+                                         score=score)
             else:
                 raise Exception(
                     'Neither polygon, nor bbox is available for objectid %d' %
@@ -477,7 +478,7 @@ def labelObjects(c, args):
                 roi = [int(scale * r)
                        for r in roi]  # For displaying the scaled image.
                 logging.debug('scaled roi: %s', pformat(roi))
-                general_utils.drawScoredRoi(image, roi, label=None, score=None)
+                draw_utils.drawScoredRoi(image, roi, label=None, score=None)
             else:
                 raise Exception(
                     'Neither polygon, nor bbox is available for objectid %d' %
@@ -596,7 +597,7 @@ def examineMatches(c, args):
             score = backend_db.objectField(object_entry, 'score')
 
             image = imreader.imread(imagefile)
-            general_utils.drawScoredRoi(image, roi, score=score)
+            draw_utils.drawScoredRoi(image, roi, score=score)
 
             scale = float(args.winsize) / max(image.shape[0:2])
             image = cv2.resize(image, dsize=(0, 0), fx=scale, fy=scale)
@@ -661,8 +662,8 @@ def _drawMatch(img, roi1, roi2, yoffset):
 
     roi2[0] += yoffset
     roi2[2] += yoffset
-    general_utils.drawScoredRoi(img, roi1)
-    general_utils.drawScoredRoi(img, roi2)
+    draw_utils.drawScoredRoi(img, roi1)
+    draw_utils.drawScoredRoi(img, roi2)
     center1 = _getCenter(roi1)
     center2 = _getCenter(roi2)
     cv2.line(img, center1, center2, [0, 0, 255], thickness=2)
@@ -748,11 +749,11 @@ def labelMatches(c, args):
 
         # draw cars in both images
         for object_ in objects1:
-            general_utils.drawScoredRoi(img1,
-                                        backend_db.objectField(object_, 'roi'))
+            draw_utils.drawScoredRoi(img1,
+                                     backend_db.objectField(object_, 'roi'))
         for object_ in objects2:
-            general_utils.drawScoredRoi(img2,
-                                        backend_db.objectField(object_, 'roi'))
+            draw_utils.drawScoredRoi(img2,
+                                     backend_db.objectField(object_, 'roi'))
 
         i1 = i2 = None  # Matches selected with a mouse.
 

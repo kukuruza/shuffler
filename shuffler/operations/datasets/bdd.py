@@ -7,6 +7,7 @@ from progressbar import progressbar
 
 from shuffler.backend import backend_media
 from shuffler.utils import general as general_utils
+from shuffler.utils import draw as draw_utils
 from shuffler.utils import boxes as boxes_utils
 
 
@@ -104,7 +105,7 @@ def importBdd(c, args):
                     height = int(float(box2d['y2']) - y1)
                     if args.display:
                         roi = boxes_utils.bbox2roi((x1, y1, width, height))
-                        general_utils.drawScoredRoi(img, roi, object_name)
+                        draw_utils.drawScoredRoi(img, roi, object_name)
 
                 c.execute(
                     'INSERT INTO objects(imagefile,x1,y1,width,height,name) '
