@@ -193,8 +193,8 @@ def exportCoco(c, args):
         objectid = backend_db.objectField(object_entry, 'objectid')
         name = backend_db.objectField(object_entry, 'name')
         imagefile = backend_db.objectField(object_entry, 'imagefile')
-        general_utils.polygons2bboxes(
-            c, objectid)  # Get a box if there wasn't one.
+        general_utils.polygon2bbox(c,
+                                   objectid)  # Get a box if there wasn't one.
         bbox = backend_db.objectField(object_entry, 'bbox')
         imageid = imageids[imagefile]
 

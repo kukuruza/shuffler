@@ -17,11 +17,33 @@ TEXT_COLOR = (255, 255, 255)
 TEXT_BACKCOLOR = (0, 0, 0)
 
 
+def takeSubpath(path, dirtree_level=None):
+    '''
+    Takes dirtree_level parts of the path from the end.
+    Args:
+      path:             A non-empty string
+      dirtree_level:    None or a positive integer.
+                        If None, the original path is returned.
+    Example:
+      takeSubpath('a/b/c', 2) -> 'b/c'
+    '''
+    if len(path) == 0:
+        raise ValueError('The path can not be an empty string.')
+    if dirtree_level is None:
+        return path
+    elif dirtree_level <= 0:
+        raise ValueError('dirtree_level must be None or a positive integer.')
+    parts = path.split(op.sep)
+    dirtree_level = min(dirtree_level, len(parts))
+    return op.sep.join(parts[-dirtree_level:])
+
+
 def validateFileName(filename):
-    invalid = '<>:\'"/\\|?+=!@#$%^&*,.~`'
+    ''' Replace each special character with _X_, where X is its ascii code. '''
+    invalid = '<>:\'"/\\|?+=!@#$%^&*,~`'
     filename = maybeDecode(filename)
     for char in invalid:
-        filename = filename.replace(char, '_')
+        filename = filename.replace(char, '_%d_' % ord(char))
     return filename
 
 
@@ -106,6 +128,10 @@ def _drawFilledPolygon(img, polygon, color, fill_opacity):
         or len(img.shape) == 2 and isinstance(color, int)
     ), 'Expect color image and RGB color or grayscale image and INT color.'
     is_color = len(img.shape) == 3
+
+    # 0, 1, or 2 points in a polygon should not paint an area.
+    if len(polygon) < 3:
+        return
 
     polygon = np.array(polygon, np.int32)
     ymin = polygon[:, 0].min()
@@ -443,9 +469,10 @@ def drawMaskAside(img, mask, labelmap=None):
     return img
 
 
-def bboxes2polygons(cursor, objectid):
-    ''' A rectangular polygon is added to objects that are missing polygons. '''
-
+def bbox2polygon(cursor, objectid):
+    '''
+    A rectangular polygon is added for the objectid if it is missing polygons.
+    '''
     # If there are already polygon entries, do nothing.
     cursor.execute('SELECT COUNT(1) FROM polygons WHERE objectid=?',
                    (objectid, ))
@@ -466,7 +493,7 @@ def bboxes2polygons(cursor, objectid):
         x1, y2, x2, objectid)
 
 
-def polygons2bboxes(cursor, objectid):
+def polygon2bbox(cursor, objectid):
     '''
     A bounding box is created around objects that don't have it
     via enclosing the polygon. The polygon is assumed to be present.
@@ -505,7 +532,10 @@ def polygons2mask(cursor, objectid):
         'SELECT i.width,i.height FROM images i INNER JOIN '
         'objects o ON i.imagefile=o.imagefile '
         'WHERE objectid=?', (objectid, ))
-    width, height = cursor.fetchone()
+    width_and_height = cursor.fetchone()
+    if width_and_height is None:
+        raise RuntimeError('Failed to find image dim for object %d' % objectid)
+    width, height = width_and_height
     mask = np.zeros((height, width), dtype=np.int32)
 
     # Iterate multiple polygons (if any) of the object.
@@ -624,7 +654,7 @@ def makeExportedImageName(tgt_dir,
 
 def getMatchPolygons(polygons1, polygons2, threshold, ignore_name=True):
     '''
-    Given two lists of polygons points find pairs that are within threshold.
+    Given two lists of polygons, find pairs that are close within threshold.
     Polygons are assumed to belong to the same object.
 
     Args:
@@ -657,6 +687,7 @@ def getMatchPolygons(polygons1, polygons2, threshold, ignore_name=True):
                   np.array2string(pairwise_dist, precision=1))
 
     # Greedy search for pairs.
+    # TODO: possibly can optimize in future to avoid O(N^2) complexity.
     pairs_to_merge = []
     for _ in range(min(len(polygons1), len(polygons2))):
         i1, i2 = np.unravel_index(np.argmin(pairwise_dist),

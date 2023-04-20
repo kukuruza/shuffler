@@ -87,7 +87,7 @@ def _exportImageAsPolygons(c, imagefile, imwidth, imheight, classes):
               (imagefile, ))
     for objectid, name in c.fetchall():
         # In case bboxes were not recorded as polygons.
-        general_utils.bboxes2polygons(c, objectid)
+        general_utils.bbox2polygon(c, objectid)
 
         try:
             label_id = classes.index(name)

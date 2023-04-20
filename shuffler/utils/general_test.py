@@ -7,7 +7,10 @@ import unittest
 import tempfile
 import progressbar
 import nose
+import sqlite3
+import numpy as np
 
+from shuffler.backend import backend_db
 from shuffler.utils import general as general_utils
 
 
@@ -178,6 +181,35 @@ class Test_drawFilledPolygon(unittest.TestCase):
         np.testing.assert_almost_equal(image, expected_image, 0.0001)
 
 
+class Test_takeSubpath(unittest.TestCase):
+    def test_all(self):
+        # Need to us os.path.join as opposed to '/' because must run on Windows.
+        path1 = 'c'
+        path2 = op.join('b', 'c')
+        path3 = op.join('a', 'b', 'c')
+        #
+        self.assertEqual(general_utils.takeSubpath(path3, None), path3)
+        self.assertEqual(general_utils.takeSubpath(path3, 4), path3)
+        self.assertEqual(general_utils.takeSubpath(path3, 3), path3)
+        self.assertEqual(general_utils.takeSubpath(path3, 2), path2)
+        self.assertEqual(general_utils.takeSubpath(path3, 1), path1)
+        with self.assertRaises(ValueError):
+            general_utils.takeSubpath(path3, 0)
+        with self.assertRaises(ValueError):
+            general_utils.takeSubpath(path3, -1)
+        with self.assertRaises(ValueError):
+            general_utils.takeSubpath('', 1)
+
+
+class Test_validateFileName(unittest.TestCase):
+    def test_all(self):
+        self.assertEqual(general_utils.validateFileName('abc.jpg'), 'abc.jpg')
+        self.assertEqual(general_utils.validateFileName('ab c'), 'ab c')
+        self.assertEqual(general_utils.validateFileName('ab!c'), 'ab_33_c')
+        self.assertEqual(general_utils.validateFileName('ab/c'), 'ab_47_c')
+        self.assertEqual(general_utils.validateFileName('ab\\c'), 'ab_92_c')
+
+
 class Test_CopyWithBackup(unittest.TestCase):
     def setUp(self):
         self.work_dir = tempfile.mkdtemp()
@@ -233,6 +265,97 @@ class Test_CopyWithBackup(unittest.TestCase):
         with open(backup_path) as f:
             s = f.readline()
             self.assertEqual(s, 'from')
+
+
+class Test_bbox2polygon(unittest.TestCase):
+    def setUp(self):
+        self.conn = sqlite3.connect(':memory:')
+        backend_db.createDb(self.conn)
+
+    def test_general(self):
+        c = self.conn.cursor()
+        # Two objects.
+        c.execute('INSERT INTO objects(objectid,x1,y1,width,height) '
+                  'VALUES (1, 40, 20, 10, 10), (2, 20.5, 30.5, 20.5, 10.5)')
+        # Object 1 has a polygon.
+        c.execute('INSERT INTO polygons(objectid,x,y) '
+                  'VALUES (1, 40, 20), (1, 40.5, 30.5), (1, 50.5, 30)')
+
+        # Run on object 1, which already has polygon entries.
+        general_utils.bbox2polygon(c, objectid=1)
+        c.execute('SELECT objectid,x,y FROM polygons ORDER BY objectid')
+        actual = c.fetchall()
+        expected = [(1, 40, 20), (1, 40.5, 30.5), (1, 50.5, 30)]
+        self.assertEqual(set(actual), set(expected))
+
+        # Run on object 2, which has NO polygon entries.
+        general_utils.bbox2polygon(c, objectid=2)
+        c.execute('SELECT objectid,x,y FROM polygons ORDER BY objectid')
+        actual = c.fetchall()
+        # Should find the original entries for #1 and new entries for #2.
+        expected = [(1, 40, 20), (1, 40.5, 30.5), (1, 50.5, 30),
+                    (2, 20.5, 30.5), (2, 20.5, 41), (2, 41, 41), (2, 41, 30.5)]
+        self.assertEqual(set(actual), set(expected))
+
+
+class Test_polygon2bbox(unittest.TestCase):
+    def setUp(self):
+        self.conn = sqlite3.connect(':memory:')
+        backend_db.createDb(self.conn)
+
+    def test_general(self):
+        c = self.conn.cursor()
+        # Two objects.
+        c.execute('INSERT INTO objects(objectid,x1,y1,width,height) '
+                  'VALUES (1, 40, 20, 10, 10), (2, 20.5, 30.5, 20.5, 10.5)')
+        # Object 1 has a polygon.
+        c.execute('INSERT INTO polygons(objectid,x,y) '
+                  'VALUES (1, 40, 20), (1, 40.5, 30.5), (1, 50.5, 30)')
+
+        # Run on object 1. Bbox for object 1 should change.
+        general_utils.polygon2bbox(c, objectid=1)
+        c.execute('SELECT objectid,x1,y1,width,height FROM objects')
+        actual = c.fetchall()
+        expected = [(1, 40, 20, 10.5, 10.5), (2, 20.5, 30.5, 20.5, 10.5)]
+        self.assertEqual(set(actual), set(expected))
+
+        # Run on object 2. No changes.
+        general_utils.polygon2bbox(c, objectid=2)
+        c.execute('SELECT objectid,x1,y1,width,height FROM objects')
+        actual = c.fetchall()
+        expected = [(1, 40, 20, 10.5, 10.5), (2, 20.5, 30.5, 20.5, 10.5)]
+        self.assertEqual(set(actual), set(expected))
+
+
+class Test_polygon2mask(unittest.TestCase):
+    def setUp(self):
+        self.conn = sqlite3.connect(':memory:')
+        backend_db.createDb(self.conn)
+
+    def test_badInfo(self):
+        c = self.conn.cursor()
+        c = self.conn.cursor()
+        c.execute('INSERT INTO objects(objectid) VALUES (1)')
+        with self.assertRaises(RuntimeError):
+            general_utils.polygons2mask(c, objectid=1)
+
+    def test_general(self):
+        c = self.conn.cursor()
+        # One image of size 200x100.
+        c.execute('INSERT INTO images(imagefile,width,height) '
+                  'VALUES ("image0",200,100)')
+        # Two objects.
+        c.execute('INSERT INTO objects(imagefile,objectid) '
+                  'VALUES ("image0",1), ("image0",2)')
+        # Object 1 has a polygon.
+        c.execute(
+            'INSERT INTO polygons(objectid,x,y) '
+            'VALUES (1, 40, 20), (1, 40.1, 30.1), (1, 50.1, 30), (1, 50, 20)')
+
+        # Run on object 1. Bbox for object 1 should change.
+        mask = general_utils.polygons2mask(c, objectid=1)
+        self.assertEqual(mask.dtype, np.uint8)
+        self.assertEqual(mask.shape, (100, 200))
 
 
 class Test_getIntersectingObjects(unittest.TestCase):

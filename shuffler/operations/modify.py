@@ -58,7 +58,7 @@ def bboxesToPolygons(c, args):
     c.execute('SELECT objectid FROM objects WHERE objectid NOT IN '
               '(SELECT objectid FROM polygons)')
     for objectid, in progressbar(c.fetchall()):
-        general_utils.bboxes2polygons(c, objectid)
+        general_utils.bbox2polygon(c, objectid)
 
 
 def polygonsToBboxesParser(subparsers):
@@ -74,7 +74,7 @@ def polygonsToBboxes(c, args):
     c.execute('SELECT objectid FROM objects WHERE objectid IN '
               '(SELECT DISTINCT(objectid) FROM polygons)')
     for objectid, in progressbar(c.fetchall()):
-        general_utils.polygons2bboxes(c, objectid)
+        general_utils.polygon2bbox(c, objectid)
 
 
 def sqlParser(subparsers):
@@ -889,7 +889,7 @@ def mergeIntersectingObjects(c, args):
                           (args.target_name, objectid1, objectid2))
 
             new_objectid = _mergeNObjects(c, [objectid1, objectid2])
-            general_utils.polygons2bboxes(c, new_objectid)
+            general_utils.polygon2bbox(c, new_objectid)
 
             c.execute('SELECT * FROM objects WHERE objectid=?',
                       (new_objectid, ))

@@ -193,14 +193,10 @@ def cropObjects(c, args):
                                                      args.target_height,
                                                      args.target_width)
         if args.split_into_folders_by_object_name:
-            # TODO: Do something about names with special characters.
-            #       Cant use validateFileName because two names may get mapped
-            #       into one filename.
-            namehint = '%s/%09d' % (general_utils.maybeDecode(name),
+            namehint = '%s/%09d' % (general_utils.validateFileName(name),
                                     old_objectid)
         elif args.add_object_name_to_filename:
-            # TODO: Ditto.
-            namehint = '%s %09d' % (general_utils.maybeDecode(name),
+            namehint = '%s-%09d' % (general_utils.validateFileName(name),
                                     old_objectid)
         else:
             namehint = '%09d' % old_objectid

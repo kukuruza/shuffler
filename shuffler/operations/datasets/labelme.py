@@ -196,8 +196,7 @@ def importLabelme(c, args):
                     'INSERT INTO properties(objectid,key,value) VALUES (?,?,?);',
                     (objectid, attrib.text, 'true'))
 
-            general_utils.polygons2bboxes(c,
-                                          objectid)  # Generate a bounding box.
+            general_utils.polygon2bbox(c, objectid)  # Generate a bounding box.
 
 
 def exportLabelmeParser(subparsers):
@@ -290,7 +289,7 @@ def exportLabelme(c, args):
             occluded = 'yes' if occluded is not None and occluded == 'true' else 'no'
 
             # In case bboxes were not recorded as polygons.
-            general_utils.bboxes2polygons(c, objectid)
+            general_utils.bbox2polygon(c, objectid)
 
             el_object = ET.SubElement(el_root, "object")
             ET.SubElement(el_object,

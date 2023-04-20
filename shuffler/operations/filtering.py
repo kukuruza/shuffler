@@ -53,16 +53,6 @@ def filterImagesViaAnotherDbParser(subparsers):
     parser_utils.addKeepOrDeleteArguments(parser)
 
 
-def takeSubpath(path, dirtree_level=None):
-    ' Takes dirtree_level parts from the path from the end and removes os.sep. '
-    if dirtree_level is None:
-        return path
-    path = path[::-1]
-    path = path.replace(op.sep, "", dirtree_level - 1)
-    path = path[::-1]
-    return op.basename(path)
-
-
 def filterImagesViaAnotherDb(c, args):
     # Get all the imagefiles from the reference db.
     if not op.exists(args.ref_db_file):
@@ -83,13 +73,13 @@ def filterImagesViaAnotherDb(c, args):
     # imagefiles_del are either must be or must not be in the other database.
     if args.keep:
         imagefiles_del = [
-            x for x in imagefiles
-            if takeSubpath(x, args.dirtree_level) not in imagefiles_ref
+            x for x in imagefiles if general_utils.takeSubpath(
+                x, args.dirtree_level) not in imagefiles_ref
         ]
     else:
         imagefiles_del = [
-            x for x in imagefiles
-            if takeSubpath(x, args.dirtree_level) in imagefiles_ref
+            x for x in imagefiles if general_utils.takeSubpath(
+                x, args.dirtree_level) in imagefiles_ref
         ]
     logging.info('Will delete %d images', len(imagefiles_del))
 
