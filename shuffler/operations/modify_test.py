@@ -414,6 +414,119 @@ class Test_randomNImages_SyntheticDb(unittest.TestCase):
             modify.randomNImages(c, args)
 
 
+class Test_expandObjects_SyntheticDb(unittest.TestCase):
+    def setUp(self):
+        self.conn = sqlite3.connect(':memory:')
+        backend_db.createDb(self.conn)
+
+        c = self.conn.cursor()
+        # 2 images, one of them with 1 object.
+        c.execute(
+            'INSERT INTO images(imagefile) VALUES ("image0"), ("image1")')
+        c.execute(
+            'INSERT INTO objects(imagefile,objectid) VALUES ("image0",0)')
+        c.execute('INSERT INTO polygons(objectid,x,y) VALUES'
+                  '(0,40,20), (0,50,20), (0,50,30), (0,40,30)')
+
+    def test_PolygonsOnly(self):
+        c = self.conn.cursor()
+
+        args = argparse.Namespace(expand_fraction=1., target_ratio=None)
+        modify.expandObjects(c, args)
+
+        # Check that bboxes were NOT created while expanding polygons.
+        c.execute('SELECT x1,y1,width,height FROM objects WHERE objectid=0')
+        self.assertEqual(c.fetchall(), [(None, None, None, None)])
+
+        c.execute('SELECT x,y FROM polygons WHERE objectid=0')
+        actual = c.fetchall()
+        expected = [(35, 15), (55, 15), (55, 35), (35, 35)]
+        self.assertEqual(actual, expected)
+
+    def test_BboxesAndPolygons(self):
+        c = self.conn.cursor()
+        modify.polygonsToBboxes(c, argparse.Namespace())
+
+        args = argparse.Namespace(expand_fraction=1., target_ratio=None)
+        modify.expandObjects(c, args)
+
+        c.execute('SELECT x1,y1,width,height FROM objects WHERE objectid=0')
+        actual = c.fetchall()
+        expected = [(35, 15, 20, 20)]
+        self.assertEqual(actual, expected)
+
+        c.execute('SELECT x,y FROM polygons WHERE objectid=0')
+        actual = c.fetchall()
+        expected = [(35, 15), (55, 15), (55, 35), (35, 35)]
+        self.assertEqual(actual, expected)
+
+    def test_BboxesOnly(self):
+        c = self.conn.cursor()
+        modify.polygonsToBboxes(c, argparse.Namespace())
+        c.execute('DELETE FROM polygons')
+
+        args = argparse.Namespace(expand_fraction=1., target_ratio=None)
+        modify.expandObjects(c, args)
+
+        c.execute('SELECT x1,y1,width,height FROM objects WHERE objectid=0')
+        actual = c.fetchall()
+        expected = [(35, 15, 20, 20)]
+        self.assertEqual(actual, expected)
+
+        # Make sure polygons were not created while expanding the bbox.
+        c.execute('SELECT COUNT(1) FROM polygons')
+        self.assertEqual(c.fetchone(), (0, ))
+
+    def test_PolygonsOnly_toTargetRatio(self):
+        c = self.conn.cursor()
+
+        args = argparse.Namespace(expand_fraction=1., target_ratio=0.5)
+        modify.expandObjects(c, args)
+
+        # Check that bboxes were NOT created while expanding polygons.
+        c.execute('SELECT x1,y1,width,height FROM objects WHERE objectid=0')
+        self.assertEqual(c.fetchall(), [(None, None, None, None)])
+
+        c.execute('SELECT x,y FROM polygons WHERE objectid=0')
+        actual = c.fetchall()
+        expected = [(35, 20), (55, 20), (55, 30), (35, 30)]
+        self.assertEqual(actual, expected)
+
+    def test_BboxesAndPolygons_toTargetRatio(self):
+        c = self.conn.cursor()
+        modify.polygonsToBboxes(c, argparse.Namespace())
+
+        args = argparse.Namespace(expand_fraction=1., target_ratio=0.5)
+        modify.expandObjects(c, args)
+
+        c.execute('SELECT x1,y1,width,height FROM objects WHERE objectid=0')
+        actual = c.fetchall()
+        expected = [(35, 20, 20, 10)]
+        self.assertEqual(actual, expected)
+
+        c.execute('SELECT x,y FROM polygons WHERE objectid=0')
+        actual = c.fetchall()
+        expected = [(35, 20), (55, 20), (55, 30), (35, 30)]
+        self.assertEqual(actual, expected)
+
+    def test_BboxesOnly_toTargetRatio(self):
+        c = self.conn.cursor()
+        modify.polygonsToBboxes(c, argparse.Namespace())
+        c.execute('DELETE FROM polygons')
+
+        args = argparse.Namespace(expand_fraction=1., target_ratio=0.5)
+        modify.expandObjects(c, args)
+
+        c.execute('SELECT x1,y1,width,height FROM objects WHERE objectid=0')
+        actual = c.fetchall()
+        expected = [(35, 20, 20, 10)]
+        self.assertEqual(actual, expected)
+
+        # Make sure polygons were not created while expanding the bbox.
+        c.execute('SELECT COUNT(1) FROM polygons')
+        self.assertEqual(c.fetchone(), (0, ))
+
+
 class Test_moveRootdir_SyntheticDb(unittest.TestCase):
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')

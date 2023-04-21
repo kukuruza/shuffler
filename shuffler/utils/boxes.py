@@ -55,6 +55,7 @@ def expandRoi(roi, perc):
     Args:
       roi:   list or tuple [y1, x1, y2, x2]
       perc:  tuple (perc_y, perc_x). Both must be > -0.5.
+             perc=1. means that height and width will be doubled.
     '''
     roi = list(roi)
     perc_y, perc_x = perc
@@ -76,11 +77,12 @@ def expandRoi(roi, perc):
 
 def expandPolygon(ys, xs, perc):
     '''
-    Expand polygon from its MEAN center in all directions.
+    Expand polygon from its avg(ymin, ymax), avg(xmin, xmax) in all directions.
     Args:
       ys:    list of float y values.
       xs:    list of float x values.
       perc:  tuple (perc_y, perc_x). Both must be > -0.5.
+             perc=1. means that height and width will be doubled.
     Returns:
       ys:    list of float y values.
       xs:    list of float x values.
@@ -91,8 +93,10 @@ def expandPolygon(ys, xs, perc):
     if perc_y < -0.5 or perc_x < -0.5:
         raise ValueError('perc_y=%f and perc_x=%f must be > -0.5' %
                          (perc_y, perc_x))
-    center_y = np.array(ys, dtype=float).mean()
-    center_x = np.array(xs, dtype=float).mean()
+    ys = np.array(ys, dtype=float)
+    xs = np.array(xs, dtype=float)
+    center_y = (ys.min() + ys.max()) / 2
+    center_x = (xs.min() + xs.max()) / 2
     logging.info('Center: %s', (center_x, center_y))
     ys = [center_y + (y - center_y) * (1 + perc_y) for y in ys]
     xs = [center_x + (x - center_x) * (1 + perc_x) for x in xs]
@@ -110,7 +114,24 @@ def expandRoiUpToRatio(roi, ratio):
     else:
         perc = height / width / ratio - 1
         roi = expandRoi(roi, (0, perc))
-    return roi
+    return roi, perc
+
+
+def expandPolygonUpToRatio(ys, xs, ratio):
+    '''Expands a polygon to match 'ratio'. '''
+    ys = np.array(ys, dtype=float)
+    xs = np.array(xs, dtype=float)
+    height = ys.min() - ys.max()
+    width = xs.min() - xs.max()
+
+    # adjust width and height to ratio
+    if height / width < ratio:
+        perc = ratio * width / height - 1
+        ys, xs = expandPolygon(ys, xs, (perc, 0))
+    else:
+        perc = height / width / ratio - 1
+        ys, xs = expandPolygon(ys, xs, (0, perc))
+    return ys, xs, perc
 
 
 def cropPatch(image, roi, edge, target_height, target_width):
@@ -159,7 +180,7 @@ def cropPatch(image, roi, edge, target_height, target_width):
     # Maybe expand the ROI.
     if edge == 'background':
         target_ratio = target_height / target_width
-        roi = expandRoiUpToRatio(roi, target_ratio)
+        roi, _ = expandRoiUpToRatio(roi, target_ratio)
 
     # Reduce the bbox to the nearest integer pixel in every direction.
     roi[0] = int(np.ceil(roi[0]))

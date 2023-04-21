@@ -319,20 +319,21 @@ def randomNImages(c, args):
 def expandObjectsParser(subparsers):
     parser = subparsers.add_parser(
         'expandObjects',
-        description='Expand bbox and polygons in all four directions.')
+        description='Expand bboxes and/or polygons in all four directions. '
+        'Output bboxes and/or polygons may be outside image boundaries.')
     parser.set_defaults(func=expandObjects)
     parser.add_argument(
         '--expand_fraction',
         type=float,
         required=True,
         help='Each side will be move by this percentage. '
-        'So expand_fraction=1 (=100%%) means the dimensions will increase by 3x.'
-    )
+        '"expand_fraction" = 1. means that height and width will be doubled.')
     parser.add_argument(
         '--target_ratio',
         type=float,
-        help='If specified, expand to match this height/width ratio, '
-        'and if that is less than "expand_fraction", then expand more.')
+        help='If specified, expand to match this height/width ratio. '
+        'After that, if each side was expanded by less than "expand_fraction", '
+        'expand more, so that "expand_fraction" is reached by either side.')
 
 
 def expandObjects(c, args):
@@ -346,20 +347,32 @@ def expandObjects(c, args):
         c.execute('SELECT * FROM polygons WHERE objectid=?', (objectid, ))
         old_polygon = c.fetchall()
 
-        # Scale.
         if args.target_ratio:
             # Expand the bbox, if present in "objects" table.
             if old_roi is not None:
-                roi = boxes_utils.expandRoiUpToRatio(old_roi,
-                                                     args.target_ratio)
-                roi = boxes_utils.expandRoi(
-                    roi, (args.expand_fraction, args.expand_fraction))
+                roi, used_fraction = boxes_utils.expandRoiUpToRatio(
+                    old_roi, args.target_ratio)
+                extra_fraction = max(args.expand_fraction - used_fraction, 0)
+                roi = boxes_utils.expandRoi(roi,
+                                            (extra_fraction, extra_fraction))
                 logging.debug('Roi changed from %s to %s for object %d',
                               str(old_roi), str(roi), objectid)
+
             # Expand polygons, if present in "polygons" table.
             if len(old_polygon):
-                raise NotImplementedError(
-                    'Cant scale polygons to target ratio. It is a TODO.')
+                ids = [backend_db.polygonField(p, 'id') for p in old_polygon]
+                old_xs = [backend_db.polygonField(p, 'x') for p in old_polygon]
+                old_ys = [backend_db.polygonField(p, 'y') for p in old_polygon]
+                ys, xs, used_fraction = boxes_utils.expandPolygonUpToRatio(
+                    old_ys, old_xs, args.target_ratio)
+                extra_fraction = max(args.expand_fraction - used_fraction, 0)
+                ys, xs = boxes_utils.expandPolygon(
+                    ys, xs, (extra_fraction, extra_fraction))
+                polygon = zip(ids, xs, ys)
+                logging.debug('Polygon changed from %s to %s for object %d',
+                              str(list(zip(old_xs, old_ys))),
+                              str(list(zip(xs, ys))), objectid)
+
         else:
             # Expand the bbox, if present in "objects" table.
             if old_roi is not None:
@@ -367,6 +380,7 @@ def expandObjects(c, args):
                     old_roi, (args.expand_fraction, args.expand_fraction))
                 logging.debug('Roi changed from %s to %s for object %d',
                               str(old_roi), str(roi), objectid)
+
             # Expand polygons, if present in "polygons" table.
             if len(old_polygon):
                 ids = [backend_db.polygonField(p, 'id') for p in old_polygon]

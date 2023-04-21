@@ -116,30 +116,26 @@ class TestExpandRoi(unittest.TestCase):
 
 class TestExpandPolygon(unittest.TestCase):
     def test_identity(self):
-        ys = [0.5, 0.5, 150.5]
-        xs = [0.5, 300.5, 0.5]
+        ys = [0.5, 0.5, 100.5]
+        xs = [0.5, 200.5, 0.5]
         np.testing.assert_array_equal(
             np.array([ys, xs]),
             np.array(boxes_utils.expandPolygon(ys, xs, (0, 0))))
 
     def test_xIsGreater(self):
-        ys = [0.5, 0.5, 150.5]
-        xs = [0.5, 300.5, 0.5]
+        ys = [0.5, 0.5, 100.5]
+        xs = [0.5, 200.5, 0.5]
         perc = (0.5, 1)
-        expected = (
-            [-24.5, -24.5, 200.5],  # height = 150 * 1.5, gravitates to 0.
-            [-99.5, 500.5, -99.5])  # width = 300 * 2, gravitates to 0.
+        expected = ([-24.5, -24.5, 125.5], [-99.5, 300.5, -99.5])
         np.testing.assert_array_equal(
             np.array(expected),
             np.array(boxes_utils.expandPolygon(ys, xs, perc)))
 
     def test_yIsGreater(self):
-        ys = [0.5, 0.5, 150.5]
-        xs = [0.5, 300.5, 0.5]
+        ys = [0.5, 0.5, 100.5]
+        xs = [0.5, 200.5, 0.5]
         perc = (1, 0.5)
-        expected = (
-            [-49.5, -49.5, 250.5],  # height = 150 * 2, gravitates to 0.
-            [-49.5, 400.5, -49.5])  # width = 300 * 1.5, gravitates to 0.
+        expected = ([-49.5, -49.5, 150.5], [-49.5, 250.5, -49.5])
         np.testing.assert_array_equal(
             np.array(expected),
             np.array(boxes_utils.expandPolygon(ys, xs, perc)))
@@ -156,16 +152,46 @@ class TestExpandRoiUpToRatio(unittest.TestCase):
     def test_identity(self):
         roi = [0.5, 0.5, 100.5, 100.5]
         ratio = 1.
-        expected = roi
-        np.testing.assert_array_equal(
-            expected, np.array(boxes_utils.expandRoiUpToRatio(roi, ratio)))
+        expected_roi = roi
+        expected_perc = 0
+        actual_roi, actual_perc = boxes_utils.expandRoiUpToRatio(roi, ratio)
+        np.testing.assert_array_equal(expected_roi, np.array(actual_roi))
+        self.assertEqual(actual_perc, expected_perc)
 
     def test_equal(self):
         roi = [0.5, 0.5, 100.5, 200.5]
         ratio = 1.
-        expected = [-49.5, 0.5, 150.5, 200.5]
-        np.testing.assert_array_equal(
-            expected, np.array(boxes_utils.expandRoiUpToRatio(roi, ratio)))
+        expected_roi = [-49.5, 0.5, 150.5, 200.5]
+        expected_perc = 1
+        actual_roi, actual_perc = boxes_utils.expandRoiUpToRatio(roi, ratio)
+        np.testing.assert_array_equal(expected_roi, np.array(actual_roi))
+        self.assertEqual(actual_perc, expected_perc)
+
+
+class TestExpandPolygonUpToRatio(unittest.TestCase):
+    def test_identity(self):
+        ys = [0.5, 0.5, 100.5]
+        xs = [0.5, 100.5, 0.5]
+        ratio = 1.
+        expected_ys, expected_xs = ys, xs
+        expected_perc = 0
+        actual_ys, actual_xs, actual_perc = boxes_utils.expandPolygonUpToRatio(
+            ys, xs, ratio)
+        np.testing.assert_array_equal(expected_ys, np.array(actual_ys))
+        np.testing.assert_array_equal(expected_xs, np.array(actual_xs))
+        self.assertEqual(actual_perc, expected_perc)
+
+    def test_equal(self):
+        ys = [0.5, 0.5, 100.5]
+        xs = [0.5, 200.5, 0.5]
+        ratio = 1.
+        expected_ys, expected_xs = [-49.5, -49.5, 150.5], [0.5, 200.5, 0.5]
+        expected_perc = 1
+        actual_ys, actual_xs, actual_perc = boxes_utils.expandPolygonUpToRatio(
+            ys, xs, ratio)
+        np.testing.assert_array_equal(expected_ys, np.array(actual_ys))
+        np.testing.assert_array_equal(expected_xs, np.array(actual_xs))
+        self.assertEqual(actual_perc, expected_perc)
 
 
 class TestCropPatch(unittest.TestCase):
