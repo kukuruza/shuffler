@@ -1147,7 +1147,11 @@ def syncObjectsDataWithDbParser(subparsers):
         ' from objects in ref_db_file with matching objectid.')
     parser.set_defaults(func=syncObjectsDataWithDb)
     parser.add_argument('--ref_db_file', required=True)
-    parser.add_argument('--cols', nargs='+', help='Columns to update.')
+    parser.add_argument('--cols',
+                        nargs='*',
+                        default=[],
+                        help='Columns to update.')
+    parser.add_argument('--replace_polygons', action='store_true')
 
 
 def syncObjectsDataWithDb(c, args):
@@ -1187,7 +1191,15 @@ def syncObjectsDataWithDb(c, args):
             c.execute('UPDATE objects SET %s=? WHERE objectid=?' % col,
                       (value, objectid))
 
-    # TODO: update polygons, properties, and matches too.
+        if args.replace_polygons:
+            c.execute('DELETE FROM polygons WHERE objectid=?', (objectid, ))
+            c_ref.execute('SELECT * FROM polygons WHERE objectid=?',
+                          (objectid, ))
+            polygons = c_ref.fetchall()
+            for point in polygons:
+                c.execute('INSERT INTO polygons VALUES (?,?,?,?,?)', point)
+
+    # TODO: update properties, and matches too.
 
     logging.info('Updated %d objects out of %d. Ref_db had %d more objects.',
                  count, num_objects,

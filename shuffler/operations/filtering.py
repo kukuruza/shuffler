@@ -439,12 +439,12 @@ def filterObjectsByName(c, args):
     if args.keep:
         keep_names = ','.join(['"%s"' % x for x in args.names])
         logging.info('Will keep names: %s', keep_names)
-        c.execute('SELECT objectid FROM objects WHERE name NOT IN (%s)',
+        c.execute('SELECT objectid FROM objects WHERE name NOT IN (%s)' %
                   keep_names)
     else:
         delete_names = ','.join(['"%s"' % x for x in args.names])
         logging.info('Will delete names: %s', delete_names)
-        c.execute('SELECT objectid FROM objects WHERE name IN (%s)',
+        c.execute('SELECT objectid FROM objects WHERE name IN (%s)' %
                   delete_names)
     for objectid, in progressbar(c.fetchall()):
         backend_db.deleteObject(c, objectid)
