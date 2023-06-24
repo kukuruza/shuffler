@@ -1148,8 +1148,8 @@ def syncObjectsDataWithDbParser(subparsers):
     parser.set_defaults(func=syncObjectsDataWithDb)
     parser.add_argument('--ref_db_file', required=True)
     parser.add_argument('--cols',
-                        nargs='*',
-                        default=[],
+                        nargs='+',
+                        required=True,
                         help='Columns to update.')
     parser.add_argument('--replace_polygons', action='store_true')
 
