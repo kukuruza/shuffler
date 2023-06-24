@@ -540,19 +540,21 @@ def writeMedia(c, args):
             mask = imreader.maskread(maskfile)
             if args.image_path is not None:
                 if args.mask_aside:
-                    image = general_utils.drawMaskAside(image,
-                                                        mask,
-                                                        labelmap=labelmap)
+                    image = draw_utils.drawMaskAside(image,
+                                                     mask,
+                                                     labelmap=labelmap)
                 elif args.mask_alpha is not None:
-                    image = general_utils.drawMaskOnImage(
-                        image, mask, alpha=args.mask_alpha, labelmap=labelmap)
+                    image = draw_utils.drawMaskOnImage(image,
+                                                       mask,
+                                                       alpha=args.mask_alpha,
+                                                       labelmap=labelmap)
         else:
             mask = None
             logging.debug('No mask for this image.')
 
         # Overlay imagefile.
         if args.with_imageid:
-            general_utils.drawTextOnImage(image, op.basename(imagefile))
+            draw_utils.drawTextOnImage(image, op.basename(imagefile))
 
         # Draw objects as polygons (preferred) or ROI.
         if args.with_objects:
@@ -573,11 +575,11 @@ def writeMedia(c, args):
                     (objectid, ))
                 if len(polygon) > 0:
                     logging.debug('showing object with a polygon.')
-                    general_utils.drawScoredPolygon(image,
-                                                    polygon,
-                                                    label=name,
-                                                    score=score,
-                                                    **vars(args))
+                    draw_utils.drawScoredPolygon(image,
+                                                 polygon,
+                                                 label=name,
+                                                 score=score,
+                                                 **vars(args))
                 elif roi is not None:
                     logging.debug('showing object with a bounding box.')
                     draw_utils.drawScoredRoi(image,
@@ -816,8 +818,8 @@ def writeMediaGridByTime(c, args):
             image = cv2.resize(image, dsize=(width, height))
             assert len(image.shape) == 3  # Now only color images.
             if args.with_timestamp:
-                general_utils.drawTextOnImage(
-                    image, backend_db.makeTimeString(in_time))
+                draw_utils.drawTextOnImage(image,
+                                           backend_db.makeTimeString(in_time))
 
             # Lazy initialization.
             if grid is None:
