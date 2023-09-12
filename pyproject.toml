@@ -27,6 +27,7 @@ dependencies = [
     "lxml",
     "simplejson",
     "pillow",
+    "shapely",
 ]
 
 requires-python = ">=3.6"

@@ -9,6 +9,7 @@ import sqlite3
 
 from shuffler.backend import backend_db
 from shuffler.utils import general as general_utils
+from shuffler.utils import boxes as boxes_utils
 
 
 class Test_takeSubpath(unittest.TestCase):
@@ -188,38 +189,71 @@ class Test_polygon2mask(unittest.TestCase):
         self.assertEqual(mask.shape, (100, 200))
 
 
+class Test_getPolygonsByObject(unittest.TestCase):
+    def setUp(self):
+        self.conn = sqlite3.connect(':memory:')
+        backend_db.createDb(self.conn)
+
+    def test_general(self):
+        c = self.conn.cursor()
+        # Two objects.
+        c.execute('INSERT INTO objects(objectid,x1,y1,width,height) '
+                  'VALUES (1, 40, 20, 10, 10), (2, 20.5, 30.5, 20.5, 10.5)')
+        # Object 1 has a polygon.
+        c.execute('INSERT INTO polygons(objectid,x,y) '
+                  'VALUES (1, 40, 20), (1, 40.5, 30.5), (1, 50.5, 30)')
+
+        c.execute('SELECT * FROM objects')
+        objects = c.fetchall()
+        self.assertEqual(
+            general_utils.getPolygonsByObject(c, objects), {
+                1: [(20, 40), (30.5, 40.5), (30, 50.5)],
+                2: [(30.5, 20.5), (41.0, 20.5), (41.0, 41.0), (30.5, 41.0)]
+            })
+
+
 class Test_getIntersectingObjects(unittest.TestCase):
+    def _getPolygonsByObjectViaBbox(self, objects):
+        return {
+            backend_db.objectField(object_, 'objectid'):
+            boxes_utils.box2polygon(backend_db.objectField(object_, 'bbox'))
+            for object_ in objects
+        }
+
     def test_empty(self):
-        pairs_to_merge = general_utils.getIntersectingObjects([], [], 0.5)
+        pairs_to_merge = general_utils.getIntersectingObjects({}, {}, 0.5)
         self.assertEqual(pairs_to_merge, [])
 
     def test_firstEmpty(self):
         objects2 = [(1, 'image', 10, 10, 30, 30, 'name2', 1.)]
-        pairs_to_merge = general_utils.getIntersectingObjects([], objects2,
-                                                              0.5)
+        pairs_to_merge = general_utils.getIntersectingObjects(
+            {}, self._getPolygonsByObjectViaBbox(objects2), 0.5)
         self.assertEqual(pairs_to_merge, [])
 
     def test_identical(self):
         objects1 = [(1, 'image', 10, 10, 30, 30, 'name1', 1.)]
         objects2 = [(2, 'image', 10, 10, 30, 30, 'name2', 1.)]
         pairs_to_merge = general_utils.getIntersectingObjects(
-            objects1, objects2, 0.5)
+            self._getPolygonsByObjectViaBbox(objects1),
+            self._getPolygonsByObjectViaBbox(objects2), 0.5)
         self.assertEqual(pairs_to_merge, [(1, 2)])
 
     def test_identical_sameId(self):
         objects1 = [(1, 'image', 10, 10, 30, 30, 'name1', 1.)]
         objects2 = [(1, 'image', 10, 10, 30, 30, 'name2', 1.)]
-        pairs_to_merge = general_utils.getIntersectingObjects(objects1,
-                                                              objects2,
-                                                              0.5,
-                                                              same_id_ok=False)
+        pairs_to_merge = general_utils.getIntersectingObjects(
+            self._getPolygonsByObjectViaBbox(objects1),
+            self._getPolygonsByObjectViaBbox(objects2),
+            0.5,
+            same_id_ok=False)
         self.assertEqual(pairs_to_merge, [])
 
     def test_nonIntersecting(self):
         objects1 = [(1, 'image', 10, 10, 30, 30, 'name1', 1.)]
         objects2 = [(2, 'image', 20, 20, 40, 40, 'name2', 1.)]
         pairs_to_merge = general_utils.getIntersectingObjects(
-            objects1, objects2, 0.5)
+            self._getPolygonsByObjectViaBbox(objects1),
+            self._getPolygonsByObjectViaBbox(objects2), 0.5)
         self.assertEqual(pairs_to_merge, [])
 
     def test_twoIntersecting(self):
@@ -228,7 +262,8 @@ class Test_getIntersectingObjects(unittest.TestCase):
                     (3, 'image', 10, 10, 30, 30, 'name3', 1.),
                     (4, 'image', 40, 50, 60, 70, 'name4', 1.)]
         pairs_to_merge = general_utils.getIntersectingObjects(
-            objects1, objects2, 0.1)
+            self._getPolygonsByObjectViaBbox(objects1),
+            self._getPolygonsByObjectViaBbox(objects2), 0.1)
         self.assertEqual(pairs_to_merge, [(1, 3)])
 
     def test_twoAndTwoIntersecting(self):
@@ -238,7 +273,8 @@ class Test_getIntersectingObjects(unittest.TestCase):
         objects2 = [(3, 'image', 20, 20, 30, 30, 'name3', 1.),
                     (4, 'image', 10, 10, 30, 30, 'name4', 1.)]
         pairs_to_merge = general_utils.getIntersectingObjects(
-            objects1, objects2, 0.1)
+            self._getPolygonsByObjectViaBbox(objects1),
+            self._getPolygonsByObjectViaBbox(objects2), 0.1)
         self.assertEqual(set(pairs_to_merge), set([(1, 4), (2, 3)]))
         # #2.
         objects1 = [(1, 'image', 10, 10, 30, 30, 'name1', 1.),
@@ -246,7 +282,8 @@ class Test_getIntersectingObjects(unittest.TestCase):
         objects2 = [(3, 'image', 10, 10, 30, 30, 'name3', 1.),
                     (4, 'image', 20, 20, 30, 30, 'name4', 1.)]
         pairs_to_merge = general_utils.getIntersectingObjects(
-            objects1, objects2, 0.1)
+            self._getPolygonsByObjectViaBbox(objects1),
+            self._getPolygonsByObjectViaBbox(objects2), 0.1)
         self.assertEqual(set(pairs_to_merge), set([(1, 3), (2, 4)]))
         # #3.
         objects1 = [(1, 'image', 10, 10, 30, 30, 'name1', 1.),
@@ -255,7 +292,8 @@ class Test_getIntersectingObjects(unittest.TestCase):
                     (4, 'image', 0, 0, 30, 30, 'name4', 1.),
                     (5, 'image', 20, 20, 30, 30, 'name5', 1.)]
         pairs_to_merge = general_utils.getIntersectingObjects(
-            objects1, objects2, 0.1)
+            self._getPolygonsByObjectViaBbox(objects1),
+            self._getPolygonsByObjectViaBbox(objects2), 0.1)
         self.assertEqual(set(pairs_to_merge), set([(1, 3), (2, 5)]))
 
 
@@ -300,15 +338,15 @@ class Test_makeExportedImageName(unittest.TestCase):
         self.assertEqual(tgt_path, 'tgt_dir/file___name')
 
 
-class Test_getMatchPolygons(unittest.TestCase):
+class Test_MatchPolygonPoints(unittest.TestCase):
     def test_empty(self):
-        pairs = general_utils.getMatchPolygons([], [], 1.)
+        pairs = general_utils.matchPolygonPoints([], [], 1.)
         self.assertEqual(pairs, [])
 
     def test_firstEmpty(self):
         objectid = 1
         polygons2 = [(1, objectid, 10, 30, 'name1')]
-        pairs = general_utils.getMatchPolygons([], polygons2, 1.)
+        pairs = general_utils.matchPolygonPoints([], polygons2, 1.)
         self.assertEqual(pairs, [])
 
     def test_identical(self):
@@ -316,7 +354,7 @@ class Test_getMatchPolygons(unittest.TestCase):
         objectid = 1
         polygons1 = [(1, objectid, 10, 30, 'name1')]
         polygons2 = [(2, objectid, 10, 30, 'name2')]
-        pairs = general_utils.getMatchPolygons(polygons1, polygons2, 1., True)
+        pairs = general_utils.matchPolygonPoints(polygons1, polygons2, 1., True)
         self.assertEqual(pairs, [(1, 2)])
 
     def test_identicalAndNameMatter(self):
@@ -324,7 +362,7 @@ class Test_getMatchPolygons(unittest.TestCase):
         objectid = 1
         polygons1 = [(1, objectid, 10, 30, 'name1')]
         polygons2 = [(2, objectid, 10, 30, 'name2')]
-        pairs = general_utils.getMatchPolygons(polygons1, polygons2, 1., False)
+        pairs = general_utils.matchPolygonPoints(polygons1, polygons2, 1., False)
         self.assertEqual(pairs, [])
 
     def test_someMatchingPointsAndNameIgnored(self):
@@ -334,7 +372,7 @@ class Test_getMatchPolygons(unittest.TestCase):
                      (2, objectid, 10, 30, 'name2')]
         polygons2 = [(3, objectid, 10, 30, 'name2'),
                      (4, objectid, 200, 200, 'name3')]
-        pairs = general_utils.getMatchPolygons(polygons1, polygons2, 1., True)
+        pairs = general_utils.matchPolygonPoints(polygons1, polygons2, 1., True)
         self.assertEqual(pairs, [(2, 3)])
 
     def test_ambiguousPointsInPolygon1(self):
@@ -346,7 +384,7 @@ class Test_getMatchPolygons(unittest.TestCase):
                      (4, objectid, 200, 200, 'name3')]
         # If there are matches of repeated points, then smth is wrong here.
         with self.assertRaises(ValueError):
-            general_utils.getMatchPolygons(polygons1, polygons2, 1., True)
+            general_utils.matchPolygonPoints(polygons1, polygons2, 1., True)
 
     def test_ambiguousPointsInPolygon2(self):
         ''' Expect an error if two points can be matched. Names are ignored. '''
@@ -357,7 +395,7 @@ class Test_getMatchPolygons(unittest.TestCase):
                      (2, objectid, 10, 30, 'name2')]
         # If there are matches of repeated points, then smth is wrong here.
         with self.assertRaises(ValueError):
-            general_utils.getMatchPolygons(polygons1, polygons2, 1., True)
+            general_utils.matchPolygonPoints(polygons1, polygons2, 1., True)
 
     def test_haveRepeatedPointsAndNameMatter(self):
         ''' Only the point with matching name is matched out of two points. '''
@@ -366,7 +404,7 @@ class Test_getMatchPolygons(unittest.TestCase):
                      (2, objectid, 10, 30, 'name2')]
         polygons2 = [(3, objectid, 10, 30, 'name2'),
                      (4, objectid, 200, 200, 'name3')]
-        pairs = general_utils.getMatchPolygons(polygons1, polygons2, 1., False)
+        pairs = general_utils.matchPolygonPoints(polygons1, polygons2, 1., False)
         self.assertEqual(pairs, [(2, 3)])
 
     def test_haveNameIsNull(self):
@@ -378,7 +416,7 @@ class Test_getMatchPolygons(unittest.TestCase):
         polygons2 = [(4, objectid, 30, 50, 'name2'),
                      (5, objectid, 20, 40, 'name1'),
                      (6, objectid, 10, 30, None)]
-        pairs = general_utils.getMatchPolygons(polygons1, polygons2, 1., False)
+        pairs = general_utils.matchPolygonPoints(polygons1, polygons2, 1., False)
         self.assertEqual(set(pairs), set([(1, 6), (2, 5), (3, 4)]))
 
 

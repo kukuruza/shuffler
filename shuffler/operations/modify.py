@@ -845,8 +845,8 @@ def _mergeNObjects(c, objectids):
 def mergeIntersectingObjectsParser(subparsers):
     parser = subparsers.add_parser(
         'mergeIntersectingObjects',
-        description='Merge objects that intersect. '
-        'Currently only pairwise, does not merge groups (that is future work.) '
+        description='Merge objects that intersect via polygons when available, '
+        'or bboxes otherwise. Merge is pairwise, does not merge groups. '
         'Currently implements only intersection by bounding boxes. '
         'A merged object has polygons and properties from both source objects.'
     )
@@ -896,7 +896,10 @@ def mergeIntersectingObjects(c, args):
                       len(objects1), len(objects2))
 
         pairs_to_merge = general_utils.getIntersectingObjects(
-            objects1, objects2, args.IoU_threshold, same_id_ok=False)
+            general_utils.getPolygonsByObject(c, objects1),
+            general_utils.getPolygonsByObject(c, objects2),
+            args.IoU_threshold,
+            same_id_ok=False)
 
         if args.filterObjectsByIoU and len(pairs_to_merge) > 0:
             image = imreader.imread(imagefile)
@@ -947,7 +950,8 @@ def syncObjectidsWithDbParser(subparsers):
         '(found via IoU), assign it the objectid of from the reference db. '
         'Otherwise, assign a unique objectid, which is not in either dbs. '
         'The greedy algorithm is used to match several objects: '
-        'from max IoU and down to the IoU_threshold.')
+        'from max IoU and down to the IoU_threshold. '
+        'IoU is determined by polygons, if available, or bboxes otherwise.')
     parser.set_defaults(func=syncObjectidsWithDb)
     parser.add_argument(
         '--IoU_threshold',
@@ -966,7 +970,7 @@ def syncObjectidsWithDb(c, args):
         return 0 if objectid[0] is None else objectid[0] + 1
 
     if not op.exists(args.ref_db_file):
-        raise FileNotFoundError('Ref db does not exist: %s', args.ref_db_file)
+        raise FileNotFoundError('Ref db does not exist: %s' % args.ref_db_file)
     conn_ref = sqlite3.connect('file:%s?mode=ro' % args.ref_db_file, uri=True)
     c_ref = conn_ref.cursor()
 
@@ -1001,7 +1005,7 @@ def syncObjectidsWithDb(c, args):
             'current db: \n\t%s',
             '\t\n'.join([x for x, in imagefiles_ref_not_this]))
 
-    # ASSUME: all objects in the open and the ref db have bboxes values.
+    # ASSUME: all objects in the open and the ref db have polygons or bboxes.
 
     # The new available objectid should be above the max of either db.
     next_objectid = max(_getNextObjectidInDb(c), _getNextObjectidInDb(c_ref))
@@ -1024,8 +1028,10 @@ def syncObjectidsWithDb(c, args):
         logging.debug('Image %s has %d and %d objects to match', imagefile,
                       len(objects), len(objects_ref))
         objectid_this_to_ref_map = dict(
-            general_utils.getIntersectingObjects(objects, objects_ref,
-                                                 args.IoU_threshold))
+            general_utils.getIntersectingObjects(
+                general_utils.getPolygonsByObject(c, objects),
+                general_utils.getPolygonsByObject(c, objects_ref),
+                args.IoU_threshold))
         logging.debug(pformat(objectid_this_to_ref_map))
 
         for object_ in objects:
@@ -1087,7 +1093,7 @@ def syncPolygonIdsWithDb(c, args):
         return 0 if id_[0] is None else id_[0] + 1
 
     if not op.exists(args.ref_db_file):
-        raise FileNotFoundError('Ref db does not exist: %s', args.ref_db_file)
+        raise FileNotFoundError('Ref db does not exist: %s' % args.ref_db_file)
     conn_ref = sqlite3.connect('file:%s?mode=ro' % args.ref_db_file, uri=True)
     c_ref = conn_ref.cursor()
 
@@ -1113,8 +1119,8 @@ def syncPolygonIdsWithDb(c, args):
         logging.debug('Objectid %d has %d and %d polygons to match', objectid,
                       len(polygons), len(polygons_ref))
         polygon_ids_active_to_ref_map = dict(
-            general_utils.getMatchPolygons(polygons, polygons_ref,
-                                           args.epsilon, args.ignore_name))
+            general_utils.matchPolygonPoints(polygons, polygons_ref,
+                                             args.epsilon, args.ignore_name))
         logging.debug(pformat(polygon_ids_active_to_ref_map))
 
         for polygon in polygons:
@@ -1156,7 +1162,7 @@ def syncObjectsDataWithDbParser(subparsers):
 
 def syncObjectsDataWithDb(c, args):
     if not op.exists(args.ref_db_file):
-        raise FileNotFoundError('Ref db does not exist: %s', args.ref_db_file)
+        raise FileNotFoundError('Ref db does not exist: %s' % args.ref_db_file)
     conn_ref = sqlite3.connect('file:%s?mode=ro' % args.ref_db_file, uri=True)
     c_ref = conn_ref.cursor()
 
@@ -1644,5 +1650,5 @@ def upgradeV4toV5Parser(subparsers):
     parser.set_defaults(func=upgradeV4toV5)
 
 
-def upgradeV4toV5(c, args):
+def upgradeV4toV5(c, _):
     backend_db.upgradeV4toV5(c)

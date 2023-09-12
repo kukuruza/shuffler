@@ -6,6 +6,87 @@ import nose
 from shuffler.utils import boxes as boxes_utils
 
 
+class TestValidateBbox(unittest.TestCase):
+    def test_ok(self):
+        boxes_utils.validateBbox([1, 2, 3, 4])
+        boxes_utils.validateBbox([1., 2., 3., 4.])
+        boxes_utils.validateBbox((1, 2, 3, 4))
+        boxes_utils.validateBbox(np.array([1, 2, 3, 4]))
+
+    def test_notSequence(self):
+        with self.assertRaises(TypeError):
+            boxes_utils.validateBbox(42)
+
+    def test_lessThanFourNumbers(self):
+        with self.assertRaises(ValueError):
+            boxes_utils.validateBbox([42])
+
+    def test_moreThanFourNumbers(self):
+        with self.assertRaises(ValueError):
+            boxes_utils.validateBbox([1, 2, 3, 4, 5])
+
+    def test_notNumbers(self):
+        with self.assertRaises(TypeError):
+            boxes_utils.validateBbox([1, 2, 3, 'd'])
+
+    def test_negativeDims(self):
+        with self.assertRaises(ValueError):
+            boxes_utils.validateBbox([1, 2, 3, -1])
+
+
+class TestValidateRoi(unittest.TestCase):
+    def test_ok(self):
+        boxes_utils.validateRoi([1, 2, 3, 4])
+        boxes_utils.validateRoi([1., 2., 3., 4.])
+        boxes_utils.validateRoi((1, 2, 3, 4))
+        boxes_utils.validateRoi(np.array([1, 2, 3, 4]))
+
+    def test_notSequence(self):
+        with self.assertRaises(TypeError):
+            boxes_utils.validateRoi(42)
+
+    def test_lessThanFourNumbers(self):
+        with self.assertRaises(ValueError):
+            boxes_utils.validateRoi([42])
+
+    def test_moreThanFourNumbers(self):
+        with self.assertRaises(ValueError):
+            boxes_utils.validateRoi([1, 2, 3, 4, 5])
+
+    def test_notNumbers(self):
+        with self.assertRaises(TypeError):
+            boxes_utils.validateRoi([1, 2, 3, 'd'])
+
+    def test_negativeDims(self):
+        with self.assertRaises(ValueError):
+            boxes_utils.validateRoi([1, 2, 3, 1])  # negative width.
+            boxes_utils.validateRoi([1, 2, 0, 4])  # negative height.
+
+
+class TestValidatePolygon(unittest.TestCase):
+    def test_ok(self):
+        boxes_utils.validatePolygon([(1, 1), (1, 2), (1, 3)])
+        boxes_utils.validatePolygon([(1., 1.), (1., 2.), (1., 3.)])
+
+        # Different types of iterable.
+        boxes_utils.validatePolygon(((1, 1), (1, 2), (1, 3)))
+        boxes_utils.validatePolygon([[1, 1], [1, 2], [1, 3]])
+        boxes_utils.validatePolygon(np.array([[1, 1], [1, 2], [1, 3]]))
+
+    def test_notIterable(self):
+        with self.assertRaises(TypeError):
+            boxes_utils.validatePolygon("abc")
+
+    def test_notNumbers(self):
+        with self.assertRaises(TypeError):
+            boxes_utils.validatePolygon([(1, 1), ('a', 2), (3, 4)])
+            boxes_utils.validatePolygon([(1, 1), (2, 'b'), (3, 4)])
+
+    def test_lessThanThreeNumbers(self):
+        with self.assertRaises(ValueError):
+            boxes_utils.validatePolygon([(1, 1), (1, 2)])
+
+
 class Test_Bbox2roi(unittest.TestCase):
     def test_normal(self):
         self.assertEqual(boxes_utils.bbox2roi([1, 2, 3, 4]), [2, 1, 6, 4])
@@ -13,26 +94,6 @@ class Test_Bbox2roi(unittest.TestCase):
 
     def test_zeroDims(self):
         self.assertEqual(boxes_utils.bbox2roi([1, 2, 0, 0]), [2, 1, 2, 1])
-
-    def test_notSequence(self):
-        with self.assertRaises(TypeError):
-            boxes_utils.bbox2roi(42)
-
-    def test_lessThanFourNumbers(self):
-        with self.assertRaises(ValueError):
-            boxes_utils.bbox2roi([42])
-
-    def test_moreThanFourNumbers(self):
-        with self.assertRaises(ValueError):
-            boxes_utils.bbox2roi([42, 42, 42, 42, 42])
-
-    def test_notNumbers(self):
-        with self.assertRaises(TypeError):
-            boxes_utils.bbox2roi(['a', 'b', 'c', 'd'])
-
-    def test_negativeDims(self):
-        with self.assertRaises(ValueError):
-            boxes_utils.bbox2roi([1, 2, 3, -1])
 
 
 class Test_Roi2Bbox(unittest.TestCase):
@@ -43,50 +104,59 @@ class Test_Roi2Bbox(unittest.TestCase):
     def test_zeroDims(self):
         self.assertEqual(boxes_utils.roi2bbox([2, 1, 2, 1]), [1, 2, 0, 0])
 
-    def test_notSequence(self):
-        with self.assertRaises(TypeError):
-            boxes_utils.roi2bbox(42)
 
-    def test_lessThanFourNumbers(self):
-        with self.assertRaises(ValueError):
-            boxes_utils.roi2bbox([42])
-
-    def test_moreThanFourNumbers(self):
-        with self.assertRaises(ValueError):
-            boxes_utils.roi2bbox([42, 42, 42, 42, 42])
-
-    def test_notNumbers(self):
-        with self.assertRaises(TypeError):
-            boxes_utils.roi2bbox(['a', 'b', 'c', 'd'])
-
-    def test_negativeDims(self):
-        with self.assertRaises(ValueError):
-            boxes_utils.roi2bbox([2, 1, 1, 2])
-
-
-class Test_getIoU(unittest.TestCase):
+class Test_getIoURoi(unittest.TestCase):
     def test_identical(self):
         # Integer input.
-        self.assertEqual(boxes_utils.getIoU([1, 2, 3, 4], [1, 2, 3, 4]), 1.)
+        self.assertEqual(boxes_utils.getIoURoi([1, 2, 3, 4], [1, 2, 3, 4]), 1.)
         # Float input.
         self.assertEqual(
-            boxes_utils.getIoU([10., 20., 30., 40.], [10., 20., 30., 40.]), 1.)
+            boxes_utils.getIoURoi([10., 20., 30., 40.], [10., 20., 30., 40.]),
+            1.)
 
     def test_one_inside_the_other(self):
         # One is 50% width of the other and is completely inside.
-        self.assertEqual(boxes_utils.getIoU([1, 2, 3, 4], [2, 2, 3, 4]), 0.50)
+        self.assertEqual(boxes_utils.getIoURoi([1, 2, 3, 4], [2, 2, 3, 4]),
+                         0.50)
 
     def test_partial_overlap(self):
         # Overlap 33.3% perc on Y axis, identical area.
-        self.assertEqual(boxes_utils.getIoU([1, 2, 4, 4], [3, 2, 6, 4]), 0.20)
+        self.assertEqual(boxes_utils.getIoURoi([1, 2, 4, 4], [3, 2, 6, 4]),
+                         0.20)
         # Overlap 33.3% perc on X axis, identical area.
-        self.assertEqual(boxes_utils.getIoU([2, 1, 4, 4], [2, 3, 4, 6]), 0.20)
+        self.assertEqual(boxes_utils.getIoURoi([2, 1, 4, 4], [2, 3, 4, 6]),
+                         0.20)
 
     def test_no_overlap(self):
         # No overlap on Y axis, identical area.
-        self.assertEqual(boxes_utils.getIoU([1, 2, 3, 4], [3, 2, 5, 4]), 0.0)
+        self.assertEqual(boxes_utils.getIoURoi([1, 2, 3, 4], [3, 2, 5, 4]),
+                         0.0)
         # No overlap on X axis, identical area.
-        self.assertEqual(boxes_utils.getIoU([2, 1, 4, 3], [2, 3, 4, 5]), 0.0)
+        self.assertEqual(boxes_utils.getIoURoi([2, 1, 4, 3], [2, 3, 4, 5]),
+                         0.0)
+
+
+class Test_getIoUPolygon(unittest.TestCase):
+    def test_identical(self):
+        self.assertEqual(
+            boxes_utils.getIoUPolygon([(0, 0), (1, 1), (1, 0)],
+                                      [(0, 0), (1, 1), (1, 0)]), 1.)
+
+    def test_one_inside_the_other(self):
+        # One is 50% larger than the other and is completely inside.
+        self.assertEqual(
+            boxes_utils.getIoUPolygon([(0, 0), (1, 1), (1, 0)],
+                                      [(0, 0), (2, 2), (2, 0)]), 0.25)
+
+    def test_partial_overlap(self):
+        self.assertAlmostEqual(
+            boxes_utils.getIoUPolygon([(0, 0), (1, 1), (1, 0)],
+                                      [(0, 1), (1, 0), (1, 1)]), 1 / 3)
+
+    def test_no_overlap(self):
+        self.assertEqual(
+            boxes_utils.getIoUPolygon([(0, 0), (1, 1), (1, 0)],
+                                      [(5, 6), (6, 5), (6, 6)]), 0.0)
 
 
 class TestExpandRoi(unittest.TestCase):

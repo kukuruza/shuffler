@@ -263,40 +263,74 @@ def polygons2mask(cursor, objectid):
     return mask
 
 
-def getIntersectingObjects(objects1, objects2, IoU_threshold, same_id_ok=True):
+def getPolygonsByObject(cursor, objects):
+    '''
+    Queries the db for the polygon for each object, or if abscent, 
+    makes a 4-point polygon from the object's roi.
+    Return:
+       a dict {objectid: [a list of {y,x}]}
+    '''
+    polygons_by_object = {}
+    for object_ in objects:
+        objectid = backend_db.objectField(object_, 'objectid')
+        cursor.execute('SELECT DISTINCT(name) FROM polygons WHERE objectid=?',
+                       (objectid, ))
+        polygon_names = cursor.fetchall()
+        if len(polygon_names) > 1:
+            # TODO: Implement.
+            raise ValueError(
+                'Multiple polygons for one object (identified by polygon name) '
+                'are not supported. For objectid %d got names: %s' %
+                (objectid, ', '.join(polygon_names)))
+        cursor.execute('SELECT y,x FROM polygons WHERE objectid=?',
+                       (objectid, ))
+        polygon = cursor.fetchall()
+        if len(polygon) == 0:
+            polygon = boxes_utils.box2polygon(
+                backend_db.objectField(object_, 'bbox'))
+        polygons_by_object[objectid] = polygon
+    return polygons_by_object
+
+
+def getIntersectingObjects(polygons_by_object1: dict,
+                           polygons_by_object2: dict,
+                           IoU_threshold: float,
+                           same_id_ok: bool = True):
     '''
     Given two lists of objects find pairs that intersect by IoU_threshold.
     Objects are assumed to be in the same image.
 
     Args:
-      objects1, objects2:  A list of object entries.
-                           Each entry is the whole row in the 'objects' table.
+      polygons_by_object1, polygons_by_object2:  
+                           A dict of {objectid: [a list of {y,x}]}
       IoU_threshold:       A float in range [0, 1].
+      same_id_ok:          if false, intersection of identical objectids is NaN.
     Returns:
       A list of tuples. Each tuple has objectid of an entry in 'objects1' and
                            objectid of an entry in 'objects2'.
     '''
+    polygons_by_object1 = list(polygons_by_object1.items())
+    polygons_by_object2 = list(polygons_by_object2.items())
 
     # Compute pairwise distances between rectangles.
     # TODO: possibly can optimize in future to avoid O(N^2) complexity.
-    pairwise_IoU = np.zeros(shape=(len(objects1), len(objects2)), dtype=float)
-    for i1, object1 in enumerate(objects1):
-        for i2, object2 in enumerate(objects2):
+    pairwise_IoU = np.zeros(shape=(len(polygons_by_object1),
+                                   len(polygons_by_object2)),
+                            dtype=float)
+    for i1, (objectid1, polygon1) in enumerate(polygons_by_object1):
+        for i2, (objectid2, polygon2) in enumerate(polygons_by_object2):
             # Do not merge an object with itself.
-            objectid1 = backend_db.objectField(object1, 'objectid')
-            objectid2 = backend_db.objectField(object2, 'objectid')
             if objectid1 == objectid2 and not same_id_ok:
                 pairwise_IoU[i1, i2] = np.nan
             else:
-                roi1 = backend_db.objectField(object1, 'roi')
-                roi2 = backend_db.objectField(object2, 'roi')
-                pairwise_IoU[i1, i2] = boxes_utils.getIoU(roi1, roi2)
+                pairwise_IoU[i1, i2] = boxes_utils.getIoUPolygon(
+                    polygon1, polygon2)
     logging.debug('getIntersectingObjects got Pairwise_IoU:\n%s',
                   np.array2string(pairwise_IoU, precision=1))
 
     # Greedy search for pairs.
     pairs_to_merge = []
-    for _ in range(min(len(objects1), len(objects2))):
+    for _ in range(min(len(polygons_by_object1), len(polygons_by_object2))):
         i1, i2 = np.unravel_index(np.argmax(pairwise_IoU), pairwise_IoU.shape)
         IoU = pairwise_IoU[i1, i2]
         logging.debug('Next object at indices [%d, %d]. IoU: %s', i1, i2,
@@ -308,13 +342,9 @@ def getIntersectingObjects(objects1, objects2, IoU_threshold, same_id_ok=True):
         pairwise_IoU[i1, :] = 0.
         pairwise_IoU[:, i2] = 0.
         # Add a pair to the list.
-        objectid1 = backend_db.objectField(objects1[i1], 'objectid')
-        objectid2 = backend_db.objectField(objects2[i2], 'objectid')
+        objectid1 = polygons_by_object1[i1][0]
+        objectid2 = polygons_by_object2[i2][0]
         pairs_to_merge.append((objectid1, objectid2))
-        name1 = backend_db.objectField(objects1[i1], 'name')
-        name2 = backend_db.objectField(objects2[i2], 'name')
-        logging.debug('Matching objects %d (%s) and %d (%s) with IoU %f.',
-                      objectid1, name1, objectid2, name2, IoU)
 
     return pairs_to_merge
 
@@ -350,10 +380,10 @@ def makeExportedImageName(tgt_dir,
     return tgt_path
 
 
-def getMatchPolygons(polygons1, polygons2, threshold, ignore_name=True):
+def matchPolygonPoints(polygons1, polygons2, threshold, ignore_name=True):
     '''
-    Given two lists of polygons, find pairs that are close within threshold.
-    Polygons are assumed to belong to the same object.
+    Given two lists of polygons, find pairs that are close, (point wise) 
+    within threshold. Polygons are assumed to belong to the same object.
 
     Args:
       polygons1, polygons2: A list of polygon entries.
@@ -381,7 +411,7 @@ def getMatchPolygons(polygons1, polygons2, threshold, ignore_name=True):
                 np.array([x1, y1], dtype=float) -
                 np.array([x2, y2], dtype=float)) + (
                     0 if ignore_name or name1 == name2 else np.inf)
-    logging.debug('getMatchPolygons got pairwise_dist:\n%s',
+    logging.debug('matchPolygonPoints got pairwise_dist:\n%s',
                   np.array2string(pairwise_dist, precision=1))
 
     # Greedy search for pairs.

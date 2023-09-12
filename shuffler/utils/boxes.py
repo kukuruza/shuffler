@@ -1,6 +1,71 @@
 import logging
 import numpy as np
 import cv2
+import numbers
+import collections
+from shapely.geometry import Polygon as ShapelyPolygon
+
+
+def validateBbox(bbox):
+    '''
+    Args:     A sequence (e.g. list or tuple) of {x1, y1, width, height}.
+              Required: width >= 0, height >= 0.
+    Returns:  None
+    Raises a ValueError or TypeError if detected a problem with the input.
+    '''
+    if not isinstance(bbox, collections.abc.Collection):
+        raise TypeError('Need an sequence, got %s' % type(bbox))
+    if not len(bbox) == 4:
+        raise ValueError('Need 4 numbers, not %d.' % len(bbox))
+    for x in bbox:
+        if not isinstance(x, numbers.Number):
+            raise TypeError('Each element must be a number, got %s' % x)
+    if bbox[2] < 0 or bbox[3] < 0:
+        raise ValueError('Bbox %s has a negative width or height.' % bbox)
+
+
+def validateRoi(roi):
+    '''
+    Args:     A sequence (e.g. list or tuple) of {y1, x1, y2, x2}.
+              Required: x1 <= x2, y1 <= y2.
+    Returns:  None
+    Raises a ValueError or TypeError if detected a problem with the input.
+    '''
+    if not isinstance(roi, collections.abc.Collection):
+        raise TypeError('Need an sequence, got %s' % type(roi))
+    if not len(roi) == 4:
+        raise ValueError('Need 4 numbers, not %d.' % len(roi))
+    for x in roi:
+        if not isinstance(x, numbers.Number):
+            raise TypeError('Each element must be a number, got %s' % x)
+    if roi[2] < roi[0] or roi[3] < roi[1]:
+        raise ValueError('Roi %s has a negative width or height.' % roi)
+
+
+def validatePolygon(yxs):
+    '''
+    Args:     an iterable with at least 3 elements, each element is a collection 
+              of two numbers.
+    Returns:  None
+    Raises a ValueError or TypeError if detected a problem with the input.
+    '''
+    logging.debug('Validating polygon %s', yxs)
+    if not isinstance(yxs, collections.abc.Iterable):
+        raise TypeError('Yxs must be iterables, not %s.' % type(yxs))
+    count = 0
+    for yx in yxs:
+        count += 1
+        if not isinstance(yx, collections.abc.Collection) or len(yx) != 2:
+            raise TypeError(
+                'Each element in yxs must be a iterable with two elements, got %s.'
+                % yx)
+        if (not isinstance(yx[0], numbers.Number)
+                or not isinstance(yx[1], numbers.Number)):
+            print(yx[0], yx[1], type(yx[0]), type(yx[1]))
+            raise TypeError(
+                'Elements in yxs must be a pair of numbers, not %s.' % yx)
+    if count < 3:
+        raise ValueError('Need at least 3 points, got yxs = %s.' % str(yxs))
 
 
 def bbox2roi(bbox):
@@ -8,15 +73,7 @@ def bbox2roi(bbox):
     Args:     [x1, y1, width, height]
     Returns:  [y1, x1, y2, x2]
     '''
-    if not (isinstance(bbox, (list, tuple))):
-        raise TypeError('Need a list of a tuple, got %s' % type(bbox))
-    if not len(bbox) == 4:
-        raise ValueError('Need 4 numbers, not %d.' % len(bbox))
-    for x in bbox:
-        if not (isinstance(x, (int, float))):
-            raise TypeError('Each element must be a number, got %s' % type(x))
-    if bbox[2] < 0 or bbox[3] < 0:
-        raise ValueError('Bbox %s has negative width or height.' % str(bbox))
+    validateBbox(bbox)
     return [bbox[1], bbox[0], bbox[3] + bbox[1], bbox[2] + bbox[0]]
 
 
@@ -25,19 +82,25 @@ def roi2bbox(roi):
     Args:     [y1, x1, y2, x2]
     Returns:  [x1, y1, width, height]
     '''
-    if not (isinstance(roi, list) or isinstance(roi, tuple)):
-        raise TypeError('Need a list of a tuple, got %s' % type(roi))
-    if not len(roi) == 4:
-        raise ValueError('Need 4 numbers, not %d.' % len(roi))
-    for x in roi:
-        if not (isinstance(x, (int, float))):
-            raise TypeError('Each element must be a number, got %s' % type(x))
-    if roi[2] < roi[0] or roi[3] < roi[1]:
-        raise ValueError('Roi %s has negative width or height.' % str(roi))
+    validateRoi(roi)
     return [roi[1], roi[0], roi[3] - roi[1], roi[2] - roi[0]]
 
 
-def getIoU(roi1, roi2):
+def box2polygon(bbox):
+    '''
+    Args:     [x1, y1, w, h]
+    Returns:  [(y1, x1), (y2, x2), (y3, x3), (y4, x4)]
+    '''
+    validateBbox(bbox)
+    return [
+        (bbox[1], bbox[0]),  #
+        (bbox[1] + bbox[3], bbox[0]),
+        (bbox[1] + bbox[3], bbox[0] + bbox[2]),
+        (bbox[1], bbox[0] + bbox[2])
+    ]
+
+
+def getIoURoi(roi1, roi2):
     ' Computes intersection over union for two rectangles. '
     intersection_y = max(0, (min(roi1[2], roi2[2]) - max(roi1[0], roi2[0])))
     intersection_x = max(0, (min(roi1[3], roi2[3]) - max(roi1[1], roi2[1])))
@@ -47,6 +110,23 @@ def getIoU(roi1, roi2):
     union = area1 + area2 - intersection
     IoU = intersection / float(union) if union > 0 else 0.
     return IoU
+
+
+def getIoUPolygon(yxs1, yxs2):
+    ' Computes intersection over union for two polygons. '
+    validatePolygon(yxs1)
+    validatePolygon(yxs2)
+    p1 = ShapelyPolygon(yxs1)
+    p2 = ShapelyPolygon(yxs2)
+
+    area1 = p1.area
+    area2 = p2.area
+    intersection = p1.intersection(p2).area
+    logging.info(p1.intersection(p2))
+
+    union = area1 + area2 - intersection
+    logging.info('%f %f %f %f', area1, area2, intersection, union)
+    return intersection / float(union) if union > 0 else 0.
 
 
 def expandRoi(roi, perc):
@@ -87,6 +167,11 @@ def expandPolygon(ys, xs, perc):
       ys:    list of float y values.
       xs:    list of float x values.
     '''
+    if isinstance(ys, np.ndarray) and isinstance(xs, np.ndarray):
+        validatePolygon(np.stack((ys, xs)).transpose())
+    else:
+        validatePolygon(zip(ys, xs))
+
     perc_y, perc_x = perc
     if (perc_y, perc_x) == (0, 0):
         return ys, xs
