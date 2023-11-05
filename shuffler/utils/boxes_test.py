@@ -1,69 +1,67 @@
-import progressbar
-import unittest
+import pytest
 import numpy as np
-import nose
 
 from shuffler.utils import boxes as boxes_utils
 
 
-class TestValidateBbox(unittest.TestCase):
+class TestValidateBbox:
     def test_ok(self):
         boxes_utils.validateBbox([1, 2, 3, 4])
         boxes_utils.validateBbox([1., 2., 3., 4.])
         boxes_utils.validateBbox((1, 2, 3, 4))
         boxes_utils.validateBbox(np.array([1, 2, 3, 4]))
 
-    def test_notSequence(self):
-        with self.assertRaises(TypeError):
+    def test_not_sequence(self):
+        with pytest.raises(TypeError):
             boxes_utils.validateBbox(42)
 
-    def test_lessThanFourNumbers(self):
-        with self.assertRaises(ValueError):
+    def test_less_than_four_numbers(self):
+        with pytest.raises(ValueError):
             boxes_utils.validateBbox([42])
 
-    def test_moreThanFourNumbers(self):
-        with self.assertRaises(ValueError):
+    def test_more_than_four_numbers(self):
+        with pytest.raises(ValueError):
             boxes_utils.validateBbox([1, 2, 3, 4, 5])
 
-    def test_notNumbers(self):
-        with self.assertRaises(TypeError):
+    def test_not_numbers(self):
+        with pytest.raises(TypeError):
             boxes_utils.validateBbox([1, 2, 3, 'd'])
 
-    def test_negativeDims(self):
-        with self.assertRaises(ValueError):
+    def test_negative_dims(self):
+        with pytest.raises(ValueError):
             boxes_utils.validateBbox([1, 2, 3, -1])
 
 
-class TestValidateRoi(unittest.TestCase):
+class TestValidateRoi:
     def test_ok(self):
         boxes_utils.validateRoi([1, 2, 3, 4])
         boxes_utils.validateRoi([1., 2., 3., 4.])
         boxes_utils.validateRoi((1, 2, 3, 4))
         boxes_utils.validateRoi(np.array([1, 2, 3, 4]))
 
-    def test_notSequence(self):
-        with self.assertRaises(TypeError):
+    def test_not_sequence(self):
+        with pytest.raises(TypeError):
             boxes_utils.validateRoi(42)
 
-    def test_lessThanFourNumbers(self):
-        with self.assertRaises(ValueError):
+    def test_less_than_four_numbers(self):
+        with pytest.raises(ValueError):
             boxes_utils.validateRoi([42])
 
-    def test_moreThanFourNumbers(self):
-        with self.assertRaises(ValueError):
+    def test_more_than_four_numbers(self):
+        with pytest.raises(ValueError):
             boxes_utils.validateRoi([1, 2, 3, 4, 5])
 
-    def test_notNumbers(self):
-        with self.assertRaises(TypeError):
+    def test_not_numbers(self):
+        with pytest.raises(TypeError):
             boxes_utils.validateRoi([1, 2, 3, 'd'])
 
     def test_negativeDims(self):
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             boxes_utils.validateRoi([1, 2, 3, 1])  # negative width.
             boxes_utils.validateRoi([1, 2, 0, 4])  # negative height.
 
 
-class TestValidatePolygon(unittest.TestCase):
+class TestValidatePolygon:
     def test_ok(self):
         boxes_utils.validatePolygon([(1, 1), (1, 2), (1, 3)])
         boxes_utils.validatePolygon([(1., 1.), (1., 2.), (1., 3.)])
@@ -73,106 +71,97 @@ class TestValidatePolygon(unittest.TestCase):
         boxes_utils.validatePolygon([[1, 1], [1, 2], [1, 3]])
         boxes_utils.validatePolygon(np.array([[1, 1], [1, 2], [1, 3]]))
 
-    def test_notIterable(self):
-        with self.assertRaises(TypeError):
+    def test_not_iterable(self):
+        with pytest.raises(TypeError):
             boxes_utils.validatePolygon("abc")
 
-    def test_notNumbers(self):
-        with self.assertRaises(TypeError):
+    def test_not_numbers(self):
+        with pytest.raises(TypeError):
             boxes_utils.validatePolygon([(1, 1), ('a', 2), (3, 4)])
             boxes_utils.validatePolygon([(1, 1), (2, 'b'), (3, 4)])
 
-    def test_lessThanThreeNumbers(self):
-        with self.assertRaises(ValueError):
+    def test_less_than_three_numbers(self):
+        with pytest.raises(ValueError):
             boxes_utils.validatePolygon([(1, 1), (1, 2)])
 
 
-class Test_Bbox2roi(unittest.TestCase):
+class TestBbox2roi:
     def test_normal(self):
-        self.assertEqual(boxes_utils.bbox2roi([1, 2, 3, 4]), [2, 1, 6, 4])
-        self.assertEqual(boxes_utils.bbox2roi((1, 2, 3, 4)), [2, 1, 6, 4])
+        assert boxes_utils.bbox2roi([1, 2, 3, 4]) == [2, 1, 6, 4]
+        assert boxes_utils.bbox2roi((1, 2, 3, 4)) == [2, 1, 6, 4]
 
-    def test_zeroDims(self):
-        self.assertEqual(boxes_utils.bbox2roi([1, 2, 0, 0]), [2, 1, 2, 1])
+    def test_zero_dims(self):
+        assert boxes_utils.bbox2roi([1, 2, 0, 0]) == [2, 1, 2, 1]
 
 
-class Test_Roi2Bbox(unittest.TestCase):
+class TestRoi2Bbox:
     def test_normal(self):
-        self.assertEqual(boxes_utils.roi2bbox([2, 1, 6, 4]), [1, 2, 3, 4])
-        self.assertEqual(boxes_utils.roi2bbox((2, 1, 6, 4)), [1, 2, 3, 4])
+        assert boxes_utils.roi2bbox([2, 1, 6, 4]) == [1, 2, 3, 4]
+        assert boxes_utils.roi2bbox((2, 1, 6, 4)) == [1, 2, 3, 4]
 
-    def test_zeroDims(self):
-        self.assertEqual(boxes_utils.roi2bbox([2, 1, 2, 1]), [1, 2, 0, 0])
+    def test_zero_dims(self):
+        assert boxes_utils.roi2bbox([2, 1, 2, 1]) == [1, 2, 0, 0]
 
 
-class Test_getIoURoi(unittest.TestCase):
+class TestGetIoURoi:
     def test_identical(self):
         # Integer input.
-        self.assertEqual(boxes_utils.getIoURoi([1, 2, 3, 4], [1, 2, 3, 4]), 1.)
+        assert boxes_utils.getIoURoi([1, 2, 3, 4], [1, 2, 3, 4]) == 1.
         # Float input.
-        self.assertEqual(
-            boxes_utils.getIoURoi([10., 20., 30., 40.], [10., 20., 30., 40.]),
-            1.)
+        assert boxes_utils.getIoURoi([10., 20., 30., 40.],
+                                     [10., 20., 30., 40.]) == 1.
 
     def test_one_inside_the_other(self):
         # One is 50% width of the other and is completely inside.
-        self.assertEqual(boxes_utils.getIoURoi([1, 2, 3, 4], [2, 2, 3, 4]),
-                         0.50)
+        assert boxes_utils.getIoURoi([1, 2, 3, 4], [2, 2, 3, 4]) == 0.50
 
     def test_partial_overlap(self):
         # Overlap 33.3% perc on Y axis, identical area.
-        self.assertEqual(boxes_utils.getIoURoi([1, 2, 4, 4], [3, 2, 6, 4]),
-                         0.20)
+        assert boxes_utils.getIoURoi([1, 2, 4, 4], [3, 2, 6, 4]) == 0.20
         # Overlap 33.3% perc on X axis, identical area.
-        self.assertEqual(boxes_utils.getIoURoi([2, 1, 4, 4], [2, 3, 4, 6]),
-                         0.20)
+        assert boxes_utils.getIoURoi([2, 1, 4, 4], [2, 3, 4, 6]) == 0.20
 
     def test_no_overlap(self):
         # No overlap on Y axis, identical area.
-        self.assertEqual(boxes_utils.getIoURoi([1, 2, 3, 4], [3, 2, 5, 4]),
-                         0.0)
+        assert boxes_utils.getIoURoi([1, 2, 3, 4], [3, 2, 5, 4]) == 0.0
         # No overlap on X axis, identical area.
-        self.assertEqual(boxes_utils.getIoURoi([2, 1, 4, 3], [2, 3, 4, 5]),
-                         0.0)
+        assert boxes_utils.getIoURoi([2, 1, 4, 3], [2, 3, 4, 5]) == 0.0
 
 
-class Test_getIoUPolygon(unittest.TestCase):
+class TestGetIoUPolygon:
     def test_identical(self):
-        self.assertEqual(
-            boxes_utils.getIoUPolygon([(0, 0), (1, 1), (1, 0)],
-                                      [(0, 0), (1, 1), (1, 0)]), 1.)
+        assert boxes_utils.getIoUPolygon([(0, 0), (1, 1), (1, 0)],
+                                         [(0, 0), (1, 1), (1, 0)]) == 1.
 
     def test_one_inside_the_other(self):
         # One is 50% larger than the other and is completely inside.
-        self.assertEqual(
-            boxes_utils.getIoUPolygon([(0, 0), (1, 1), (1, 0)],
-                                      [(0, 0), (2, 2), (2, 0)]), 0.25)
+        assert boxes_utils.getIoUPolygon([(0, 0), (1, 1), (1, 0)],
+                                         [(0, 0), (2, 2), (2, 0)]) == 0.25
 
     def test_partial_overlap(self):
-        self.assertAlmostEqual(
-            boxes_utils.getIoUPolygon([(0, 0), (1, 1), (1, 0)],
-                                      [(0, 1), (1, 0), (1, 1)]), 1 / 3)
+        one_third = pytest.approx(1 / 3, 0.00001)
+        assert boxes_utils.getIoUPolygon([(0, 0), (1, 1), (1, 0)],
+                                         [(0, 1), (1, 0), (1, 1)]) == one_third
 
     def test_no_overlap(self):
-        self.assertEqual(
-            boxes_utils.getIoUPolygon([(0, 0), (1, 1), (1, 0)],
-                                      [(5, 6), (6, 5), (6, 6)]), 0.0)
+        assert boxes_utils.getIoUPolygon([(0, 0), (1, 1), (1, 0)],
+                                         [(5, 6), (6, 5), (6, 6)]) == 0.0
 
 
-class TestExpandRoi(unittest.TestCase):
+class TestExpandRoi:
     def test_identity(self):
         roi = [0.5, 0.5, 100.5, 200.5]
         np.testing.assert_array_equal(
             np.array(roi), np.array(boxes_utils.expandRoi(roi, (0, 0))))
 
-    def test_xIsGreater(self):
+    def test_x_is_greater(self):
         roi = [0.5, 0.5, 100.5, 200.5]
         perc = (0.5, 1)
         expected = [-24.5, -99.5, 125.5, 300.5]
         np.testing.assert_array_equal(
             np.array(expected), np.array(boxes_utils.expandRoi(roi, perc)))
 
-    def test_yIsGreater(self):
+    def test_y_is_greater(self):
         roi = [0.5, 0.5, 100.5, 200.5]
         perc = (1, 0.5)
         expected = [-49.5, -49.5, 150.5, 250.5]
@@ -180,11 +169,11 @@ class TestExpandRoi(unittest.TestCase):
             np.array(expected), np.array(boxes_utils.expandRoi(roi, perc)))
 
     def test_invalid(self):
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             boxes_utils.expandRoi([0.5, 0.5, 100.5, 200.5], (-0.8, 0))
 
 
-class TestExpandPolygon(unittest.TestCase):
+class TestExpandPolygon:
     def test_identity(self):
         ys = [0.5, 0.5, 100.5]
         xs = [0.5, 200.5, 0.5]
@@ -192,7 +181,7 @@ class TestExpandPolygon(unittest.TestCase):
             np.array([ys, xs]),
             np.array(boxes_utils.expandPolygon(ys, xs, (0, 0))))
 
-    def test_xIsGreater(self):
+    def test_x_is_greater(self):
         ys = [0.5, 0.5, 100.5]
         xs = [0.5, 200.5, 0.5]
         perc = (0.5, 1)
@@ -201,7 +190,7 @@ class TestExpandPolygon(unittest.TestCase):
             np.array(expected),
             np.array(boxes_utils.expandPolygon(ys, xs, perc)))
 
-    def test_yIsGreater(self):
+    def test_y_is_greater(self):
         ys = [0.5, 0.5, 100.5]
         xs = [0.5, 200.5, 0.5]
         perc = (1, 0.5)
@@ -214,11 +203,11 @@ class TestExpandPolygon(unittest.TestCase):
         ys = [0.5, 0.5, 150.5]
         xs = [0.5, 300.5, 0.5]
         perc = (-0.8, 0)
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             boxes_utils.expandPolygon(ys, xs, perc)
 
 
-class TestExpandRoiUpToRatio(unittest.TestCase):
+class TestExpandRoiUpToRatio:
     def test_identity(self):
         roi = [0.5, 0.5, 100.5, 100.5]
         ratio = 1.
@@ -226,7 +215,7 @@ class TestExpandRoiUpToRatio(unittest.TestCase):
         expected_perc = 0
         actual_roi, actual_perc = boxes_utils.expandRoiUpToRatio(roi, ratio)
         np.testing.assert_array_equal(expected_roi, np.array(actual_roi))
-        self.assertEqual(actual_perc, expected_perc)
+        assert actual_perc == expected_perc
 
     def test_equal(self):
         roi = [0.5, 0.5, 100.5, 200.5]
@@ -235,10 +224,10 @@ class TestExpandRoiUpToRatio(unittest.TestCase):
         expected_perc = 1
         actual_roi, actual_perc = boxes_utils.expandRoiUpToRatio(roi, ratio)
         np.testing.assert_array_equal(expected_roi, np.array(actual_roi))
-        self.assertEqual(actual_perc, expected_perc)
+        assert actual_perc == expected_perc
 
 
-class TestExpandPolygonUpToRatio(unittest.TestCase):
+class TestExpandPolygonUpToRatio:
     def test_identity(self):
         ys = [0.5, 0.5, 100.5]
         xs = [0.5, 100.5, 0.5]
@@ -249,7 +238,7 @@ class TestExpandPolygonUpToRatio(unittest.TestCase):
             ys, xs, ratio)
         np.testing.assert_array_equal(expected_ys, np.array(actual_ys))
         np.testing.assert_array_equal(expected_xs, np.array(actual_xs))
-        self.assertEqual(actual_perc, expected_perc)
+        assert actual_perc == expected_perc
 
     def test_equal(self):
         ys = [0.5, 0.5, 100.5]
@@ -261,10 +250,10 @@ class TestExpandPolygonUpToRatio(unittest.TestCase):
             ys, xs, ratio)
         np.testing.assert_array_equal(expected_ys, np.array(actual_ys))
         np.testing.assert_array_equal(expected_xs, np.array(actual_xs))
-        self.assertEqual(actual_perc, expected_perc)
+        assert actual_perc == expected_perc
 
 
-class TestCropPatch(unittest.TestCase):
+class TestCropPatch:
     @staticmethod
     def transformRoi(transform, roi):
         if not transform.shape == (3, 3):
@@ -322,98 +311,98 @@ class TestCropPatch(unittest.TestCase):
         assert image.dtype == np.uint8
         return image
 
-    def setUp(self):
-        self.image = TestCropPatch.makeGradientImage(TestCropPatch.HEIGHT,
-                                                     TestCropPatch.WIDTH)
+    @pytest.fixture()
+    def image(self):
+        yield TestCropPatch.makeGradientImage(TestCropPatch.HEIGHT,
+                                              TestCropPatch.WIDTH)
 
-    def test_edgeOriginal_identity(self):
+    def test_edge_original_identity(self, image):
         roi = [0, 0, self.HEIGHT, self.WIDTH]
         # Compare patches.
         actual_patch, transform = boxes_utils.cropPatch(
-            self.image, roi, 'original', None, None)
-        expected_patch = TestCropPatch.makeGradientImage(
-            self.HEIGHT, self.WIDTH)
+            image, roi, 'original', None, None)
+        expected_patch = image
         np.testing.assert_array_equal(actual_patch, expected_patch)
         # Compare roi.
         actual_roi = TestCropPatch.transformRoi(transform, roi)
         expected_roi = roi
-        self.assertEqual(actual_roi, expected_roi)
+        assert actual_roi == expected_roi
         # Make sure transform matches.
         np.testing.assert_array_equal(transform, np.eye(3, 3, dtype=float))
 
-    def test_edgeOriginal_outOfBoundary1(self):
+    def test_edge_original_out_of_boundary1(self, image):
         roi = [-10, 30, 10, 70]
         # Compare patches.
         actual_patch, transform = boxes_utils.cropPatch(
-            self.image, roi, 'original', None, None)
+            image, roi, 'original', None, None)
         expected_patch = TestCropPatch.makeGradientImage(height=10,
                                                          width=40,
                                                          min_y=0,
                                                          min_x=30)
         expected_patch = np.pad(expected_patch, ((10, 0), (0, 0), (0, 0)))
-        self.assertEqual(actual_patch.shape, expected_patch.shape)
+        assert actual_patch.shape == expected_patch.shape
         np.testing.assert_array_equal(actual_patch, expected_patch)
         # Compare roi.
         actual_roi = TestCropPatch.transformRoi(transform, roi)
         expected_roi = [0, 0, 20, 40]
-        self.assertEqual(actual_roi, expected_roi)
+        assert actual_roi == expected_roi
 
-    def test_edgeOriginal_outOfBoundary2(self):
+    def test_edge_original_out_of_boundary2(self, image):
         roi = [40, -10, 60, 30]
         # Compare patches.
         actual_patch, transform = boxes_utils.cropPatch(
-            self.image, roi, 'original', None, None)
+            image, roi, 'original', None, None)
         expected_patch = TestCropPatch.makeGradientImage(height=20,
                                                          width=30,
                                                          min_y=40,
                                                          min_x=0)
         expected_patch = np.pad(expected_patch, ((0, 0), (10, 0), (0, 0)))
-        self.assertEqual(actual_patch.shape, expected_patch.shape)
+        assert actual_patch.shape == expected_patch.shape
         np.testing.assert_array_equal(actual_patch, expected_patch)
         # Compare roi.
         actual_roi = TestCropPatch.transformRoi(transform, roi)
         expected_roi = [0, 0, 20, 40]
-        self.assertEqual(actual_roi, expected_roi)
+        assert actual_roi == expected_roi
 
-    def test_edgeOriginal_outOfBoundary3(self):
+    def test_edge_original_out_of_boundary3(self, image):
         roi = [90, 30, 110, 70]
         # Compare patches.
         actual_patch, transform = boxes_utils.cropPatch(
-            self.image, roi, 'original', None, None)
+            image, roi, 'original', None, None)
         expected_patch = TestCropPatch.makeGradientImage(height=10,
                                                          width=40,
                                                          min_y=90,
                                                          min_x=30)
         expected_patch = np.pad(expected_patch, ((0, 10), (0, 0), (0, 0)))
-        self.assertEqual(actual_patch.shape, expected_patch.shape)
+        assert actual_patch.shape == expected_patch.shape
         np.testing.assert_array_equal(actual_patch, expected_patch)
         # Compare roi.
         actual_roi = TestCropPatch.transformRoi(transform, roi)
         expected_roi = [0, 0, 20, 40]
-        self.assertEqual(actual_roi, expected_roi)
+        assert actual_roi == expected_roi
 
-    def test_edgeOriginal_outOfBoundary4(self):
+    def test_edge_original_out_of_boundary4(self, image):
         roi = [40, 170, 60, 210]
         # Compare patches.
         actual_patch, transform = boxes_utils.cropPatch(
-            self.image, roi, 'original', None, None)
+            image, roi, 'original', None, None)
         expected_patch = TestCropPatch.makeGradientImage(height=20,
                                                          width=30,
                                                          min_y=40,
                                                          min_x=170)
         expected_patch = np.pad(expected_patch, ((0, 0), (0, 10), (0, 0)))
-        self.assertEqual(actual_patch.shape, expected_patch.shape)
+        assert actual_patch.shape == expected_patch.shape
         np.testing.assert_array_equal(actual_patch, expected_patch)
         # Compare roi.
         actual_roi = TestCropPatch.transformRoi(transform, roi)
         expected_roi = [0, 0, 20, 40]
-        self.assertEqual(actual_roi, expected_roi)
+        assert actual_roi == expected_roi
 
-    def test_edgeOriginal(self):
+    def test_edge_original(self, image):
         roi = [40, 30, 60, 70]
         # Compare patches.
         actual_patch, transform = boxes_utils.cropPatch(
-            self.image, roi, 'original', None, None)
+            image, roi, 'original', None, None)
         expected_patch = TestCropPatch.makeGradientImage(height=20,
                                                          width=40,
                                                          min_y=40,
@@ -422,22 +411,22 @@ class TestCropPatch(unittest.TestCase):
         # Compare roi.
         actual_roi = TestCropPatch.transformRoi(transform, roi)
         expected_roi = [0, 0, 20, 40]
-        self.assertEqual(actual_roi, expected_roi)
+        assert actual_roi == expected_roi
 
-    def test_edgeConstant_targetSizeNone(self):
+    def test_edge_constant_target_size_none(self, image):
         roi = [40, 30, 60, 70]
-        with self.assertRaises(RuntimeError):
-            boxes_utils.cropPatch(self.image, roi, 'constant', None, None)
+        with pytest.raises(RuntimeError):
+            boxes_utils.cropPatch(image, roi, 'constant', None, None)
 
-    def test_edgeConstant_lessThanTwoIntegerPixels(self):
+    def test_edge_constant_less_than_two_integer_pixels(self, image):
         roi = [9.1, 20, 11.9, 40]
-        with self.assertRaises(ValueError):
-            boxes_utils.cropPatch(self.image, roi, 'constant', 20, 20)
+        with pytest.raises(ValueError):
+            boxes_utils.cropPatch(image, roi, 'constant', 20, 20)
 
-    def test_edgeConstant_noStretch(self):
+    def test_edgeConstant_noStretch(self, image):
         roi = [40, 30, 60, 70]
         # Compare patches.
-        actual_patch, transform = boxes_utils.cropPatch(self.image,
+        actual_patch, transform = boxes_utils.cropPatch(image,
                                                         roi,
                                                         'constant',
                                                         target_height=40,
@@ -453,14 +442,14 @@ class TestCropPatch(unittest.TestCase):
         # Compare roi.
         actual_roi = TestCropPatch.transformRoi(transform, roi)
         expected_roi = [10, 0, 30, 40]
-        self.assertEqual(actual_roi, expected_roi)
+        assert actual_roi == expected_roi
 
-    def test_edgeConstant_allImage_noPad(self):
+    def test_edge_constant_all_omage_no_pad(self, image):
         HEIGHT = 4
         WIDTH = 10
         roi = [0, 0, HEIGHT, WIDTH]
         actual_patch, transform = boxes_utils.cropPatch(
-            self.image[0:HEIGHT, 0:WIDTH],
+            image[0:HEIGHT, 0:WIDTH],
             roi,
             'constant',
             target_height=HEIGHT * 2,
@@ -473,17 +462,17 @@ class TestCropPatch(unittest.TestCase):
                                 pad_width=((HEIGHT // 2, HEIGHT // 2), (0, 0),
                                            (0, 0)),
                                 mode='constant')
-        self.assertEqual(actual_patch.shape, expected_patch.shape)
+        assert actual_patch.shape == expected_patch.shape
         np.testing.assert_array_equal(actual_patch, expected_patch)
         # Compare roi.
         actual_roi = TestCropPatch.transformRoi(transform, roi)
         expected_roi = [HEIGHT // 2, 0, HEIGHT * 3 // 2, WIDTH]
-        self.assertEqual(actual_roi, expected_roi)
+        assert actual_roi == expected_roi
 
-    def test_edgeDistortY(self):
+    def test_edge_distort_Y(self, image):
         roi = [45, 40, 55, 60]
         # Compare patches.
-        actual_patch, transform = boxes_utils.cropPatch(self.image,
+        actual_patch, transform = boxes_utils.cropPatch(image,
                                                         roi,
                                                         'distort',
                                                         target_height=20,
@@ -497,12 +486,12 @@ class TestCropPatch(unittest.TestCase):
         # Compare roi.
         actual_roi = TestCropPatch.transformRoi(transform, roi)
         expected_roi = [0, 0, 20, 20]
-        self.assertEqual(actual_roi, expected_roi)
+        assert actual_roi == expected_roi
 
-    def test_edgeBackgroundY_noStretch(self):
+    def test_edge_background_Y_no_stretch(self, image):
         roi = [45, 40, 55, 60]
         # Compare patches.
-        actual_patch, transform = boxes_utils.cropPatch(self.image,
+        actual_patch, transform = boxes_utils.cropPatch(image,
                                                         roi,
                                                         'background',
                                                         target_height=20,
@@ -515,12 +504,12 @@ class TestCropPatch(unittest.TestCase):
         # Compare roi.
         actual_roi = TestCropPatch.transformRoi(transform, roi)
         expected_roi = [5, 0, 15, 20]
-        self.assertEqual(actual_roi, expected_roi)
+        assert actual_roi == expected_roi
 
-    def test_edgeBackgroundX_noStretch(self):
+    def test_edge_background_X_no_stretch(self, image):
         roi = [40, 45, 60, 55]
         # Compare patches.
-        actual_patch, transform = boxes_utils.cropPatch(self.image,
+        actual_patch, transform = boxes_utils.cropPatch(image,
                                                         roi,
                                                         'background',
                                                         target_height=20,
@@ -533,12 +522,12 @@ class TestCropPatch(unittest.TestCase):
         # Compare roi.
         actual_roi = TestCropPatch.transformRoi(transform, roi)
         expected_roi = [0, 5, 20, 15]
-        self.assertEqual(actual_roi, expected_roi)
+        assert actual_roi == expected_roi
 
-    def test_edgeBackgroundYBelow0_noStretch(self):
+    def test_edge_background_Y_below_0_no_stretch(self, image):
         roi = [0, 40, 10, 60]
         # Compare patches.
-        actual_patch, transform = boxes_utils.cropPatch(self.image,
+        actual_patch, transform = boxes_utils.cropPatch(image,
                                                         roi,
                                                         'background',
                                                         target_height=20,
@@ -553,12 +542,12 @@ class TestCropPatch(unittest.TestCase):
         # Compare roi.
         actual_roi = TestCropPatch.transformRoi(transform, roi)
         expected_roi = [5, 0, 15, 20]
-        self.assertEqual(actual_roi, expected_roi)
+        assert actual_roi == expected_roi
 
-    def test_edgeBackgroundXBelow0_noStretch(self):
+    def test_edge_background_X_below_0_no_stretch(self, image):
         roi = [40, 0, 60, 10]
         # Compare patches.
-        actual_patch, transform = boxes_utils.cropPatch(self.image,
+        actual_patch, transform = boxes_utils.cropPatch(image,
                                                         roi,
                                                         'background',
                                                         target_height=20,
@@ -573,12 +562,12 @@ class TestCropPatch(unittest.TestCase):
         # Compare roi.
         actual_roi = TestCropPatch.transformRoi(transform, roi)
         expected_roi = [0, 5, 20, 15]
-        self.assertEqual(actual_roi, expected_roi)
+        assert actual_roi == expected_roi
 
-    def test_edgeBackgroundYAboveTop_noStretch(self):
+    def test_edge_background_Y_above_top_no_stretch(self, image):
         roi = [90, 40, 100, 60]
         # Compare patches.
-        actual_patch, transform = boxes_utils.cropPatch(self.image,
+        actual_patch, transform = boxes_utils.cropPatch(image,
                                                         roi,
                                                         'background',
                                                         target_height=20,
@@ -594,12 +583,12 @@ class TestCropPatch(unittest.TestCase):
         # Compare roi.
         actual_roi = TestCropPatch.transformRoi(transform, roi)
         expected_roi = [5, 0, 15, 20]
-        self.assertEqual(actual_roi, expected_roi)
+        assert actual_roi == expected_roi
 
-    def test_edgeBackgroundXAboveTop_noStretch(self):
+    def test_edge_background_X_above_top_no_stretch(self, image):
         roi = [40, 190, 60, 200]
         # Compare patches.
-        actual_patch, transform = boxes_utils.cropPatch(self.image,
+        actual_patch, transform = boxes_utils.cropPatch(image,
                                                         roi,
                                                         'background',
                                                         target_height=20,
@@ -615,12 +604,12 @@ class TestCropPatch(unittest.TestCase):
         # Compare roi.
         actual_roi = TestCropPatch.transformRoi(transform, roi)
         expected_roi = [0, 5, 20, 15]
-        self.assertEqual(actual_roi, expected_roi)
+        assert actual_roi == expected_roi
 
-    def test_edgeBackgroundYBelow0_stretch(self):
+    def test_edge_background_Y_below_0_stretch(self, image):
         roi = [0, 40, 10, 60]
         # Compare patches.
-        actual_patch, transform = boxes_utils.cropPatch(self.image,
+        actual_patch, transform = boxes_utils.cropPatch(image,
                                                         roi,
                                                         'background',
                                                         target_height=40,
@@ -643,12 +632,12 @@ class TestCropPatch(unittest.TestCase):
         # Compare roi.
         actual_roi = TestCropPatch.transformRoi(transform, roi)
         expected_roi = [10, 0, 30, 40]
-        self.assertEqual(actual_roi, expected_roi)
+        assert actual_roi == expected_roi
 
-    def test_edgeBackground_float_stretch(self):
+    def test_edge_background_float_stretch(self, image):
         roi = [9.5, 9.5, 20.5, 30.5]
         # Compare patches.
-        actual_patch, transform = boxes_utils.cropPatch(self.image,
+        actual_patch, transform = boxes_utils.cropPatch(image,
                                                         roi,
                                                         'background',
                                                         target_height=40,
@@ -668,10 +657,10 @@ class TestCropPatch(unittest.TestCase):
         # Compare roi.
         actual_roi = TestCropPatch.transformRoi(transform, roi)
         expected_roi = [9, -1, 31, 41]
-        self.assertEqual(actual_roi, expected_roi)
+        assert actual_roi == expected_roi
 
 
-class TestGetTransformBetweenRois(unittest.TestCase):
+class TestGetTransformBetweenRois:
     def test_identity(self):
         roi = [10, 20, 30, 40]
         np.testing.assert_array_equal(
@@ -685,76 +674,53 @@ class TestGetTransformBetweenRois(unittest.TestCase):
             np.array([[2, 0, -10], [0, 2, -20], [0, 0, 1]]),
             np.array(boxes_utils._getTransformBetweenRois(roi1, roi2)))
 
-    def test_invalidRoi1(self):
+    def test_invalid_roi1(self):
         roi1 = [10, 20, 0, 0]
         roi2 = [10, 20, 50, 60]
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             boxes_utils._getTransformBetweenRois(roi1, roi2)
 
-    def test_invalidRoi2(self):
+    def test_invalid_roi2(self):
         roi1 = [10, 20, 50, 60]
         roi2 = [10, 20, 0, 0]
-        with self.assertRaises(ValueError):
+        with pytest.raises(ValueError):
             boxes_utils._getTransformBetweenRois(roi1, roi2)
 
 
-class TestApplyTransformToRoi(unittest.TestCase):
-    def test_identity(self):
-        transform = np.eye(3, 3, dtype=float)
-        roi = (10, 20, 30, 40)
-        actual_roi = boxes_utils.applyTransformToRoi(transform, roi)
-        self.assertEqual(actual_roi, roi)
-
-    def test_X2(self):
-        transform = np.eye(3, 3, dtype=float)
-        transform[0, 0] = 2
-        transform[1, 1] = 2
-        roi = [10, 20, 30, 40]
-        expected_roi = (20, 40, 60, 80)
-        actual_roi = boxes_utils.applyTransformToRoi(transform, roi)
-        self.assertEqual(actual_roi, expected_roi)
-
-
-class Test_applyTransformToRoi(unittest.TestCase):
-    def test_normal(self):
+class TestApplyTransformToRoi:
+    def test_regular(self):
         roi = (10, 20, 30, 40)
 
-        transform = np.eye(2, 3)
-        self.assertEqual(boxes_utils.applyTransformToRoi(transform, roi), roi)
+        transform = np.array([[2, 0, 0], [0, 2, 0]])
+        assert boxes_utils.applyTransformToRoi(transform,
+                                               roi) == (20, 40, 60, 80)
 
         transform = np.array([[1, 0, 10], [0, 1, 20]])
-        self.assertEqual(boxes_utils.applyTransformToRoi(transform, roi),
-                         (20, 40, 40, 60))
+        assert boxes_utils.applyTransformToRoi(transform,
+                                               roi) == (20, 40, 40, 60)
 
-        tranform = np.array([[1, 1, 0], [1, 1, 0]])
-        self.assertEqual(boxes_utils.applyTransformToRoi(tranform, roi),
-                         (30, 30, 70, 70))
+        transform = np.array([[1, 1, 0], [1, 1, 0]])
+        assert boxes_utils.applyTransformToRoi(transform,
+                                               roi) == (30, 30, 70, 70)
 
 
-class Test_clipRoiToShape(unittest.TestCase):
-    def test_normal(self):
+class Test_clipRoiToShape:
+    def test_regular(self):
         shape = (100, 200, 3)
         # Normal.
-        self.assertEqual(boxes_utils.clipRoiToShape((10, 20, 30, 40), shape),
-                         (10, 20, 30, 40))
+        assert boxes_utils.clipRoiToShape((10, 20, 30, 40),
+                                          shape) == (10, 20, 30, 40)
         # Out of boundaries.
-        self.assertEqual(boxes_utils.clipRoiToShape((-10, 20, 30, 40), shape),
-                         (0, 20, 30, 40))
-        self.assertEqual(boxes_utils.clipRoiToShape((10, -20, 30, 40), shape),
-                         (10, 0, 30, 40))
-        self.assertEqual(boxes_utils.clipRoiToShape((10, 20, 300, 40), shape),
-                         (10, 20, 100, 40))
-        self.assertEqual(boxes_utils.clipRoiToShape((10, 20, 30, 400), shape),
-                         (10, 20, 30, 200))
+        assert boxes_utils.clipRoiToShape((-10, 20, 30, 40),
+                                          shape) == (0, 20, 30, 40)
+        assert boxes_utils.clipRoiToShape((10, -20, 30, 40),
+                                          shape) == (10, 0, 30, 40)
+        assert boxes_utils.clipRoiToShape((10, 20, 300, 40),
+                                          shape) == (10, 20, 100, 40)
+        assert boxes_utils.clipRoiToShape((10, 20, 30, 400),
+                                          shape) == (10, 20, 30, 200)
         # Float.
-        self.assertEqual(
-            boxes_utils.clipRoiToShape((10, 20, 30, 400.5), shape),
-            (10, 20, 30, 200))
-        self.assertEqual(
-            boxes_utils.clipRoiToShape((-10.5, 20, 30, 40), shape),
-            (0, 20, 30, 40))
-
-
-if __name__ == '__main__':
-    progressbar.streams.wrap_stdout()
-    nose.runmodule()
+        assert boxes_utils.clipRoiToShape((10, 20, 30, 400.5),
+                                          shape) == (10, 20, 30, 200)
+        assert boxes_utils.clipRoiToShape((-10.5, 20, 30, 40),
+                                          shape) == (0, 20, 30, 40)
