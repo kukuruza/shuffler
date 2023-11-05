@@ -100,7 +100,7 @@ def importLabelme(c, args):
     logging.info('Adding %d images.', len(image_paths))
     imagefiles = []
     for image_path in progressbar(image_paths):
-        height, width = backend_media.getPictureSize(image_path)
+        height, width = backend_media.getPictureHeightAndWidth(image_path)
         labelme_imagefile = op.relpath(op.abspath(image_path), args.rootdir)
         original_imagefile = get_original_imagefile(
             labelme_imagefile, labelme_to_original_imagefile_map)

@@ -47,7 +47,8 @@ def importDetrac(c, args):
                 raise FileNotFoundError('Image file not found at "%s".' %
                                         image_path)
 
-            imheight, imwidth = backend_media.getPictureSize(image_path)
+            imheight, imwidth = backend_media.getPictureHeightAndWidth(
+                image_path)
             imagefile = op.relpath(image_path, args.rootdir)
             logging.debug(
                 'Parsed image into imagefile=%s, width=%s, height=%s',

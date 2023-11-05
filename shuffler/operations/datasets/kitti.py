@@ -179,7 +179,7 @@ def importKitti(c, args):
         logging.debug('Processing image: "%s"', filename)
 
         # Add image to the database.
-        imheight, imwidth = backend_media.getPictureSize(image_path)
+        imheight, imwidth = backend_media.getPictureHeightAndWidth(image_path)
         imagefile = op.relpath(image_path, args.rootdir)
         c.execute('INSERT INTO images(imagefile,width,height) VALUES (?,?,?)',
                   (imagefile, imwidth, imheight))

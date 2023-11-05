@@ -17,13 +17,13 @@ from shuffler.utils import parser as parser_utils
 
 
 def add_parsers(subparsers):
-    cropMediaParser(subparsers)
+    cropMediaParser(subparsers)  # needs tests.
     cropObjectsParser(subparsers)
     tileObjectsParser(subparsers)
-    writeMediaParser(subparsers)
-    polygonsToMaskParser(subparsers)
-    writeMediaGridByTimeParser(subparsers)
-    repaintMaskParser(subparsers)
+    writeMediaParser(subparsers)  # needs tests.
+    polygonsToMaskParser(subparsers)  # needs tests.
+    writeMediaGridByTimeParser(subparsers)  # needs tests.
+    repaintMaskParser(subparsers)  # needs tests.
 
 
 def cropMediaParser(subparsers):

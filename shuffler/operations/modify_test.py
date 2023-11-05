@@ -527,6 +527,74 @@ class Test_expandObjects_SyntheticDb(unittest.TestCase):
         self.assertEqual(c.fetchone(), (0, ))
 
 
+class Test_moveMedia_SyntheticDb(unittest.TestCase):
+    def setUp(self):
+        self.conn = sqlite3.connect(':memory:')
+        backend_db.createDb(self.conn)
+        c = self.conn.cursor()
+        c.execute('INSERT INTO images(imagefile,maskfile,width,height) VALUES '
+                  '("a/b/image_c", "d/e/mask_f", 200, 100), '
+                  '("a/b/image_g", NULL, 200, 100)')
+        c.execute('INSERT INTO objects(imagefile,objectid,x1,y1,width,height) '
+                  'VALUES ("a/b/image_c", 0, 10, 20, 30, 40)')
+
+    def test_level1_images_and_masks(self):
+        c = self.conn.cursor()
+        args = argparse.Namespace(rootdir='dummy',
+                                  image_path='A/B',
+                                  mask_path='D/E',
+                                  level=1,
+                                  verify_new_path=False,
+                                  where_image='TRUE')
+        modify.moveMedia(c, args)
+        c.execute('SELECT imagefile,maskfile FROM images')
+        entries = c.fetchall()
+        self.assertEqual(entries[0], ("A/B/image_c", "D/E/mask_f"))
+        self.assertEqual(entries[1], ("A/B/image_g", None))
+
+    def test_level1_images(self):
+        c = self.conn.cursor()
+        args = argparse.Namespace(rootdir='dummy',
+                                  image_path='A/B',
+                                  mask_path=None,
+                                  level=1,
+                                  verify_new_path=False,
+                                  where_image='TRUE')
+        modify.moveMedia(c, args)
+        c.execute('SELECT imagefile,maskfile FROM images')
+        entries = c.fetchall()
+        self.assertEqual(entries[0], ("A/B/image_c", "d/e/mask_f"))
+        self.assertEqual(entries[1], ("A/B/image_g", None))
+
+    def test_level1_masks(self):
+        c = self.conn.cursor()
+        args = argparse.Namespace(rootdir='dummy',
+                                  image_path=None,
+                                  mask_path='D/E',
+                                  level=1,
+                                  verify_new_path=False,
+                                  where_image='TRUE')
+        modify.moveMedia(c, args)
+        c.execute('SELECT imagefile,maskfile FROM images')
+        entries = c.fetchall()
+        self.assertEqual(entries[0], ("a/b/image_c", "D/E/mask_f"))
+        self.assertEqual(entries[1], ("a/b/image_g", None))
+
+    def test_level2_images_and_masks(self):
+        c = self.conn.cursor()
+        args = argparse.Namespace(rootdir='dummy',
+                                  image_path='A',
+                                  mask_path='D',
+                                  level=2,
+                                  verify_new_path=False,
+                                  where_image='TRUE')
+        modify.moveMedia(c, args)
+        c.execute('SELECT imagefile,maskfile FROM images')
+        entries = c.fetchall()
+        self.assertEqual(entries[0], ("A/b/image_c", "D/e/mask_f"))
+        self.assertEqual(entries[1], ("A/b/image_g", None))
+
+
 class Test_moveRootdir_SyntheticDb(unittest.TestCase):
     def setUp(self):
         self.conn = sqlite3.connect(':memory:')

@@ -17,16 +17,16 @@ from shuffler.utils import parser as parser_utils
 
 
 def add_parsers(subparsers):
-    filterImagesViaAnotherDbParser(subparsers)
-    filterImagesWithoutObjectsParser(subparsers)
-    filterImagesSQLParser(subparsers)
+    filterImagesViaAnotherDbParser(subparsers)  # needs tests.
+    filterImagesWithoutObjectsParser(subparsers)  # needs tests.
+    filterImagesSQLParser(subparsers)  # needs tests.
     filterBadImagesParser(subparsers)
-    filterObjectsAtImageEdgesParser(subparsers)
-    filterObjectsByIntersectionParser(subparsers)
-    filterObjectsByNameParser(subparsers)
-    filterObjectsByScoreParser(subparsers)
+    filterObjectsAtImageEdgesParser(subparsers)  # needs tests.
+    filterObjectsByIntersectionParser(subparsers)  # needs tests.
+    filterObjectsByNameParser(subparsers)  # needs tests.
+    filterObjectsByScoreParser(subparsers)  # needs tests.
     filterObjectsInsideCertainObjectsParser(subparsers)
-    filterObjectsSQLParser(subparsers)
+    filterObjectsSQLParser(subparsers)  # needs tests.
 
 
 def filterImagesViaAnotherDbParser(subparsers):

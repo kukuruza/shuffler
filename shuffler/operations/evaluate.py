@@ -17,9 +17,9 @@ from shuffler.utils import parser as parser_utils
 
 def add_parsers(subparsers):
     evaluateDetectionParser(subparsers)
-    evaluateSegmentationIoUParser(subparsers)
-    evaluateBinarySegmentationParser(subparsers)
-    evaluateClassificationParser(subparsers)
+    evaluateSegmentationIoUParser(subparsers)  # needs tests.
+    evaluateBinarySegmentationParser(subparsers)  # needs tests.
+    evaluateClassificationParser(subparsers)  # needs tests.
 
 
 def _evaluateDetectionForClassPascal(c, c_gt, name, args):

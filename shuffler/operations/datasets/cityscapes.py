@@ -136,7 +136,8 @@ def importCityscapes(c, args):
                     raise Exception('The last part of name of image "%s" '
                                     'is expected to be city "leftImg8bit".' %
                                     image_name)
-                imheight, imwidth = backend_media.getPictureSize(image_path)
+                imheight, imwidth = backend_media.getPictureHeightAndWidth(
+                    image_path)
                 imagefile = op.relpath(image_path, args.rootdir)
                 c.execute(
                     'INSERT INTO images(imagefile,width,height) VALUES (?,?,?)',

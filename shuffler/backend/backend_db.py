@@ -408,6 +408,18 @@ def updateObjectTransform(c, objectid, transform):
             (objectid, str(transform[1, 2])))
 
 
+def checkSameMaskCorrespondsToImagesOfSameSize(cursor):
+    cursor.execute(
+        'SELECT maskfile FROM images WHERE imagefile IS NOT NULL GROUP BY maskfile '
+        'HAVING COUNT(DISTINCT(width)) > 1 OR COUNT(DISTINCT(height)) > 1')
+    maskfiles = [x[0] for x in cursor.fetchall()]
+
+    if len(maskfiles) > 0:
+        raise ValueError(
+            'The following maskfiles corresponds to not-null imagefiles '
+            'with different sizes: "%s"' % ", ".join(maskfiles))
+
+
 def upgradeV4toV5(cursor):
     ''' Upgrade the schema to V5, now object coordinates are floating-point. '''
 

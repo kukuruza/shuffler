@@ -16,23 +16,35 @@ def _diff(a, b):
     return np.abs(a - b).sum() / (np.abs(a) + np.abs(b)).sum()
 
 
-class TestGetPictureSize(unittest.TestCase):
-
+class TestGetPictureHeightAndWidth(unittest.TestCase):
     def test_jpg(self):
-        height, width = backend_media.getPictureSize(
+        height, width = backend_media.getPictureHeightAndWidth(
             'testdata/cars/images/000000.jpg')
         self.assertEqual(width, 800)
         self.assertEqual(height, 700)
 
     def test_png(self):
-        height, width = backend_media.getPictureSize(
+        height, width = backend_media.getPictureHeightAndWidth(
             'testdata/cars/masks/000000.png')
         self.assertEqual(width, 800)
         self.assertEqual(height, 700)
 
 
-class TestVideoReader(unittest.TestCase):
+class Test_getMediaType(unittest.TestCase):
+    def test_picture(self):
+        self.assertEqual(backend_media._getMediaType('a/b/c.jpg'), 'PICTURE')
 
+    def test_video(self):
+        self.assertEqual(backend_media._getMediaType('a/b/c.avi/0'), 'VIDEO')
+        self.assertEqual(backend_media._getMediaType('a/b/c.avi/42'), 'VIDEO')
+
+    def test_error(self):
+        with self.assertRaises(ValueError):
+            backend_media._getMediaType('a/b/c/42')
+            backend_media._getMediaType('a/b/c.zebra/42')
+
+
+class TestVideoReader(unittest.TestCase):
     def setUp(self):
         self.reader = backend_media.VideoReader()
 
@@ -98,7 +110,7 @@ class TestVideoReader(unittest.TestCase):
             self.reader.imread('testdata/cars/images.avi/dummy')
 
     def test_imread_non_exist(self):
-        with self.assertRaises(ValueError):
+        with self.assertRaises(FileNotFoundError):
             self.reader.imread('testdata/cars/images/dummy.avi/0')
 
     def test_maskread(self):
@@ -110,16 +122,40 @@ class TestVideoReader(unittest.TestCase):
         self.assertLess(_diff(mask, mask_gt), 0.01)
 
     def test_maskreadNonExist(self):
-        with self.assertRaises(ValueError):
+        with self.assertRaises(FileNotFoundError):
             self.reader.maskread('testdata/cars/dummy.avi/0')
 
     def test_maskreadBadImage(self):
         with self.assertRaises(Exception):
             self.reader.maskread('testdata/cars/masks.avi/dummy')
 
+    def test_checkIdExists(self):
+        # First video.
+        self.assertTrue(
+            self.reader.checkIdExists('testdata/cars/images.avi/000'))
+        # Second video.
+        self.assertTrue(
+            self.reader.checkIdExists('testdata/moon/images.avi/0'))
+        # Something is off, e.g. video does not exist.
+        self.assertFalse(self.reader.checkIdExists('dummy.avi/0'))
+
+    def test_getHeightAndWidth(self):
+        # First video.
+        height, width = self.reader.getHeightAndWidth(
+            'testdata/cars/images.avi/000')
+        self.assertEqual(width, 800)
+        self.assertEqual(height, 700)
+        # Second video.
+        height, width = self.reader.getHeightAndWidth(
+            'testdata/moon/images.avi/0')
+        self.assertEqual(width, 120)
+        self.assertEqual(height, 80)
+        # Something is off, e.g. video does not exist.
+        with self.assertRaises(Exception):
+            self.reader.getHeightAndWidth('dummy')
+
 
 class TestVideoWriter(unittest.TestCase):
-
     def setUp(self):
         self.work_dir = tempfile.mkdtemp()
 
@@ -206,7 +242,6 @@ class TestVideoWriter(unittest.TestCase):
 
 
 class TestPictureReader(unittest.TestCase):
-
     def setUp(self):
         self.reader = backend_media.PictureReader()
 
@@ -243,9 +278,22 @@ class TestPictureReader(unittest.TestCase):
         with self.assertRaises(Exception):
             self.reader.maskread('testdata/cars/images/badImage.jpg')
 
+    def test_checkIdExists(self):
+        self.assertTrue(
+            self.reader.checkIdExists('testdata/cars/images/000000.jpg'))
+        self.assertFalse(self.reader.checkIdExists('dummy.jpg'))
+
+    def test_getHeightAndWidth(self):
+        height, width = self.reader.getHeightAndWidth(
+            'testdata/cars/images/000000.jpg')
+        self.assertEqual(width, 800)
+        self.assertEqual(height, 700)
+        # Something is off, e.g. the file does not exist.
+        with self.assertRaises(Exception):
+            self.reader.getHeightAndWidth('dummy')
+
 
 class TestPictureWriter(unittest.TestCase):
-
     def setUp(self):
         self.work_dir = tempfile.mkdtemp()
 
@@ -381,7 +429,6 @@ class TestPictureWriter(unittest.TestCase):
 
 
 class TestMediaReader(unittest.TestCase):
-
     def test_closeUninitWithoutError(self):
         reader = backend_media.MediaReader(rootdir='.')
         reader.close()
@@ -416,28 +463,27 @@ class TestMediaReader(unittest.TestCase):
 
     def test_imreadNotExisting(self):
         reader = backend_media.MediaReader(rootdir='.')
-        with self.assertRaises(TypeError):
+        with self.assertRaises(FileNotFoundError):
             reader.imread('testdata/cars/images/noExisting.jpg')
 
     def test_imreadNotExistingRootdir(self):
         reader = backend_media.MediaReader(rootdir='testdata/cars')
-        with self.assertRaises(TypeError):
+        with self.assertRaises(FileNotFoundError):
             reader.imread('noExisting.jpg')
 
     def test_imreadNotPictureOrVideo(self):
         reader = backend_media.MediaReader(rootdir='.')
-        with self.assertRaises(TypeError):
+        with self.assertRaises(ValueError):
             reader.imread('testdata/cars/images/000004.txt')
 
     def test_imreadNotPictureOrVideoRootdir(self):
         reader = backend_media.MediaReader(rootdir='testdata/cars')
-        with self.assertRaises(TypeError):
+        with self.assertRaises(ValueError):
             reader.imread('images/000005.txt')
 
 
 class TestMediaWriter(unittest.TestCase):
     ''' Test only that necessary files exists. Do not check image content. '''
-
     def setUp(self):
         self.work_dir = tempfile.mkdtemp()
 

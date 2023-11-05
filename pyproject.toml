@@ -19,7 +19,7 @@ keywords = ["dataset", "data engineering",
             "classification", "detection", "segmentation", "tracking"]
 
 dependencies = [
-    "imageio >= 2.5.0",
+    "imageio >= 2.31.0",
     "imageio-ffmpeg >= 0.2.0",
     "opencv-python >= 3.1.0.5",
     "matplotlib >= 2.0",

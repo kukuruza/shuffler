@@ -8,7 +8,7 @@ import argparse
 from datetime import datetime
 
 from shuffler.backend.backend_db import createDb, makeTimeString
-from shuffler.backend.backend_media import MediaWriter, getPictureSize
+from shuffler.backend.backend_media import MediaWriter, getPictureHeightAndWidth
 from shuffler.utils import parser as parser_utils
 
 
@@ -136,7 +136,7 @@ class DatasetWriter:
                     raise ValueError('Got imagefile "%s" with rootdir "%s", '
                                      'but cant find an image at "%s"' %
                                      (imagefile, self.rootdir, imagepath))
-                height, width = getPictureSize(imagepath)
+                height, width = getPictureHeightAndWidth(imagepath)
             # Check video on disk, and get the dimensions from user's input.
             elif self.media == 'video':
                 videopath = op.join(self.rootdir, op.dirname(imagefile))

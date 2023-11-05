@@ -5,13 +5,13 @@ import tempfile
 import numpy as np
 import progressbar
 import nose
+import unittest
 
 from shuffler.backend import backend_db
 from shuffler.utils import testing as testing_utils
 
 
 class TestFieldGetters_Cars(testing_utils.Test_carsDb):
-
     def test_objectField(self):
         c = self.conn.cursor()
         c.execute('SELECT * FROM objects WHERE objectid=1')
@@ -125,7 +125,6 @@ class TestFieldGetters_Cars(testing_utils.Test_carsDb):
 
 
 class TestDeleteImage_Cars(testing_utils.Test_carsDb):
-
     def test_delete_imagefile_nonexistent(self):
         c = self.conn.cursor()
         with self.assertRaises(KeyError):
@@ -179,7 +178,6 @@ class TestDeleteImage_Cars(testing_utils.Test_carsDb):
 
 
 class TestDeleteObject_Cars(testing_utils.Test_carsDb):
-
     def test_deleteObject0(self):
         c = self.conn.cursor()
         with self.assertRaises(KeyError):
@@ -221,7 +219,6 @@ class TestDeleteObject_Cars(testing_utils.Test_carsDb):
 
 
 class Test_updateObjectTransform_emptyDb(testing_utils.Test_emptyDb):
-
     def test_noPreviousTransform(self):
         c = self.conn.cursor()
 
@@ -273,9 +270,29 @@ class Test_updateObjectTransform_emptyDb(testing_utils.Test_emptyDb):
                                       transform2)
 
 
+class Test_checkSameMaskCorrespondsToImagesOfSameSize(unittest.TestCase):
+    def setUp(self):
+        self.conn = sqlite3.connect(':memory:')
+        backend_db.createDb(self.conn)
+
+    def test_good(self):
+        c = self.conn.cursor()
+        c.execute('INSERT INTO images(imagefile,maskfile,width,height) VALUES '
+                  '("a",  "x", 60, 40), '
+                  '("b",  "x", 60, 40), '
+                  '(NULL, "x", 100, 100), '
+                  '("c",  "y", 200, 200) ')
+
+    def test_good(self):
+        c = self.conn.cursor()
+        c.execute('INSERT INTO images(imagefile,maskfile,width,height) VALUES '
+                  '("a",  "x", 60, 40), '
+                  '("b",  "x", 100, 100) ')
+
+
 class TestUpgradeV4toV5_Cars(testing_utils.Test_emptyDb):
 
-    CARS_DB_V4_PATH = 'testdata/cars/micro1_v5.db'
+    CARS_DB_V4_PATH = 'testdata/cars/micro1_v5.db'  # Purposedly v5.
     CARS_DB_V5_PATH = 'testdata/cars/micro1_v5.db'
 
     def setUp(self):

@@ -32,15 +32,15 @@ def add_parsers(subparsers):
     expandObjectsParser(subparsers)
     moveMediaParser(subparsers)
     moveRootdirParser(subparsers)
-    addDbParser(subparsers)
-    splitDbParser(subparsers)
-    mergeIntersectingObjectsParser(subparsers)
-    syncObjectidsWithDbParser(subparsers)
+    addDbParser(subparsers)  # needs tests.
+    splitDbParser(subparsers)  # needs tests.
+    mergeIntersectingObjectsParser(subparsers)  # needs tests.
+    syncObjectidsWithDbParser(subparsers)  # needs tests.
     syncPolygonIdsWithDbParser(subparsers)
-    syncObjectsDataWithDbParser(subparsers)
+    syncObjectsDataWithDbParser(subparsers)  # needs tests.
     syncRoundedCoordinatesWithDbParser(subparsers)
-    renameObjectsParser(subparsers)
-    resizeAnnotationsParser(subparsers)
+    renameObjectsParser(subparsers)  # needs tests.
+    resizeAnnotationsParser(subparsers)  # needs tests.
     propertyToObjectsFieldParser(subparsers)
     revertObjectTransformsParser(subparsers)
     upgradeV4toV5Parser(subparsers)
@@ -227,7 +227,7 @@ def addPictures(c, args):
                           args.width_hint, args.height_hint)
             height, width = args.height_hint, args.width_hint
         else:
-            height, width = backend_media.getPictureSize(image_path)
+            height, width = backend_media.getPictureHeightAndWidth(image_path)
         imagefile = op.relpath(op.abspath(image_path), args.rootdir)
         maskfile = op.relpath(op.abspath(mask_path),
                               args.rootdir) if mask_path is not None else None
@@ -407,7 +407,7 @@ def expandObjects(c, args):
 
 def moveMediaParser(subparsers):
     parser = subparsers.add_parser(
-        'moveMedia', description='Change imagefile and maskfile.')
+        'moveMedia', description='Change imagefile and maskfile, so that .')
     parser.set_defaults(func=moveMedia)
     parser.add_argument(
         '--image_path',
@@ -422,11 +422,12 @@ def moveMediaParser(subparsers):
         help='How many levels to keep in the directory structure. '
         'E.g. to move "my/old/fancy/image.jpg" to "his/new/fancy/image.jpg", '
         'specify image_path="his/new" and level=2. '
-        'That will move subpath "fancy/image.jpg", i.e. of 2 levels.')
+        'That will move subpath "fancy/image.jpg", i.e. of 2 levels. '
+        'The same level will apply to images and masks.')
     parser.add_argument(
-        '--adjust_size',
+        '--verify_new_path',
         action='store_true',
-        help='Check the size of target media, and scale annotations')
+        help='If true, will make sure that media exists at the target path.')
     parser_utils.addWhereImageArgument(parser)
 
 
@@ -455,6 +456,9 @@ def moveMedia(c, args):
         logging.debug('getPathBase produced "%s"', result)
         return result
 
+    if args.verify_new_path:
+        reader = backend_media.MediaReader(rootdir=args.rootdir)
+
     if args.image_path:
         logging.debug('Moving image dir to: %s', args.image_path)
         c.execute('SELECT imagefile FROM images WHERE (%s)' % args.where_image)
@@ -479,23 +483,12 @@ def moveMedia(c, args):
             c.execute('UPDATE objects SET imagefile=? WHERE imagefile=?',
                       (newfile, oldfile))
 
-            # TODO: this only works on images. Make for video.
             newpath = op.join(args.rootdir, newfile)
-            if not op.exists(newpath):
-                raise IOError('New file "%s" does not exist (rootdir "%s"), '
-                              '(the path was constructed from "%s")' %
-                              (newpath, args.rootdir, oldfile))
-            if args.adjust_size:
-                c.execute('SELECT height, width FROM images WHERE imagefile=?',
-                          (newfile, ))
-                oldheight, oldwidth = c.fetchone()
-                newheight, newwidth = backend_media.getPictureSize(newpath)
-                if newheight != oldheight or newwidth != oldwidth:
-                    logging.debug(
-                        'Scaling annotations in "%s" from %dx%d to %dx%d.',
-                        oldfile, oldheight, oldwidth, newheight, newwidth)
-                    _resizeImageAnnotations(c, newfile, oldwidth, oldheight,
-                                            newwidth, newheight)
+            if args.verify_new_path and not reader.checkIdExists(newpath):
+                raise FileNotFoundError(
+                    'The new image id "%s" does not exist (rootdir "%s"), '
+                    '(the new path was constructed from "%s")' %
+                    (newpath, args.rootdir, oldfile))
 
     if args.mask_path:
         logging.debug('Moving mask dir to: %s', args.mask_path)
@@ -503,11 +496,19 @@ def moveMedia(c, args):
         maskfiles = c.fetchall()
 
         for oldfile, in progressbar(maskfiles):
-            if oldfile is not None:
-                newfile = op.join(args.image_path,
-                                  getPathBase(oldfile, args.level))
-                c.execute('UPDATE images SET maskfile=? WHERE maskfile=?',
-                          (newfile, oldfile))
+            if oldfile is None:
+                continue
+
+            newfile = op.join(args.mask_path, getPathBase(oldfile, args.level))
+            c.execute('UPDATE images SET maskfile=? WHERE maskfile=?',
+                      (newfile, oldfile))
+
+            newpath = op.join(args.rootdir, newfile)
+            if args.verify_new_path and not reader.checkIdExists(newpath):
+                raise FileNotFoundError(
+                    'The new mask id "%s" does not exist (rootdir "%s"), '
+                    '(the new path was constructed from "%s")' %
+                    (newpath, args.rootdir, oldfile))
 
 
 def moveRootdirParser(subparsers):
@@ -1381,20 +1382,60 @@ def resizeAnnotationsParser(subparsers):
 
 
 def resizeAnnotations(c, args):
+    # Autoscale: both target_width and target_height are not specified.
     if args.target_width is None and args.target_height is None:
-        raise ValueError(
-            'One or both "target_width", "target_height" should be specified.')
+        reader = backend_media.MediaReader(rootdir=args.rootdir)
 
-    # Process image by image.
-    c.execute('SELECT imagefile,width,height FROM images WHERE (%s)' %
-              args.where_image)
-    for imagefile, old_width, old_height in progressbar(c.fetchall()):
-        _resizeImageAnnotations(c, imagefile, old_width, old_height,
-                                args.target_width, args.target_height)
+        backend_db.checkSameMaskCorrespondsToImagesOfSameSize(c)
+
+        c.execute(
+            'SELECT imagefile,maskfile,height,width FROM images WHERE (%s)' %
+            args.where_image)
+        for imagefile, maskfile, height, width in progressbar(c.fetchall()):
+            if imagefile is not None and maskfile is None:
+                target_height, target_width = reader.getShape(imagefile)
+            elif imagefile is None and maskfile is not None:
+                target_height, target_width = reader.getShape(maskfile)
+            elif imagefile is not None and maskfile is not None:
+                target_height, target_width = reader.getShape(imagefile)
+                mask_height, mask_width = reader.getShape(maskfile)
+                if target_height != mask_height or target_width != mask_width:
+                    raise ValueError(
+                        'Imagefile "%s" and maskfile "%s" have inconsistent '
+                        'dimensions %dx%d vs %dx%d' %
+                        (imagefile, maskfile, target_height, mask_height,
+                         target_width, mask_width))
+            elif imagefile is None and maskfile is None:
+                continue
+            else:
+                assert False  # impossible.
+
+            if target_height != height or target_width != width:
+                logging.debug(
+                    'Scaling annotations in imagefile "%s", maskfile "%s" from %dx%d to %dx%d.',
+                    imagefile, maskfile, height, width, target_height,
+                    target_width)
+                _resizeImageAnnotations(c, imagefile, maskfile, width, height,
+                                        target_width, target_height)
+
+    else:
+        c.execute('SELECT imagefile,width,height FROM images WHERE (%s)' %
+                  args.where_image)
+        for imagefile, old_width, old_height in progressbar(c.fetchall()):
+            _resizeImageAnnotations(c, imagefile, None, old_width, old_height,
+                                    args.target_width, args.target_height)
 
 
-def _resizeImageAnnotations(c, imagefile, old_width, old_height, target_width,
-                            target_height):
+def _resizeImageAnnotations(c, imagefile, maskfile, old_width, old_height,
+                            target_width, target_height):
+    if imagefile is not None:
+        file_ = imagefile
+        column = 'imagefile'
+    elif maskfile is not None:
+        file_ = maskfile
+        column = 'maskfile'
+    else:
+        raise ValueError('Either imagefile or maskfile need to be not None.')
 
     # Figure out scaling, depending on which of target_width and
     # target_height is given.
@@ -1413,17 +1454,17 @@ def _resizeImageAnnotations(c, imagefile, old_width, old_height, target_width,
         percent_y = percent_x
         target_width = target_width
         target_height = int(old_height * percent_y)
-    logging.debug('Scaling "%s" with percent_x=%.2f, percent_y=%.2f',
-                  imagefile, percent_x, percent_y)
+    logging.debug('Scaling "%s" with percent_x=%.2f, percent_y=%.2f', file_,
+                  percent_x, percent_y)
 
     # Update image.
-    c.execute('UPDATE images SET width=?,height=? WHERE imagefile=?',
-              (target_width, target_height, imagefile))
+    c.execute('UPDATE images SET width=?,height=? WHERE %s=?' % column,
+              (target_width, target_height, file_))
 
     # Update objects.
     c.execute(
-        'SELECT objectid,x1,y1,width,height FROM objects WHERE imagefile=?',
-        (imagefile, ))
+        'SELECT objectid,x1,y1,width,height FROM objects WHERE %s=?' % column,
+        (file_, ))
     for objectid, x1, y1, width, height in c.fetchall():
         if x1 is not None:
             x1 = int(x1 * percent_x)
@@ -1440,7 +1481,7 @@ def _resizeImageAnnotations(c, imagefile, old_width, old_height, target_width,
     # Update polygons.
     c.execute(
         'SELECT id,x,y FROM polygons p INNER JOIN objects o '
-        'ON o.objectid=p.objectid WHERE imagefile=?', (imagefile, ))
+        'ON o.objectid=p.objectid WHERE %s=?' % column, (file_, ))
     for id_, x, y in c.fetchall():
         x = int(x * percent_x)
         y = int(y * percent_y)

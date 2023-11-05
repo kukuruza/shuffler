@@ -1,10 +1,8 @@
-import os, sys, os.path as op
+import os, os.path as op
 import numpy as np
 import imageio
 import logging
 import shutil
-import traceback
-from pprint import pformat
 from operator import itemgetter
 from PIL import Image as PILImage  # import PIL.Image does not work.
 '''
@@ -42,7 +40,29 @@ def normalizeSeparators(path):
     return path.replace('/', os.sep).replace('\\', os.sep)
 
 
-def getPictureSize(imagepath):
+def _getMediaType(image_id):
+    '''
+    Args:
+      image_id: May correspond to either 'imagefile' or 'maskfile'.
+                If the media is pictures, image_id = "path/to/image.jpg"
+                If the media is a video, image_id = "path/to/video.avi/34"
+    Returns:
+      'PICTURE' or 'VIDEO'
+    Raises:
+      ValueError if can't figure out the type from image_id.
+    '''
+    mediadir = os.path.dirname(image_id)
+    image_id_ext = os.path.splitext(image_id)[1]
+    mediadir_ext = os.path.splitext(mediadir)[1]
+    if image_id_ext.lower() in ['.jpg', '.png', '.jpeg', '.tif', '.tiff']:
+        return 'PICTURE'
+    if image_id_ext == '' and mediadir_ext in ['.avi', '.mp4', '.mov']:
+        return 'VIDEO'
+    raise ValueError('image_id "%s" is neither a picture or a video frame.' %
+                     image_id)
+
+
+def getPictureHeightAndWidth(imagepath):
     if not op.exists(imagepath):
         raise ValueError('Image does not exist at path: "%s"' % imagepath)
     logging.debug('Get size of image "%s".', imagepath)
@@ -54,22 +74,24 @@ def getPictureSize(imagepath):
 
 class VideoReader:
     '''Implementation of imagery reader based on "Image" <-> "Frame in video".'''
-
     def __init__(self):
-        self.videos = {}  # map from video name to imageio video object
-        self.used_ago = {
-        }  # map from video name to number of frames since the last time it was used
+        # Map from video name to imageio video object.
+        self.videos = {}
+        # Map from video name to number of frames since the last time it was used.
+        self.used_ago = {}
+        # Video properties by video path.
+        self.video_properties = {}
 
     def _openVideo(self, videopath):
         ''' Open video and set up bookkeeping '''
         videopath = normalizeSeparators(videopath)
         logging.debug('opening video: %s', videopath)
         if not op.exists(videopath):
-            raise ValueError('videopath does not exist: %s' % videopath)
+            raise FileNotFoundError('videopath does not exist: %s' % videopath)
         handle = imageio.get_reader(videopath)
         return handle
 
-    def readImpl(self, image_id, ismask):
+    def _getVideoHandle(self, image_id):
         # video id set up
         videopath = op.dirname(image_id)
         if videopath not in self.videos:
@@ -82,9 +104,12 @@ class VideoReader:
                 self.videos[keymax].close()
                 del self.videos[keymax]
                 del self.used_ago[keymax]
-            # Repeat opening.
             self.videos[videopath] = self._openVideo(videopath)
             logging.debug('Have %d videos opened', len(self.videos))
+        return self.videos[videopath], videopath
+
+    def _getFrameId(self, image_id):
+        video, videopath = self._getVideoHandle(image_id)
         # frame id
         frame_name = op.basename(image_id)
         try:
@@ -96,25 +121,45 @@ class VideoReader:
             raise ValueError('frame_id is %d, but can not be negative.' %
                              frame_id)
         logging.debug('from image_id %s, got frame_id %d', image_id, frame_id)
-        # read the frame
-        if frame_id >= self.videos[videopath].get_length():
+        if frame_id >= video.count_frames():
             raise ValueError('frame_id %d exceeds the video length' % frame_id)
-        img = self.videos[videopath].get_data(frame_id)
-        img = np.asarray(img)
+
         # increase everyones's "long ago", except the current video
         for key in self.used_ago:
             self.used_ago[key] += 1
         self.used_ago[videopath] = 0
         # and finally...
+        return videopath, frame_id
+
+    def _readImpl(self, image_of_mask_id):
+        videopath, frame_id = self._getFrameId(image_of_mask_id)
+        img = self.videos[videopath].get_data(frame_id)
+        img = np.asarray(img)
         return img
 
+    def checkIdExists(self, image_of_mask_id):
+        try:
+            self._getFrameId(image_of_mask_id)
+        except Exception as e:
+            logging.info(
+                'Image or mask id %s is not valid or does not exist. '
+                'Got an exception:\n%s', image_of_mask_id, str(e))
+            return False
+        return True
+
+    def getHeightAndWidth(self, image_or_mask_id):
+        videopath = op.dirname(image_or_mask_id)
+        if videopath not in self.video_properties:
+            props = imageio.v3.improps(videopath)
+        self.video_properties[videopath] = props
+        print(props)
+        return props.shape[0], props.shape[1]
+
     def imread(self, image_id):
-        return self.readImpl(image_id, ismask=False)
+        return self._readImpl(image_id)
 
     def maskread(self, mask_id):
-        if mask_id is None:
-            return None
-        mask = self.readImpl(mask_id, ismask=True)
+        mask = self._readImpl(mask_id)
         # Take the 1st channel to make the mask grayscale.
         return mask[:, :, 0]
 
@@ -124,7 +169,6 @@ class VideoReader:
 
 
 class VideoWriter:
-
     def __init__(self,
                  vimagefile=None,
                  vmaskfile=None,
@@ -248,7 +292,6 @@ class PictureReader:
     Implementation of imagery reader based on the one-to-one correspondence
     "Image" <-> "Picture file (.jpg, .png, etc)".
     '''
-
     def _readImpl(self, image_id):
         image_id = normalizeSeparators(image_id)
         logging.debug('image_id: %s', image_id)
@@ -263,6 +306,12 @@ class PictureReader:
             raise ValueError('PictureReader failed to read image_id %s.' %
                              image_id) from e
 
+    def checkIdExists(self, image_or_mask_id):
+        return op.exists(image_or_mask_id)
+
+    def getHeightAndWidth(self, image_or_mask_id):
+        return getPictureHeightAndWidth(image_or_mask_id)
+
     def imread(self, image_id):
         return self._readImpl(image_id)
 
@@ -274,7 +323,6 @@ class PictureReader:
 
 
 class PictureWriter:
-
     def __init__(self,
                  imagedir=None,
                  maskdir=None,
@@ -401,7 +449,6 @@ class MediaReader:
     If it is a video frame, create VideoReader.
     Reader can not later change, that is, can not mix pictures and video media.
     '''
-
     def __init__(self, rootdir):  # TODO: pass kwargs to self.reader.__init__
         self.rootdir = rootdir
         if not isinstance(rootdir, str):
@@ -418,30 +465,20 @@ class MediaReader:
     def _imread_no_cache(self, image_id):
         ''' The image id is not in cache, actually read it. '''
 
-        image_id = op.join(self.rootdir, image_id)
+        full_image_id = op.join(self.rootdir, image_id)
 
         if self.reader is not None:
-            return self.reader.imread(image_id)
+            return self.reader.imread(full_image_id)
 
-        try:
+        media_type = _getMediaType(full_image_id)
+        if media_type == 'PICTURE':
             self.reader = PictureReader()
-            return self.reader.imread(image_id)
-        except Exception as e:
-            logging.debug('Cant read this as a picture: %s. Exception: "%s"',
-                          image_id, e)
-
-        try:
+            return self.reader.imread(full_image_id)
+        elif media_type == 'VIDEO':
             self.reader = VideoReader()
-            return self.reader.imread(image_id)
-        except Exception as e:
-            logging.debug(
-                'Cant read this as a video frame: %s. Exception: "%s"',
-                image_id, e)
-
-        raise TypeError(
-            'The provided image_id "%s" (rootdir "%s" was added) '
-            'does not seem to refer to either picture file or video frame.' %
-            (image_id, self.rootdir))
+            return self.reader.imread(full_image_id)
+        else:
+            assert False, '_getMediaType was supposed to have raised an error'
 
     def imread(self, image_id):
         logging.debug('Try to read image_id "%s" with rootdir "%s"', image_id,
@@ -463,30 +500,20 @@ class MediaReader:
     def _maskread_no_cache(self, mask_id):
         ''' The mask is not in cache, actually read it. '''
 
-        mask_id = op.join(self.rootdir, mask_id)
+        full_mask_id = op.join(self.rootdir, mask_id)
 
         if self.reader is not None:
-            return self.reader.maskread(mask_id)
+            return self.reader.maskread(full_mask_id)
 
-        try:
+        media_type = _getMediaType(full_mask_id)
+        if media_type == 'PICTURE':
             self.reader = PictureReader()
-            return self.reader.maskread(mask_id)
-        except Exception as e:
-            logging.debug('Cant read this as a picture: %s. Exception: "%s"',
-                          mask_id, e)
-
-        try:
+            return self.reader.imread(full_mask_id)
+        elif media_type == 'VIDEO':
             self.reader = VideoReader()
-            return self.reader.maskread(mask_id)
-        except Exception as e:
-            logging.debug(
-                'Cant read this as a video frame: %s. Exception: "%s"',
-                mask_id, e)
-
-        raise TypeError(
-            'The provided mask_id "%s" (rootdir "%s" was added) '
-            'does not seem to refer to either picture file or video frame.',
-            mask_id, self.rootdir)
+            return self.reader.imread(full_mask_id)
+        else:
+            assert False, '_getMediaType was supposed to have raised an error'
 
     def maskread(self, mask_id):
         logging.debug('Try to read mask_id "%s" with rootdir "%s"', mask_id,
@@ -505,9 +532,16 @@ class MediaReader:
         }  # currently only 1 image in the cache
         return mask
 
+    def checkIdExists(self, image_or_mask_id):
+        return self.reader.checkIdExists(
+            op.join(self.rootdir, image_or_mask_id))
+
+    def getHeightAndWidth(self, image_or_mask_id):
+        return self.reader.getHeightAndWidth(
+            op.join(self.rootdir, image_or_mask_id))
+
 
 class MockWriter:
-
     def __init__(self, imagedir=None, maskdir=None):
         # TODO: Use imagedir and maskdir to return proper paths.
         self.imagedir = imagedir  # Ignored.
@@ -552,7 +586,6 @@ class MediaWriter:
        like to record data.
     2) return paths relative to rootdir, if needed.
     '''
-
     def __init__(self,
                  media_type,
                  image_media=None,
