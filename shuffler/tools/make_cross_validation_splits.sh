@@ -167,12 +167,11 @@ for split in ${seq_from_zero_to_n_minus_one}; do
     if [[ ${part} -ne ${split} ]]; then
       echo "part split ${part} ${split}"
       addDb="${addDb} addDb --db_file ${output_dir}/part${part}.db"
-      # Add separator "|" between parts (except the last one.)
-      if [[ ${part} -ne ${number} ]]; then
-        addDb="${addDb} |"
-      fi
+      # Add separator "|" between parts (including the last one.)
+      addDb="${addDb} |"
     fi
   done
+  addDb=${addDb::-2}  # Cut the last " |".
   echo "Will use addDb: '${addDb}'"
 
   # Make train.db out of all other parts.
