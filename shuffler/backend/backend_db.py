@@ -408,9 +408,12 @@ def updateObjectTransform(c, objectid, transform):
             (objectid, str(transform[1, 2])))
 
 
-def checkSameMaskCorrespondsToImagesOfSameSize(cursor):
+def checkSameMaskfileHasSameDims(cursor):
+    ''' 
+    If two imagefiles share the same maskfile, they must be of the same size.
+    '''
     cursor.execute(
-        'SELECT maskfile FROM images WHERE imagefile IS NOT NULL GROUP BY maskfile '
+        'SELECT maskfile FROM images WHERE maskfile IS NOT NULL GROUP BY maskfile '
         'HAVING COUNT(DISTINCT(width)) > 1 OR COUNT(DISTINCT(height)) > 1')
     maskfiles = [x[0] for x in cursor.fetchall()]
 

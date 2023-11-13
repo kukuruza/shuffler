@@ -10,7 +10,7 @@ from shuffler.utils import general as general_utils
 from shuffler.utils import boxes as boxes_utils
 
 
-class TestTakeSubpath:
+class Test_takeSubpath:
     def test_all(self):
         # Need to us os.path.join as opposed to '/' because must run on Windows.
         path1 = 'c'
@@ -30,7 +30,7 @@ class TestTakeSubpath:
             general_utils.takeSubpath('', 1)
 
 
-class TestValidateFileName:
+class Test_validateFileName:
     def test_all(self):
         assert general_utils.validateFileName('abc.jpg') == 'abc.jpg'
         assert general_utils.validateFileName('ab c') == 'ab c'
@@ -39,7 +39,7 @@ class TestValidateFileName:
         assert general_utils.validateFileName('ab\\c') == 'ab_92_c'
 
 
-class TestCopyWithBackup:
+class Test_copyWithBackup:
     @pytest.fixture()
     def work_dir(self):
         work_dir = tempfile.mkdtemp()
@@ -96,7 +96,7 @@ class TestCopyWithBackup:
             assert s == 'from'
 
 
-class TestBbox2polygon:
+class Test_bbox2polygon:
     @pytest.fixture()
     def c(self):
         conn = sqlite3.connect(':memory:')
@@ -128,7 +128,7 @@ class TestBbox2polygon:
         assert set(actual) == set(expected)
 
 
-class TestPolygon2bbox:
+class Test_polygon2bbox:
     @pytest.fixture()
     def c(self):
         conn = sqlite3.connect(':memory:')
@@ -158,7 +158,7 @@ class TestPolygon2bbox:
         assert set(actual) == set(expected)
 
 
-class TestPolygon2mask:
+class Test_Polygon2mask:
     @pytest.fixture()
     def c(self):
         conn = sqlite3.connect(':memory:')
@@ -188,7 +188,7 @@ class TestPolygon2mask:
         assert mask.shape == (100, 200)
 
 
-class TestGetPolygonsByObject:
+class Test_getPolygonsByObject:
     @pytest.fixture()
     def c(self):
         conn = sqlite3.connect(':memory:')
@@ -213,8 +213,8 @@ class TestGetPolygonsByObject:
         assert general_utils.getPolygonsByObject(c, objects) == expected
 
 
-class TestGetIntersectingObjects:
-    def _GetPolygonsByObjectViaBbox(self, objects):
+class Test_getIntersectingObjects:
+    def _getPolygonsByObjectViaBbox(self, objects):
         return {
             backend_db.objectField(object_, 'objectid'):
             boxes_utils.box2polygon(backend_db.objectField(object_, 'bbox'))
@@ -228,23 +228,23 @@ class TestGetIntersectingObjects:
     def test_first_empty(self):
         objects2 = [(1, 'image', 10, 10, 30, 30, 'name2', 1.)]
         pairs_to_merge = general_utils.getIntersectingObjects(
-            {}, self._GetPolygonsByObjectViaBbox(objects2), 0.5)
+            {}, self._getPolygonsByObjectViaBbox(objects2), 0.5)
         assert pairs_to_merge == []
 
     def test_identical(self):
         objects1 = [(1, 'image', 10, 10, 30, 30, 'name1', 1.)]
         objects2 = [(2, 'image', 10, 10, 30, 30, 'name2', 1.)]
         pairs_to_merge = general_utils.getIntersectingObjects(
-            self._GetPolygonsByObjectViaBbox(objects1),
-            self._GetPolygonsByObjectViaBbox(objects2), 0.5)
+            self._getPolygonsByObjectViaBbox(objects1),
+            self._getPolygonsByObjectViaBbox(objects2), 0.5)
         assert pairs_to_merge == [(1, 2)]
 
     def test_identical_sameId(self):
         objects1 = [(1, 'image', 10, 10, 30, 30, 'name1', 1.)]
         objects2 = [(1, 'image', 10, 10, 30, 30, 'name2', 1.)]
         pairs_to_merge = general_utils.getIntersectingObjects(
-            self._GetPolygonsByObjectViaBbox(objects1),
-            self._GetPolygonsByObjectViaBbox(objects2),
+            self._getPolygonsByObjectViaBbox(objects1),
+            self._getPolygonsByObjectViaBbox(objects2),
             0.5,
             same_id_ok=False)
         assert pairs_to_merge == []
@@ -253,8 +253,8 @@ class TestGetIntersectingObjects:
         objects1 = [(1, 'image', 10, 10, 30, 30, 'name1', 1.)]
         objects2 = [(2, 'image', 20, 20, 40, 40, 'name2', 1.)]
         pairs_to_merge = general_utils.getIntersectingObjects(
-            self._GetPolygonsByObjectViaBbox(objects1),
-            self._GetPolygonsByObjectViaBbox(objects2), 0.5)
+            self._getPolygonsByObjectViaBbox(objects1),
+            self._getPolygonsByObjectViaBbox(objects2), 0.5)
         assert pairs_to_merge == []
 
     def test_two_intersecting(self):
@@ -263,8 +263,8 @@ class TestGetIntersectingObjects:
                     (3, 'image', 10, 10, 30, 30, 'name3', 1.),
                     (4, 'image', 40, 50, 60, 70, 'name4', 1.)]
         pairs_to_merge = general_utils.getIntersectingObjects(
-            self._GetPolygonsByObjectViaBbox(objects1),
-            self._GetPolygonsByObjectViaBbox(objects2), 0.1)
+            self._getPolygonsByObjectViaBbox(objects1),
+            self._getPolygonsByObjectViaBbox(objects2), 0.1)
         assert pairs_to_merge == [(1, 3)]
 
     def test_two_and_two_intersecting(self):
@@ -274,8 +274,8 @@ class TestGetIntersectingObjects:
         objects2 = [(3, 'image', 20, 20, 30, 30, 'name3', 1.),
                     (4, 'image', 10, 10, 30, 30, 'name4', 1.)]
         pairs_to_merge = general_utils.getIntersectingObjects(
-            self._GetPolygonsByObjectViaBbox(objects1),
-            self._GetPolygonsByObjectViaBbox(objects2), 0.1)
+            self._getPolygonsByObjectViaBbox(objects1),
+            self._getPolygonsByObjectViaBbox(objects2), 0.1)
         assert set(pairs_to_merge) == set([(1, 4), (2, 3)])
         # #2.
         objects1 = [(1, 'image', 10, 10, 30, 30, 'name1', 1.),
@@ -283,8 +283,8 @@ class TestGetIntersectingObjects:
         objects2 = [(3, 'image', 10, 10, 30, 30, 'name3', 1.),
                     (4, 'image', 20, 20, 30, 30, 'name4', 1.)]
         pairs_to_merge = general_utils.getIntersectingObjects(
-            self._GetPolygonsByObjectViaBbox(objects1),
-            self._GetPolygonsByObjectViaBbox(objects2), 0.1)
+            self._getPolygonsByObjectViaBbox(objects1),
+            self._getPolygonsByObjectViaBbox(objects2), 0.1)
         assert set(pairs_to_merge) == set([(1, 3), (2, 4)])
         # #3.
         objects1 = [(1, 'image', 10, 10, 30, 30, 'name1', 1.),
@@ -293,12 +293,12 @@ class TestGetIntersectingObjects:
                     (4, 'image', 0, 0, 30, 30, 'name4', 1.),
                     (5, 'image', 20, 20, 30, 30, 'name5', 1.)]
         pairs_to_merge = general_utils.getIntersectingObjects(
-            self._GetPolygonsByObjectViaBbox(objects1),
-            self._GetPolygonsByObjectViaBbox(objects2), 0.1)
+            self._getPolygonsByObjectViaBbox(objects1),
+            self._getPolygonsByObjectViaBbox(objects2), 0.1)
         assert set(pairs_to_merge) == set([(1, 3), (2, 5)])
 
 
-class TestMakeExportedImageName:
+class Test_MakeExportedImageName:
     @pytest.fixture()
     def work_dir(self):
         work_dir = tempfile.mkdtemp()

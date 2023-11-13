@@ -1,5 +1,5 @@
 import os, os.path as op
-from collections import Mapping  # For checking argument type.
+from collections.abc import Mapping  # For checking argument type.
 import numpy as np
 import logging
 from pprint import pformat

@@ -1,11 +1,11 @@
+import pytest
 import numpy as np
 import imageio
-import pytest
 
 from shuffler.utils import draw as draw_utils
 
 
-class TestDrawFilledRoi:
+class Test_drawFilledRoi:
     RED = (255, 0, 0)
 
     def test_regular_fullfill(self):
@@ -78,7 +78,7 @@ class TestDrawFilledRoi:
         np.testing.assert_almost_equal(image, expected_image, 0.0001)
 
 
-class TestDrawFilledPolygon:
+class Test_drawFilledPolygon:
     RED = (255, 0, 0)
 
     def test_regular_fullfill(self):

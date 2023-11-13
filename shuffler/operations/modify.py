@@ -1386,7 +1386,7 @@ def resizeAnnotations(c, args):
     if args.target_width is None and args.target_height is None:
         reader = backend_media.MediaReader(rootdir=args.rootdir)
 
-        backend_db.checkSameMaskCorrespondsToImagesOfSameSize(c)
+        backend_db.checkSameMaskfileHasSameDims(c)
 
         c.execute(
             'SELECT imagefile,maskfile,height,width FROM images WHERE (%s)' %

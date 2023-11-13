@@ -1,105 +1,86 @@
+import pytest
 import os, os.path as op
-import sqlite3
-import unittest
 import argparse
 import tempfile
-import progressbar
-import nose
 
-from shuffler.backend import backend_db
 from shuffler.operations import filtering
 from shuffler.utils import testing as testing_utils
 
 
-class Test_filterBadImages_CarsDb(testing_utils.Test_carsDb):
-    def setUp(self):
-        testing_utils.Test_carsDb.setUp(self)
-        # Make a corrupted image file.
-        self.bad_jpg_path = tempfile.NamedTemporaryFile(suffix='.jpg').name
-        with open(self.bad_jpg_path, 'w') as f:
+class Test_FilterBadImages_CarsDb(testing_utils.CarsDb):
+    @pytest.fixture()
+    def bad_jpg_path(self):
+        bad_jpg_path = tempfile.NamedTemporaryFile(suffix='.jpg').name
+        with open(bad_jpg_path, 'w') as f:
             f.write('I am a corrupted image file.')
+        yield bad_jpg_path
+        if op.exists(bad_jpg_path):
+            os.remove(bad_jpg_path)
 
-    def tearDown(self):
-        if op.exists(self.bad_jpg_path):
-            os.remove(self.bad_jpg_path)
-        testing_utils.Test_carsDb.tearDown(self)
-
-    def test_single_thread_all_ok(self):
+    def test_single_thread_all_ok(self, c):
         ''' Tests the single-thread mode when all images are ok. '''
 
-        c = self.conn.cursor()
-        args = argparse.Namespace(
-            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
-            force_single_thread=True)
+        args = argparse.Namespace(rootdir=testing_utils.CarsDb.CARS_DB_ROOTDIR,
+                                  force_single_thread=True)
         filtering.filterBadImages(c, args)
         c.execute('SELECT COUNT(1) FROM images')
-        self.assertEqual(c.fetchone()[0], 3)
+        assert c.fetchone()[0] == 3
 
-    def test_parallel_all_ok(self):
+    def test_parallel_all_ok(self, c):
         ''' Tests the parallel mode when all images are ok. '''
 
-        c = self.conn.cursor()
-        args = argparse.Namespace(
-            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
-            force_single_thread=False)
+        args = argparse.Namespace(rootdir=testing_utils.CarsDb.CARS_DB_ROOTDIR,
+                                  force_single_thread=False)
         filtering.filterBadImages(c, args)
         c.execute('SELECT COUNT(1) FROM images')
-        self.assertEqual(c.fetchone()[0], 3)
+        assert c.fetchone()[0] == 3
 
-    def test_single_thread_missing(self):
+    def test_single_thread_missing(self, c):
         ''' Tests deleting a missing image in the single-thread mode. '''
 
-        c = self.conn.cursor()
         c.execute('INSERT INTO images(imagefile) VALUES ("non-existent.jpg")')
-        args = argparse.Namespace(
-            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
-            force_single_thread=True)
+        args = argparse.Namespace(rootdir=testing_utils.CarsDb.CARS_DB_ROOTDIR,
+                                  force_single_thread=True)
         filtering.filterBadImages(c, args)
         c.execute('SELECT COUNT(1) FROM images')
-        self.assertEqual(c.fetchone()[0], 3)
+        assert c.fetchone()[0] == 3
 
-    def test_single_thread_corrupted(self):
+    def test_single_thread_corrupted(self, c, bad_jpg_path):
         ''' Tests deleting a corrupted image in the single-thread mode. '''
 
         # Add the corrrupted image to the db.
-        c = self.conn.cursor()
-        c.execute('INSERT INTO images(imagefile) VALUES (?)', (op.relpath(
-            self.bad_jpg_path, testing_utils.Test_carsDb.CARS_DB_ROOTDIR), ))
+        c.execute(
+            'INSERT INTO images(imagefile) VALUES (?)',
+            (op.relpath(bad_jpg_path, testing_utils.CarsDb.CARS_DB_ROOTDIR), ))
 
-        args = argparse.Namespace(
-            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
-            force_single_thread=True)
+        args = argparse.Namespace(rootdir=testing_utils.CarsDb.CARS_DB_ROOTDIR,
+                                  force_single_thread=True)
         filtering.filterBadImages(c, args)
         c.execute('SELECT COUNT(1) FROM images')
-        self.assertEqual(c.fetchone()[0], 3)
+        assert c.fetchone()[0] == 3
 
-    def test_parallel_corrupted(self):
+    def test_parallel_corrupted(self, c, bad_jpg_path):
         ''' Tests deleting a corrupted image in the parallel mode. '''
 
         # Add the corrrupted image to the db.
-        c = self.conn.cursor()
-        c.execute('INSERT INTO images(imagefile) VALUES (?)', (op.relpath(
-            self.bad_jpg_path, testing_utils.Test_carsDb.CARS_DB_ROOTDIR), ))
+        c.execute(
+            'INSERT INTO images(imagefile) VALUES (?)',
+            (op.relpath(bad_jpg_path, testing_utils.CarsDb.CARS_DB_ROOTDIR), ))
 
-        args = argparse.Namespace(
-            rootdir=testing_utils.Test_carsDb.CARS_DB_ROOTDIR,
-            force_single_thread=False)
+        args = argparse.Namespace(rootdir=testing_utils.CarsDb.CARS_DB_ROOTDIR,
+                                  force_single_thread=False)
         filtering.filterBadImages(c, args)
         c.execute('SELECT COUNT(1) FROM images')
-        self.assertEqual(c.fetchone()[0], 3)
+        assert c.fetchone()[0] == 3
 
 
-class Test_filterObjectsInsideCertainObjects_SyntheticDb(unittest.TestCase):
+class Test_FilterObjectsInsideCertainObjects_SyntheticDb(
+        testing_utils.EmptyDb):
 
     # TODO: Add tests with invert=True.
 
-    def setUp(self):
-        self.conn = sqlite3.connect(':memory:')
-        backend_db.createDb(self.conn)
-
-    def test_empty(self):
+    def test_empty(self, c):
         ''' Should succeed without issues. '''
-        c = self.conn.cursor()
         c.execute('INSERT INTO images(imagefile) VALUES ("image0")')
         args = argparse.Namespace(where_shadowing_objects='TRUE',
                                   where_object='TRUE',
@@ -110,12 +91,11 @@ class Test_filterObjectsInsideCertainObjects_SyntheticDb(unittest.TestCase):
                                   keep=True)
         filtering.filterObjectsInsideCertainObjects(c, args)
 
-    def test_1shadowing_0others(self):
+    def test_1_shadowing_box__0_others(self, c):
         '''
         A single shadowing object, no other objects.
         Nothing should be deleted.
         '''
-        c = self.conn.cursor()
         c.execute('INSERT INTO images(imagefile) VALUES ("image0")')
         c.execute(
             'INSERT INTO objects(imagefile,objectid,x1,y1,width,height,name) '
@@ -126,14 +106,13 @@ class Test_filterObjectsInsideCertainObjects_SyntheticDb(unittest.TestCase):
         filtering.filterObjectsInsideCertainObjects(c, args)
         c.execute('SELECT objectid FROM objects')
         object_ids = c.fetchall()
-        self.assertEqual(object_ids, [(1, )])
+        assert object_ids == [(1, )]
 
-    def test_1shadowingBox_1outsideBox(self):
+    def test_1_shadowing_box__1_outside_box(self, c):
         '''
         1 shadowing object (via a box), 1 other objects (via a box.)
         The other object is OUTSIDE the shadowing one. It should NOT be deleted.
         '''
-        c = self.conn.cursor()
         c.execute('INSERT INTO images(imagefile) VALUES ("image0")')
         c.execute(
             'INSERT INTO objects(imagefile,objectid,x1,y1,width,height,name) '
@@ -146,14 +125,13 @@ class Test_filterObjectsInsideCertainObjects_SyntheticDb(unittest.TestCase):
         filtering.filterObjectsInsideCertainObjects(c, args)
         c.execute('SELECT objectid FROM objects')
         object_ids = c.fetchall()
-        self.assertEqual(object_ids, [(1, ), (2, )])
+        assert object_ids == [(1, ), (2, )]
 
-    def test_1shadowingBox_1insideBox(self):
+    def test_1_shadowing_box__1_inside_box(self, c):
         '''
         1 shadowing object (via a box), 1 other objects (via a box.)
         The other object is INSIDE the shadowing one. It should be deleted.
         '''
-        c = self.conn.cursor()
         c.execute('INSERT INTO images(imagefile) VALUES ("image0")')
         c.execute(
             'INSERT INTO objects(imagefile,objectid,x1,y1,width,height,name) '
@@ -166,15 +144,14 @@ class Test_filterObjectsInsideCertainObjects_SyntheticDb(unittest.TestCase):
         filtering.filterObjectsInsideCertainObjects(c, args)
         c.execute('SELECT objectid FROM objects')
         object_ids = c.fetchall()
-        self.assertEqual(object_ids, [(1, )])
+        assert object_ids == [(1, )]
 
-    def test_1shadowingBox_1goodBox(self):
+    def test_1_shadowing_box__1_good_box(self, c):
         '''
         1 shadowing object (via a box), 1 other GOOD objects (via a box.)
         The other object is INSIDE the shadowing one.
         It should NOT be deleted because it is good.
         '''
-        c = self.conn.cursor()
         c.execute('INSERT INTO images(imagefile) VALUES ("image0")')
         c.execute(
             'INSERT INTO objects(imagefile,objectid,x1,y1,width,height,name) '
@@ -188,14 +165,13 @@ class Test_filterObjectsInsideCertainObjects_SyntheticDb(unittest.TestCase):
         filtering.filterObjectsInsideCertainObjects(c, args)
         c.execute('SELECT objectid FROM objects')
         object_ids = c.fetchall()
-        self.assertEqual(object_ids, [(1, ), (2, )])
+        assert object_ids == [(1, ), (2, )]
 
-    def test_1shadowingBox_1insidePolygon(self):
+    def test_1_shadowing_box__1_inside_polygon(self, c):
         '''
         1 shadowing object (via a box), 1 other objects (via a polygon.)
         The other object is INSIDE the shadowing one. It should be deleted.
         '''
-        c = self.conn.cursor()
         c.execute('INSERT INTO images(imagefile) VALUES ("image0")')
         c.execute(
             'INSERT INTO objects(imagefile,objectid,x1,y1,width,height,name) '
@@ -212,14 +188,13 @@ class Test_filterObjectsInsideCertainObjects_SyntheticDb(unittest.TestCase):
         filtering.filterObjectsInsideCertainObjects(c, args)
         c.execute('SELECT objectid FROM objects')
         object_ids = c.fetchall()
-        self.assertEqual(object_ids, [(1, )])
+        assert object_ids == [(1, )]
 
-    def test_1shadowingBox_1outsidePolygon(self):
+    def test_1_shadowing_box__1_outside_polygon(self, c):
         '''
         1 shadowing object (via a box), 1 other objects (via a polygon.)
         The other object is OUTSIDE the shadowing one. It should NOT be deleted.
         '''
-        c = self.conn.cursor()
         c.execute('INSERT INTO images(imagefile) VALUES ("image0")')
         c.execute(
             'INSERT INTO objects(imagefile,objectid,x1,y1,width,height,name) '
@@ -236,14 +211,13 @@ class Test_filterObjectsInsideCertainObjects_SyntheticDb(unittest.TestCase):
         filtering.filterObjectsInsideCertainObjects(c, args)
         c.execute('SELECT objectid FROM objects')
         object_ids = c.fetchall()
-        self.assertEqual(object_ids, [(1, ), (2, )])
+        assert object_ids == [(1, ), (2, )]
 
-    def test_1shadowingPolygon_1insideBox(self):
+    def test_1_shadowing_polygon__1_inside_box(self, c):
         '''
         1 shadowing object (via a polygon), 1 other objects (via a box.)
         The other object is INSIDE the shadowing one. It should be deleted.
         '''
-        c = self.conn.cursor()
         c.execute('INSERT INTO images(imagefile) VALUES ("image0")')
         c.execute('INSERT INTO objects(imagefile,objectid,name) '
                   'VALUES ("image0",1,"shadowing")')
@@ -259,14 +233,13 @@ class Test_filterObjectsInsideCertainObjects_SyntheticDb(unittest.TestCase):
         filtering.filterObjectsInsideCertainObjects(c, args)
         c.execute('SELECT objectid FROM objects')
         object_ids = c.fetchall()
-        self.assertEqual(object_ids, [(1, )])
+        assert object_ids == [(1, )]
 
-    def test_1shadowingPolygon_1outsideBox(self):
+    def test_1_shadowing_polygon__1_outside_box(self, c):
         '''
         1 shadowing object (via a polygon), 1 other objects (via a box.)
         The other object is OUTSIDE the shadowing one. It NOT should be deleted.
         '''
-        c = self.conn.cursor()
         c.execute('INSERT INTO images(imagefile) VALUES ("image0")')
         c.execute('INSERT INTO objects(imagefile,objectid,name) '
                   'VALUES ("image0",1,"shadowing")')
@@ -282,9 +255,4 @@ class Test_filterObjectsInsideCertainObjects_SyntheticDb(unittest.TestCase):
         filtering.filterObjectsInsideCertainObjects(c, args)
         c.execute('SELECT objectid FROM objects')
         object_ids = c.fetchall()
-        self.assertEqual(object_ids, [(1, ), (2, )])
-
-
-if __name__ == '__main__':
-    progressbar.streams.wrap_stdout()
-    nose.runmodule()
+        assert object_ids == [(1, ), (2, )]

@@ -103,22 +103,22 @@ python -m interface.keras.generators_demo
 ```
 
 
-## Running unittests
+## Running unit tests
 
 Most of the backend and utilities are covered in unit tests.
 
 ```bash
-pip install mock nose
+pip install pytest
 ```
 
-To run one test, go to the `shuffler` directory inside the shuffler repository and run:
+To run one test, run:
 
 ```bash
 cd shuffler/shuffler
-python3 -m utils.utilBoxes_test
+pytest utils/boxes_test.py
 ```
 
-To run all unittests, install also the following:
+To run all unit tests, install also the following:
 
 ```
 pip install scikit-image tensorflow torch
@@ -129,5 +129,5 @@ Then run:
 
 ```bash
 cd shuffler/shuffler
-nosetests
+pytest
 ```

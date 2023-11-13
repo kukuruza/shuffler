@@ -5,33 +5,35 @@ import logging
 import shutil
 from operator import itemgetter
 from PIL import Image as PILImage  # import PIL.Image does not work.
-'''
-The support for reading and writing media in the form of single files and
-multiple files, which are supported by our backend imageio:
-https://imageio.readthedocs.io/en/stable/formats.html
 
-Levels of abstraction:
+# The support for reading and writing media in the form of single files and
+# multiple files, which are supported by our backend imageio:
+# https://imageio.readthedocs.io/en/stable/formats.html
 
-- classes VideoReader and PictureReader:
-  1) hides implementation if "imread" for images and "maskread" for masks,
-  2) maintain a collection of open videos (in case of VideoReader).
+# Levels of abstraction:
 
-- class MediaReader:
-  1) hides whether VideoReader or PictureReader should be used,
-  2) compute absolute paths from "rootdir" and the provided paths.
-  3) maintain cache of images already in memory,
+# - classes VideoReader and PictureReader:
+#   1) hides implementation if "imread" for images and "maskread" for masks,
+#   2) maintain a collection of open videos (in case of VideoReader).
 
+# - class MediaReader:
+#   1) hides whether VideoReader or PictureReader should be used,
+#   2) compute absolute paths from "rootdir" and the provided paths.
+#   3) maintain cache of images already in memory,
 
-- classes VideoWriter and PictureWriter:
-  1) create / recreate a media / dir or raise an exception,
-  2) hides implementation if "imwrite" for images and "maskwrite" for masks,
-  3) counts frames / images (or writes the given name in case of PictureWriter.)
+# - classes VideoWriter and PictureWriter:
+#   1) create / recreate a media / dir or raise an exception,
+#   2) hides implementation if "imwrite" for images and "maskwrite" for masks,
+#   3) counts frames / images (or writes the given name in case of PictureWriter.)
 
-- class MediaWriter:
-  1) hides whether VideoWriter or PictureWriter should be used,
-  2) compute recorded paths relative to "rootdir".
+# - class MediaWriter:
+#   1) hides whether VideoWriter or PictureWriter should be used,
+#   2) compute recorded paths relative to "rootdir".
 
-'''
+IMAGE_EXTENSIONS = [
+    'bmp', 'jpg', 'jpeg', 'png', 'tif', 'tiff', 'dng', 'webp', 'mpo'
+]
+VIDEO_EXTENSIONS = ['mov', 'avi', 'mp4', 'mpg', 'mpeg', 'm4v', 'wmv', 'mkv']
 
 
 def normalizeSeparators(path):
@@ -51,20 +53,24 @@ def _getMediaType(image_id):
     Raises:
       ValueError if can't figure out the type from image_id.
     '''
+    def _MaybeRemoveLeadingDot(x):
+        return x[1:] if x.startswith('.') else x
+
     mediadir = os.path.dirname(image_id)
-    image_id_ext = os.path.splitext(image_id)[1]
-    mediadir_ext = os.path.splitext(mediadir)[1]
-    if image_id_ext.lower() in ['.jpg', '.png', '.jpeg', '.tif', '.tiff']:
+    image_id_ext = _MaybeRemoveLeadingDot(os.path.splitext(image_id)[1])
+    if image_id_ext.lower() in IMAGE_EXTENSIONS:
         return 'PICTURE'
-    if image_id_ext == '' and mediadir_ext in ['.avi', '.mp4', '.mov']:
+
+    mediadir_ext = _MaybeRemoveLeadingDot(os.path.splitext(mediadir)[1])
+    if image_id_ext == '' and mediadir_ext in VIDEO_EXTENSIONS:
         return 'VIDEO'
-    raise ValueError('image_id "%s" is neither a picture or a video frame.' %
-                     image_id)
+    raise ValueError(
+        f'image_id "{image_id}" is neither a picture or a video frame.')
 
 
 def getPictureHeightAndWidth(imagepath):
     if not op.exists(imagepath):
-        raise ValueError('Image does not exist at path: "%s"' % imagepath)
+        raise ValueError(f'Image does not exist at path: "{imagepath}"')
     logging.debug('Get size of image "%s".', imagepath)
     im = PILImage.open(imagepath)
     width, height = im.size
@@ -88,7 +94,7 @@ class VideoReader:
         logging.debug('opening video: %s', videopath)
         if not op.exists(videopath):
             raise FileNotFoundError('videopath does not exist: %s' % videopath)
-        handle = imageio.get_reader(videopath)
+        handle = imageio.v2.get_reader(videopath)
         return handle
 
     def _getVideoHandle(self, image_id):
@@ -118,11 +124,11 @@ class VideoReader:
             raise ValueError('Frame id is not a number in "%s"' %
                              image_id) from e
         if frame_id < 0:
-            raise ValueError('frame_id is %d, but can not be negative.' %
+            raise IndexError('frame_id is %d, but can not be negative.' %
                              frame_id)
         logging.debug('from image_id %s, got frame_id %d', image_id, frame_id)
         if frame_id >= video.count_frames():
-            raise ValueError('frame_id %d exceeds the video length' % frame_id)
+            raise IndexError('frame_id %d exceeds the video length' % frame_id)
 
         # increase everyones's "long ago", except the current video
         for key in self.used_ago:
@@ -153,7 +159,7 @@ class VideoReader:
             props = imageio.v3.improps(videopath)
         self.video_properties[videopath] = props
         print(props)
-        return props.shape[0], props.shape[1]
+        return props.shape[1], props.shape[2]
 
     def imread(self, image_id):
         return self._readImpl(image_id)
@@ -300,7 +306,7 @@ class PictureReader:
             raise FileNotFoundError('Image does not exist at path: "%s"' %
                                     image_id)
         try:
-            image = imageio.imread(image_id)
+            image = imageio.v2.imread(image_id)
             return np.asarray(image)
         except ValueError as e:
             raise ValueError('PictureReader failed to read image_id %s.' %

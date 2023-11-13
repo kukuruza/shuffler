@@ -4,7 +4,7 @@ import numpy as np
 from shuffler.utils import boxes as boxes_utils
 
 
-class TestValidateBbox:
+class Test_ValidateBbox:
     def test_ok(self):
         boxes_utils.validateBbox([1, 2, 3, 4])
         boxes_utils.validateBbox([1., 2., 3., 4.])
@@ -32,7 +32,7 @@ class TestValidateBbox:
             boxes_utils.validateBbox([1, 2, 3, -1])
 
 
-class TestValidateRoi:
+class Test_ValidateRoi:
     def test_ok(self):
         boxes_utils.validateRoi([1, 2, 3, 4])
         boxes_utils.validateRoi([1., 2., 3., 4.])
@@ -61,7 +61,7 @@ class TestValidateRoi:
             boxes_utils.validateRoi([1, 2, 0, 4])  # negative height.
 
 
-class TestValidatePolygon:
+class Test_ValidatePolygon:
     def test_ok(self):
         boxes_utils.validatePolygon([(1, 1), (1, 2), (1, 3)])
         boxes_utils.validatePolygon([(1., 1.), (1., 2.), (1., 3.)])
@@ -85,7 +85,7 @@ class TestValidatePolygon:
             boxes_utils.validatePolygon([(1, 1), (1, 2)])
 
 
-class TestBbox2roi:
+class Test_Bbox2roi:
     def test_normal(self):
         assert boxes_utils.bbox2roi([1, 2, 3, 4]) == [2, 1, 6, 4]
         assert boxes_utils.bbox2roi((1, 2, 3, 4)) == [2, 1, 6, 4]
@@ -94,7 +94,7 @@ class TestBbox2roi:
         assert boxes_utils.bbox2roi([1, 2, 0, 0]) == [2, 1, 2, 1]
 
 
-class TestRoi2Bbox:
+class Test_Roi2Bbox:
     def test_normal(self):
         assert boxes_utils.roi2bbox([2, 1, 6, 4]) == [1, 2, 3, 4]
         assert boxes_utils.roi2bbox((2, 1, 6, 4)) == [1, 2, 3, 4]
@@ -103,7 +103,7 @@ class TestRoi2Bbox:
         assert boxes_utils.roi2bbox([2, 1, 2, 1]) == [1, 2, 0, 0]
 
 
-class TestGetIoURoi:
+class Test_GetIoURoi:
     def test_identical(self):
         # Integer input.
         assert boxes_utils.getIoURoi([1, 2, 3, 4], [1, 2, 3, 4]) == 1.
@@ -128,7 +128,7 @@ class TestGetIoURoi:
         assert boxes_utils.getIoURoi([2, 1, 4, 3], [2, 3, 4, 5]) == 0.0
 
 
-class TestGetIoUPolygon:
+class Test_GetIoUPolygon:
     def test_identical(self):
         assert boxes_utils.getIoUPolygon([(0, 0), (1, 1), (1, 0)],
                                          [(0, 0), (1, 1), (1, 0)]) == 1.
@@ -148,7 +148,7 @@ class TestGetIoUPolygon:
                                          [(5, 6), (6, 5), (6, 6)]) == 0.0
 
 
-class TestExpandRoi:
+class Test_ExpandRoi:
     def test_identity(self):
         roi = [0.5, 0.5, 100.5, 200.5]
         np.testing.assert_array_equal(
@@ -173,7 +173,7 @@ class TestExpandRoi:
             boxes_utils.expandRoi([0.5, 0.5, 100.5, 200.5], (-0.8, 0))
 
 
-class TestExpandPolygon:
+class Test_ExpandPolygon:
     def test_identity(self):
         ys = [0.5, 0.5, 100.5]
         xs = [0.5, 200.5, 0.5]
@@ -207,7 +207,7 @@ class TestExpandPolygon:
             boxes_utils.expandPolygon(ys, xs, perc)
 
 
-class TestExpandRoiUpToRatio:
+class Test_ExpandRoiUpToRatio:
     def test_identity(self):
         roi = [0.5, 0.5, 100.5, 100.5]
         ratio = 1.
@@ -227,7 +227,7 @@ class TestExpandRoiUpToRatio:
         assert actual_perc == expected_perc
 
 
-class TestExpandPolygonUpToRatio:
+class Test_ExpandPolygonUpToRatio:
     def test_identity(self):
         ys = [0.5, 0.5, 100.5]
         xs = [0.5, 100.5, 0.5]
@@ -253,9 +253,9 @@ class TestExpandPolygonUpToRatio:
         assert actual_perc == expected_perc
 
 
-class TestCropPatch:
+class Test_CropPatch:
     @staticmethod
-    def transformRoi(transform, roi):
+    def _transform_roi(transform, roi):
         if not transform.shape == (3, 3):
             raise RuntimeError('transform must have shape (3, 3), not %s.' %
                                str(transform.shape))
@@ -275,12 +275,12 @@ class TestCropPatch:
     HEIGHT = 100
 
     @staticmethod
-    def makeGradientImage(height,
-                          width,
-                          min_x=0,
-                          min_y=0,
-                          max_x=None,
-                          max_y=None):
+    def _make_gradient_mage(height,
+                            width,
+                            min_x=0,
+                            min_y=0,
+                            max_x=None,
+                            max_y=None):
         '''
         Make an image of dimensions (height, width, 3) with the following channels:
             red:    vertical gradient [min_y, max_y), horizontally constant.
@@ -313,8 +313,8 @@ class TestCropPatch:
 
     @pytest.fixture()
     def image(self):
-        yield TestCropPatch.makeGradientImage(TestCropPatch.HEIGHT,
-                                              TestCropPatch.WIDTH)
+        yield Test_CropPatch._make_gradient_mage(Test_CropPatch.HEIGHT,
+                                                 Test_CropPatch.WIDTH)
 
     def test_edge_original_identity(self, image):
         roi = [0, 0, self.HEIGHT, self.WIDTH]
@@ -324,7 +324,7 @@ class TestCropPatch:
         expected_patch = image
         np.testing.assert_array_equal(actual_patch, expected_patch)
         # Compare roi.
-        actual_roi = TestCropPatch.transformRoi(transform, roi)
+        actual_roi = Test_CropPatch._transform_roi(transform, roi)
         expected_roi = roi
         assert actual_roi == expected_roi
         # Make sure transform matches.
@@ -335,15 +335,15 @@ class TestCropPatch:
         # Compare patches.
         actual_patch, transform = boxes_utils.cropPatch(
             image, roi, 'original', None, None)
-        expected_patch = TestCropPatch.makeGradientImage(height=10,
-                                                         width=40,
-                                                         min_y=0,
-                                                         min_x=30)
+        expected_patch = Test_CropPatch._make_gradient_mage(height=10,
+                                                            width=40,
+                                                            min_y=0,
+                                                            min_x=30)
         expected_patch = np.pad(expected_patch, ((10, 0), (0, 0), (0, 0)))
         assert actual_patch.shape == expected_patch.shape
         np.testing.assert_array_equal(actual_patch, expected_patch)
         # Compare roi.
-        actual_roi = TestCropPatch.transformRoi(transform, roi)
+        actual_roi = Test_CropPatch._transform_roi(transform, roi)
         expected_roi = [0, 0, 20, 40]
         assert actual_roi == expected_roi
 
@@ -352,15 +352,15 @@ class TestCropPatch:
         # Compare patches.
         actual_patch, transform = boxes_utils.cropPatch(
             image, roi, 'original', None, None)
-        expected_patch = TestCropPatch.makeGradientImage(height=20,
-                                                         width=30,
-                                                         min_y=40,
-                                                         min_x=0)
+        expected_patch = Test_CropPatch._make_gradient_mage(height=20,
+                                                            width=30,
+                                                            min_y=40,
+                                                            min_x=0)
         expected_patch = np.pad(expected_patch, ((0, 0), (10, 0), (0, 0)))
         assert actual_patch.shape == expected_patch.shape
         np.testing.assert_array_equal(actual_patch, expected_patch)
         # Compare roi.
-        actual_roi = TestCropPatch.transformRoi(transform, roi)
+        actual_roi = Test_CropPatch._transform_roi(transform, roi)
         expected_roi = [0, 0, 20, 40]
         assert actual_roi == expected_roi
 
@@ -369,15 +369,15 @@ class TestCropPatch:
         # Compare patches.
         actual_patch, transform = boxes_utils.cropPatch(
             image, roi, 'original', None, None)
-        expected_patch = TestCropPatch.makeGradientImage(height=10,
-                                                         width=40,
-                                                         min_y=90,
-                                                         min_x=30)
+        expected_patch = Test_CropPatch._make_gradient_mage(height=10,
+                                                            width=40,
+                                                            min_y=90,
+                                                            min_x=30)
         expected_patch = np.pad(expected_patch, ((0, 10), (0, 0), (0, 0)))
         assert actual_patch.shape == expected_patch.shape
         np.testing.assert_array_equal(actual_patch, expected_patch)
         # Compare roi.
-        actual_roi = TestCropPatch.transformRoi(transform, roi)
+        actual_roi = Test_CropPatch._transform_roi(transform, roi)
         expected_roi = [0, 0, 20, 40]
         assert actual_roi == expected_roi
 
@@ -386,15 +386,15 @@ class TestCropPatch:
         # Compare patches.
         actual_patch, transform = boxes_utils.cropPatch(
             image, roi, 'original', None, None)
-        expected_patch = TestCropPatch.makeGradientImage(height=20,
-                                                         width=30,
-                                                         min_y=40,
-                                                         min_x=170)
+        expected_patch = Test_CropPatch._make_gradient_mage(height=20,
+                                                            width=30,
+                                                            min_y=40,
+                                                            min_x=170)
         expected_patch = np.pad(expected_patch, ((0, 0), (0, 10), (0, 0)))
         assert actual_patch.shape == expected_patch.shape
         np.testing.assert_array_equal(actual_patch, expected_patch)
         # Compare roi.
-        actual_roi = TestCropPatch.transformRoi(transform, roi)
+        actual_roi = Test_CropPatch._transform_roi(transform, roi)
         expected_roi = [0, 0, 20, 40]
         assert actual_roi == expected_roi
 
@@ -403,13 +403,13 @@ class TestCropPatch:
         # Compare patches.
         actual_patch, transform = boxes_utils.cropPatch(
             image, roi, 'original', None, None)
-        expected_patch = TestCropPatch.makeGradientImage(height=20,
-                                                         width=40,
-                                                         min_y=40,
-                                                         min_x=30)
+        expected_patch = Test_CropPatch._make_gradient_mage(height=20,
+                                                            width=40,
+                                                            min_y=40,
+                                                            min_x=30)
         np.testing.assert_array_equal(actual_patch, expected_patch)
         # Compare roi.
-        actual_roi = TestCropPatch.transformRoi(transform, roi)
+        actual_roi = Test_CropPatch._transform_roi(transform, roi)
         expected_roi = [0, 0, 20, 40]
         assert actual_roi == expected_roi
 
@@ -431,16 +431,16 @@ class TestCropPatch:
                                                         'constant',
                                                         target_height=40,
                                                         target_width=40)
-        expected_patch = TestCropPatch.makeGradientImage(height=20,
-                                                         width=40,
-                                                         min_y=40,
-                                                         min_x=30)
+        expected_patch = Test_CropPatch._make_gradient_mage(height=20,
+                                                            width=40,
+                                                            min_y=40,
+                                                            min_x=30)
         expected_patch = np.pad(expected_patch,
                                 pad_width=((10, 10), (0, 0), (0, 0)),
                                 mode='constant')
         np.testing.assert_array_equal(actual_patch, expected_patch)
         # Compare roi.
-        actual_roi = TestCropPatch.transformRoi(transform, roi)
+        actual_roi = Test_CropPatch._transform_roi(transform, roi)
         expected_roi = [10, 0, 30, 40]
         assert actual_roi == expected_roi
 
@@ -454,10 +454,10 @@ class TestCropPatch:
             'constant',
             target_height=HEIGHT * 2,
             target_width=WIDTH)
-        expected_patch = TestCropPatch.makeGradientImage(height=HEIGHT,
-                                                         width=WIDTH,
-                                                         min_y=0,
-                                                         min_x=0)
+        expected_patch = Test_CropPatch._make_gradient_mage(height=HEIGHT,
+                                                            width=WIDTH,
+                                                            min_y=0,
+                                                            min_x=0)
         expected_patch = np.pad(expected_patch,
                                 pad_width=((HEIGHT // 2, HEIGHT // 2), (0, 0),
                                            (0, 0)),
@@ -465,7 +465,7 @@ class TestCropPatch:
         assert actual_patch.shape == expected_patch.shape
         np.testing.assert_array_equal(actual_patch, expected_patch)
         # Compare roi.
-        actual_roi = TestCropPatch.transformRoi(transform, roi)
+        actual_roi = Test_CropPatch._transform_roi(transform, roi)
         expected_roi = [HEIGHT // 2, 0, HEIGHT * 3 // 2, WIDTH]
         assert actual_roi == expected_roi
 
@@ -477,14 +477,14 @@ class TestCropPatch:
                                                         'distort',
                                                         target_height=20,
                                                         target_width=20)
-        expected_patch = TestCropPatch.makeGradientImage(height=20,
-                                                         width=20,
-                                                         min_y=45,
-                                                         min_x=40,
-                                                         max_y=55)
+        expected_patch = Test_CropPatch._make_gradient_mage(height=20,
+                                                            width=20,
+                                                            min_y=45,
+                                                            min_x=40,
+                                                            max_y=55)
         np.testing.assert_array_equal(actual_patch, expected_patch)
         # Compare roi.
-        actual_roi = TestCropPatch.transformRoi(transform, roi)
+        actual_roi = Test_CropPatch._transform_roi(transform, roi)
         expected_roi = [0, 0, 20, 20]
         assert actual_roi == expected_roi
 
@@ -496,13 +496,13 @@ class TestCropPatch:
                                                         'background',
                                                         target_height=20,
                                                         target_width=20)
-        expected_patch = TestCropPatch.makeGradientImage(height=20,
-                                                         width=20,
-                                                         min_y=40,
-                                                         min_x=40)
+        expected_patch = Test_CropPatch._make_gradient_mage(height=20,
+                                                            width=20,
+                                                            min_y=40,
+                                                            min_x=40)
         np.testing.assert_array_equal(actual_patch, expected_patch)
         # Compare roi.
-        actual_roi = TestCropPatch.transformRoi(transform, roi)
+        actual_roi = Test_CropPatch._transform_roi(transform, roi)
         expected_roi = [5, 0, 15, 20]
         assert actual_roi == expected_roi
 
@@ -514,13 +514,13 @@ class TestCropPatch:
                                                         'background',
                                                         target_height=20,
                                                         target_width=20)
-        expected_patch = TestCropPatch.makeGradientImage(height=20,
-                                                         width=20,
-                                                         min_y=40,
-                                                         min_x=40)
+        expected_patch = Test_CropPatch._make_gradient_mage(height=20,
+                                                            width=20,
+                                                            min_y=40,
+                                                            min_x=40)
         np.testing.assert_array_equal(actual_patch, expected_patch)
         # Compare roi.
-        actual_roi = TestCropPatch.transformRoi(transform, roi)
+        actual_roi = Test_CropPatch._transform_roi(transform, roi)
         expected_roi = [0, 5, 20, 15]
         assert actual_roi == expected_roi
 
@@ -532,15 +532,15 @@ class TestCropPatch:
                                                         'background',
                                                         target_height=20,
                                                         target_width=20)
-        expected_patch = TestCropPatch.makeGradientImage(height=15,
-                                                         width=20,
-                                                         min_x=40)
+        expected_patch = Test_CropPatch._make_gradient_mage(height=15,
+                                                            width=20,
+                                                            min_x=40)
         expected_patch = np.pad(expected_patch,
                                 pad_width=((5, 0), (0, 0), (0, 0)),
                                 mode='constant')
         np.testing.assert_array_equal(actual_patch, expected_patch)
         # Compare roi.
-        actual_roi = TestCropPatch.transformRoi(transform, roi)
+        actual_roi = Test_CropPatch._transform_roi(transform, roi)
         expected_roi = [5, 0, 15, 20]
         assert actual_roi == expected_roi
 
@@ -552,15 +552,15 @@ class TestCropPatch:
                                                         'background',
                                                         target_height=20,
                                                         target_width=20)
-        expected_patch = TestCropPatch.makeGradientImage(height=20,
-                                                         width=15,
-                                                         min_y=40)
+        expected_patch = Test_CropPatch._make_gradient_mage(height=20,
+                                                            width=15,
+                                                            min_y=40)
         expected_patch = np.pad(expected_patch,
                                 pad_width=((0, 0), (5, 0), (0, 0)),
                                 mode='constant')
         np.testing.assert_array_equal(actual_patch, expected_patch)
         # Compare roi.
-        actual_roi = TestCropPatch.transformRoi(transform, roi)
+        actual_roi = Test_CropPatch._transform_roi(transform, roi)
         expected_roi = [0, 5, 20, 15]
         assert actual_roi == expected_roi
 
@@ -572,16 +572,16 @@ class TestCropPatch:
                                                         'background',
                                                         target_height=20,
                                                         target_width=20)
-        expected_patch = TestCropPatch.makeGradientImage(height=15,
-                                                         width=20,
-                                                         min_y=85,
-                                                         min_x=40)
+        expected_patch = Test_CropPatch._make_gradient_mage(height=15,
+                                                            width=20,
+                                                            min_y=85,
+                                                            min_x=40)
         expected_patch = np.pad(expected_patch,
                                 pad_width=((0, 5), (0, 0), (0, 0)),
                                 mode='constant')
         np.testing.assert_array_equal(actual_patch, expected_patch)
         # Compare roi.
-        actual_roi = TestCropPatch.transformRoi(transform, roi)
+        actual_roi = Test_CropPatch._transform_roi(transform, roi)
         expected_roi = [5, 0, 15, 20]
         assert actual_roi == expected_roi
 
@@ -593,16 +593,16 @@ class TestCropPatch:
                                                         'background',
                                                         target_height=20,
                                                         target_width=20)
-        expected_patch = TestCropPatch.makeGradientImage(height=20,
-                                                         width=15,
-                                                         min_y=40,
-                                                         min_x=185)
+        expected_patch = Test_CropPatch._make_gradient_mage(height=20,
+                                                            width=15,
+                                                            min_y=40,
+                                                            min_x=185)
         expected_patch = np.pad(expected_patch,
                                 pad_width=((0, 0), (0, 5), (0, 0)),
                                 mode='constant')
         np.testing.assert_array_equal(actual_patch, expected_patch)
         # Compare roi.
-        actual_roi = TestCropPatch.transformRoi(transform, roi)
+        actual_roi = Test_CropPatch._transform_roi(transform, roi)
         expected_roi = [0, 5, 20, 15]
         assert actual_roi == expected_roi
 
@@ -614,12 +614,12 @@ class TestCropPatch:
                                                         'background',
                                                         target_height=40,
                                                         target_width=40)
-        expected_patch = TestCropPatch.makeGradientImage(height=30,
-                                                         width=40,
-                                                         min_y=0,
-                                                         min_x=40,
-                                                         max_y=15,
-                                                         max_x=60)
+        expected_patch = Test_CropPatch._make_gradient_mage(height=30,
+                                                            width=40,
+                                                            min_y=0,
+                                                            min_x=40,
+                                                            max_y=15,
+                                                            max_x=60)
         expected_patch = np.pad(expected_patch,
                                 pad_width=((10, 0), (0, 0), (0, 0)),
                                 mode='constant')
@@ -630,7 +630,7 @@ class TestCropPatch:
                                              expected_patch,
                                              decimal=0)
         # Compare roi.
-        actual_roi = TestCropPatch.transformRoi(transform, roi)
+        actual_roi = Test_CropPatch._transform_roi(transform, roi)
         expected_roi = [10, 0, 30, 40]
         assert actual_roi == expected_roi
 
@@ -642,12 +642,12 @@ class TestCropPatch:
                                                         'background',
                                                         target_height=40,
                                                         target_width=40)
-        expected_patch = TestCropPatch.makeGradientImage(height=40,
-                                                         width=40,
-                                                         min_y=5,
-                                                         min_x=10,
-                                                         max_y=25,
-                                                         max_x=30)
+        expected_patch = Test_CropPatch._make_gradient_mage(height=40,
+                                                            width=40,
+                                                            min_y=5,
+                                                            min_x=10,
+                                                            max_y=25,
+                                                            max_x=30)
         norm = (actual_patch.mean() + expected_patch.mean()) / 2.
         actual_patch = actual_patch / norm
         expected_patch = expected_patch / norm
@@ -655,12 +655,12 @@ class TestCropPatch:
                                              expected_patch,
                                              decimal=0)
         # Compare roi.
-        actual_roi = TestCropPatch.transformRoi(transform, roi)
+        actual_roi = Test_CropPatch._transform_roi(transform, roi)
         expected_roi = [9, -1, 31, 41]
         assert actual_roi == expected_roi
 
 
-class TestGetTransformBetweenRois:
+class Test_getTransformBetweenRois:
     def test_identity(self):
         roi = [10, 20, 30, 40]
         np.testing.assert_array_equal(
@@ -687,7 +687,7 @@ class TestGetTransformBetweenRois:
             boxes_utils._getTransformBetweenRois(roi1, roi2)
 
 
-class TestApplyTransformToRoi:
+class Test_ApplyTransformToRoi:
     def test_regular(self):
         roi = (10, 20, 30, 40)
 
@@ -704,7 +704,7 @@ class TestApplyTransformToRoi:
                                                roi) == (30, 30, 70, 70)
 
 
-class Test_clipRoiToShape:
+class Test_ClipRoiToShape:
     def test_regular(self):
         shape = (100, 200, 3)
         # Normal.

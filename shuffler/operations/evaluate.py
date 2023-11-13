@@ -142,7 +142,8 @@ def _evaluateDetectionForClassPascal(c, c_gt, name, args):
 
     fp = np.cumsum(fp)
     tp = np.cumsum(tp)
-    rec = tp / float(n_gt)
+    # rec = tp / float(n_gt)
+    rec = np.divide(tp, float(n_gt), out=np.zeros_like(tp), where=tp != 0)
     # Avoid divide by zero in case the first detection matches a difficult
     # ground truth.
     prec = tp / np.maximum(tp + fp, np.finfo(np.float64).eps)

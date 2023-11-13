@@ -1,16 +1,32 @@
+import pytest
 import os, os.path as op
 import sqlite3
 import shutil
-import unittest
 import pprint
 import tempfile
 
 from shuffler.backend import backend_db
 
 
-class Test_DB(unittest.TestCase):
-    ''' Implements utils to compare the result db with the expected one. '''
+def insertValuesToStr(vals):
+    '''
+    Makes a string from INSERT values.
+    Args:
+        vals:  a list of tuples, e.g. [(0, 1), (1, 2)].
+    Returns:
+        a string, e.g. '(0, 1), (1, 2)'.
+    '''
+    vals_str = []
+    for val in vals:
+        val_str = ','.join(
+            ['"%s"' % x if x is not None else 'NULL' for x in val])
+        vals_str.append(val_str)
+    s = ', '.join(['(%s)' % x for x in vals_str])
+    return s
 
+
+class _BaseDB:
+    ''' Implements utils to compare the result db with the expected one. '''
     def summarize_db(self, c):
         summary = []
         summary.append('--- DB summary start ---')
@@ -55,7 +71,7 @@ class Test_DB(unittest.TestCase):
         '''
         self.verify_that_expected_is_int(expected)
         c.execute('SELECT COUNT(1) FROM images')
-        self.assertEqual(c.fetchone()[0], expected, self.summarize_db(c))
+        assert c.fetchone()[0] == expected, self.summarize_db(c)
 
     def assert_objects_count_by_imagefile(self, c, expected):
         '''
@@ -70,8 +86,7 @@ class Test_DB(unittest.TestCase):
             'ON i.imagefile = o.imagefile GROUP BY i.imagefile')
         actual = c.fetchall()
         expected = [(x, ) for x in expected]
-        self.assertEqual(sorted(actual), sorted(expected),
-                         self.summarize_db(c))
+        assert sorted(actual) == sorted(expected), self.summarize_db(c)
 
     def assert_polygons_count_by_object(self, c, expected):
         '''
@@ -87,8 +102,7 @@ class Test_DB(unittest.TestCase):
             'ON p.objectid = o.objectid GROUP BY o.objectid')
         actual = c.fetchall()
         expected = [(x, ) for x in expected]
-        self.assertEqual(sorted(actual), sorted(expected),
-                         self.summarize_db(c))
+        assert sorted(actual) == sorted(expected), self.summarize_db(c)
 
     def assert_objects_count_by_match(self, c, expected):
         '''
@@ -102,8 +116,7 @@ class Test_DB(unittest.TestCase):
         c.execute('SELECT COUNT(1) FROM matches GROUP BY match')
         actual = c.fetchall()
         expected = [(x, ) for x in expected]
-        self.assertEqual(sorted(actual), sorted(expected),
-                         self.summarize_db(c))
+        assert sorted(actual) == sorted(expected), self.summarize_db(c)
 
     def assert_properties_count_by_object(self, c, expected):
         '''
@@ -119,51 +132,26 @@ class Test_DB(unittest.TestCase):
             'ON o.objectid = p.objectid GROUP BY o.objectid')
         actual = c.fetchall()
         expected = [(x, ) for x in expected]
-        self.assertEqual(sorted(actual), sorted(expected),
-                         self.summarize_db(c))
+        assert sorted(actual) == sorted(expected), self.summarize_db(c)
 
 
-class Test_emptyDb(Test_DB):
+class EmptyDb(_BaseDB):
+    @pytest.fixture()
+    def conn(self):
+        conn = sqlite3.connect(':memory:')
+        backend_db.createDb(conn)
+        yield conn
+        conn.close()
 
-    def setUp(self):
-        self.conn = sqlite3.connect(':memory:')
-        backend_db.createDb(self.conn)
-
-    def tearDown(self):
-        self.conn.close()
-
-    def _test_table(self, cursor, table, cols_gt):
-
-        # Test table exists.
-        cursor.execute(
-            'SELECT count(*) FROM sqlite_master WHERE name=? AND type="table"',
-            (table, ))
-        assert cursor.fetchone()[0] == 1
-
-        # Test cols.
-        cursor.execute('PRAGMA table_info(%s)' % table)
-        cols_actual = [x[1] for x in cursor.fetchall()]
-        self.assertEqual(set(cols_actual), set(cols_gt))
-
-    def test_schema(self):
-        cursor = self.conn.cursor()
-
-        self._test_table(cursor, 'images', [
-            'imagefile', 'maskfile', 'width', 'height', 'timestamp', 'score',
-            'name'
-        ])
-        self._test_table(cursor, 'objects', [
-            'objectid', 'imagefile', 'x1', 'y1', 'width', 'height', 'score',
-            'name'
-        ])
-        self._test_table(cursor, 'matches', ['id', 'objectid', 'match'])
-        self._test_table(cursor, 'properties',
-                         ['id', 'objectid', 'key', 'value'])
-        self._test_table(cursor, 'polygons',
-                         ['id', 'objectid', 'x', 'y', 'name'])
+    @pytest.fixture()
+    def c(self):
+        conn = sqlite3.connect(':memory:')
+        backend_db.createDb(conn)
+        yield conn.cursor()
+        conn.close()
 
 
-class Test_carsDb(Test_DB):
+class CarsDb(_BaseDB):
     '''
     carsDb: image/000000:
                 objectids:
@@ -180,12 +168,13 @@ class Test_carsDb(Test_DB):
     CARS_DB_PATH = 'testdata/cars/micro1_v5.db'
     CARS_DB_ROOTDIR = 'testdata/cars'
 
-    def setUp(self):
-        self.temp_db_path = tempfile.NamedTemporaryFile().name
-        shutil.copyfile(Test_carsDb.CARS_DB_PATH, self.temp_db_path)
-        self.conn = sqlite3.connect(self.temp_db_path)
+    @pytest.fixture()
+    def c(self):
+        temp_db_path = tempfile.NamedTemporaryFile().name
+        shutil.copyfile(self.CARS_DB_PATH, temp_db_path)
 
-    def tearDown(self):
-        self.conn.close()
-        if op.exists(self.temp_db_path):
-            os.remove(self.temp_db_path)
+        conn = sqlite3.connect(temp_db_path)
+        yield conn.cursor()
+        conn.close()
+        if op.exists(temp_db_path):
+            os.remove(temp_db_path)

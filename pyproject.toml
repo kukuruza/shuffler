@@ -43,8 +43,8 @@ plots = [
     "seaborn"
 ]
 test = [
-    "mock",
-    "nose"
+    "pytest",
+    "pytest-mock"    
 ]
 
 [project.urls]

@@ -28,8 +28,8 @@ def make_model(input_shape, num_classes):
 
 def main():
     # This database contains 3 images with 2 cars and 1 bus.
-    in_db_file = testing_utils.Test_carsDb.CARS_DB_PATH
-    rootdir = testing_utils.Test_carsDb.CARS_DB_ROOTDIR
+    in_db_file = testing_utils.CarsDb.CARS_DB_PATH
+    rootdir = testing_utils.CarsDb.CARS_DB_ROOTDIR
 
     # Objects are resized to this shape.
     width = 100
