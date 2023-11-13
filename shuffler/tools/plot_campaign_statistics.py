@@ -53,9 +53,11 @@ def plot_campaign_statistics(args):
     print(df)
     print(df['count'].sum())
     df['labels'] = df['cycle'] + ":  " + df['count'].astype('string')
+    df.loc[df.index[-2],
+           'labels'] = df.loc[df.index[-2], 'labels'] + " (in progress)"
 
     patches, _ = plt.pie(df['count'])
-    plt.legend(patches, df['labels'], loc="best")
+    plt.legend(patches, df['labels'], loc='lower left')
 
     plt.tight_layout()
     if args.out_plot_path:
