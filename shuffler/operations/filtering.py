@@ -583,6 +583,7 @@ def filterObjectsSQLParser(subparsers):
         '"SELECT objects.objectid FROM objects '
         'INNER JOIN properties ON objects.objectid=properties.objectid '
         'WHERE properties.value=\'blue\' AND objects.score > 0.8"')
+    parser_utils.addKeepOrDeleteArguments(parser)
 
 
 def filterObjectsSQL(c, args):
@@ -591,7 +592,15 @@ def filterObjectsSQL(c, args):
 
     c.execute(args.sql)
 
-    objectids = c.fetchall()
-    logging.info('Going to remove %d objects.', len(objectids))
-    for objectid, in progressbar(objectids):
+    query_objectids = c.fetchall()
+    if args.keep:
+        c.execute('SELECT objectid FROM objects')
+        all_objectids = c.fetchall()
+        delete_objectids = list(
+            set(all_objectids).difference(set(query_objectids)))
+    else:
+        delete_objectids = query_objectids
+
+    logging.info('Going to remove %d objects.', len(delete_objectids))
+    for objectid, in progressbar(delete_objectids):
         backend_db.deleteObject(c, objectid)

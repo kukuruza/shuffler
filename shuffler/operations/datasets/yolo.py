@@ -38,6 +38,7 @@ def exportYoloParser(subparsers):
                         help='Name of the subset, such as "train2017')
     parser.add_argument(
         '--classes',
+        nargs='+',
         required=True,
         help='Classes of interest in order. Will look at object names for them.'
     )
