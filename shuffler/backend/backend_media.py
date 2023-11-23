@@ -53,6 +53,7 @@ def _getMediaType(image_id):
     Raises:
       ValueError if can't figure out the type from image_id.
     '''
+
     def _MaybeRemoveLeadingDot(x):
         return x[1:] if x.startswith('.') else x
 
@@ -80,6 +81,7 @@ def getPictureHeightAndWidth(imagepath):
 
 class VideoReader:
     '''Implementation of imagery reader based on "Image" <-> "Frame in video".'''
+
     def __init__(self):
         # Map from video name to imageio video object.
         self.videos = {}
@@ -175,6 +177,7 @@ class VideoReader:
 
 
 class VideoWriter:
+
     def __init__(self,
                  vimagefile=None,
                  vmaskfile=None,
@@ -298,6 +301,7 @@ class PictureReader:
     Implementation of imagery reader based on the one-to-one correspondence
     "Image" <-> "Picture file (.jpg, .png, etc)".
     '''
+
     def _readImpl(self, image_id):
         image_id = normalizeSeparators(image_id)
         logging.debug('image_id: %s', image_id)
@@ -329,6 +333,7 @@ class PictureReader:
 
 
 class PictureWriter:
+
     def __init__(self,
                  imagedir=None,
                  maskdir=None,
@@ -455,6 +460,7 @@ class MediaReader:
     If it is a video frame, create VideoReader.
     Reader can not later change, that is, can not mix pictures and video media.
     '''
+
     def __init__(self, rootdir):  # TODO: pass kwargs to self.reader.__init__
         self.rootdir = rootdir
         if not isinstance(rootdir, str):
@@ -468,21 +474,14 @@ class MediaReader:
         if self.reader is not None:
             self.reader.close()
 
-    def _imread_no_cache(self, image_id):
-        ''' The image id is not in cache, actually read it. '''
-
-        full_image_id = op.join(self.rootdir, image_id)
-
+    def _lazy_init(self, full_image_id):
         if self.reader is not None:
-            return self.reader.imread(full_image_id)
-
+            return
         media_type = _getMediaType(full_image_id)
         if media_type == 'PICTURE':
             self.reader = PictureReader()
-            return self.reader.imread(full_image_id)
         elif media_type == 'VIDEO':
             self.reader = VideoReader()
-            return self.reader.imread(full_image_id)
         else:
             assert False, '_getMediaType was supposed to have raised an error'
 
@@ -495,31 +494,15 @@ class MediaReader:
             logging.debug('imread: found image in cache')
             return self.image_cache[image_id]  # get cached image if possible
 
-        image = self._imread_no_cache(image_id)
+        full_image_id = op.join(self.rootdir, image_id)
+        self._lazy_init(full_image_id)
+        image = self.reader.imread(full_image_id)
 
         logging.debug('imread: new image, updating cache')
         self.image_cache = {
             image_id: image
         }  # currently only 1 image in the cache
         return image
-
-    def _maskread_no_cache(self, mask_id):
-        ''' The mask is not in cache, actually read it. '''
-
-        full_mask_id = op.join(self.rootdir, mask_id)
-
-        if self.reader is not None:
-            return self.reader.maskread(full_mask_id)
-
-        media_type = _getMediaType(full_mask_id)
-        if media_type == 'PICTURE':
-            self.reader = PictureReader()
-            return self.reader.imread(full_mask_id)
-        elif media_type == 'VIDEO':
-            self.reader = VideoReader()
-            return self.reader.imread(full_mask_id)
-        else:
-            assert False, '_getMediaType was supposed to have raised an error'
 
     def maskread(self, mask_id):
         logging.debug('Try to read mask_id "%s" with rootdir "%s"', mask_id,
@@ -530,7 +513,9 @@ class MediaReader:
             logging.debug('maskread: found mask in cache')
             return self.mask_cache[mask_id]  # get cached mask if possible
 
-        mask = self._maskread_no_cache(mask_id)
+        full_mask_id = op.join(self.rootdir, mask_id)
+        self._lazy_init(full_mask_id)
+        mask = self.reader.imread(full_mask_id)
 
         logging.debug('maskread: new mask, updating cache')
         self.mask_cache = {
@@ -543,11 +528,13 @@ class MediaReader:
             op.join(self.rootdir, image_or_mask_id))
 
     def getHeightAndWidth(self, image_or_mask_id):
-        return self.reader.getHeightAndWidth(
-            op.join(self.rootdir, image_or_mask_id))
+        full_image_or_mask_id = op.join(self.rootdir, image_or_mask_id)
+        self._lazy_init(full_image_or_mask_id)
+        return self.reader.getHeightAndWidth(full_image_or_mask_id)
 
 
 class MockWriter:
+
     def __init__(self, imagedir=None, maskdir=None):
         # TODO: Use imagedir and maskdir to return proper paths.
         self.imagedir = imagedir  # Ignored.
@@ -592,6 +579,7 @@ class MediaWriter:
        like to record data.
     2) return paths relative to rootdir, if needed.
     '''
+
     def __init__(self,
                  media_type,
                  image_media=None,

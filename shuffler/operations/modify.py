@@ -432,6 +432,7 @@ def moveMediaParser(subparsers):
 
 
 def moveMedia(c, args):
+
     def splitall(path):
         allparts = []
         while 1:
@@ -963,6 +964,7 @@ def syncObjectidsWithDbParser(subparsers):
 
 
 def syncObjectidsWithDb(c, args):
+
     def _getNextObjectidInDb(c):
         # Find the maximum objectid in this db. Will create new objectids greater.
         c.execute('SELECT MAX(objectid) FROM objects')
@@ -1086,6 +1088,7 @@ def syncPolygonIdsWithDbParser(subparsers):
 
 
 def syncPolygonIdsWithDb(c, args):
+
     def _getNextPolygonidInDb(c):
         # Find the maximum objectid in this db. Will create new objectids greater.
         c.execute('SELECT MAX(id) FROM polygons')
@@ -1393,12 +1396,15 @@ def resizeAnnotations(c, args):
             args.where_image)
         for imagefile, maskfile, height, width in progressbar(c.fetchall()):
             if imagefile is not None and maskfile is None:
-                target_height, target_width = reader.getShape(imagefile)
+                target_height, target_width = reader.getHeightAndWidth(
+                    imagefile)
             elif imagefile is None and maskfile is not None:
-                target_height, target_width = reader.getShape(maskfile)
+                target_height, target_width = reader.getHeightAndWidth(
+                    maskfile)
             elif imagefile is not None and maskfile is not None:
-                target_height, target_width = reader.getShape(imagefile)
-                mask_height, mask_width = reader.getShape(maskfile)
+                target_height, target_width = reader.getHeightAndWidth(
+                    imagefile)
+                mask_height, mask_width = reader.getHeightAndWidth(maskfile)
                 if target_height != mask_height or target_width != mask_width:
                     raise ValueError(
                         'Imagefile "%s" and maskfile "%s" have inconsistent '
