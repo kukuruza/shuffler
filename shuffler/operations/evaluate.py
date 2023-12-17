@@ -882,3 +882,9 @@ def evaluateClassification(c, args):
 
     accuracy = sklearn.metrics.accuracy_score(df['name_gt'], df['name_eval'])
     print('Accuracy is %f', accuracy)
+
+    report = sklearn.metrics.classification_report(y_true=df['name_gt'],
+                                                   y_pred=df['name_eval'],
+                                                   output_dict=True,
+                                                   zero_division=np.nan)
+    return report
