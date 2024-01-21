@@ -59,26 +59,19 @@ You may need a data engineering package if you find yourself writing multiple sc
 
 ## Installation
 
-Shuffler requires Python3. The installation instructions assume Conda package management system.
-
-Install dependencies:
+Shuffler requires Python3.
 
 ```bash
-conda install -c conda-forge imageio ffmpeg=4 opencv matplotlib
-conda install lxml simplejson progressbar2 pillow scipy
-conda install pandas seaborn  # If desired, add support for plotting commands
-```
+pip3 install dataset-shuffler
 
-Clone this project:
-
-```bash
-git clone https://github.com/kukuruza/shuffler
+# For plotting and ML support:
+pip3 install dataset-shuffler[ml,plots]
 ```
 
 To test the installation, run the following command. The installation succeeded if an image opens up. Press Esc to close the window.
 
 ```bash
-cd shuffler
+cd shuffler/shuffler
 python -m shuffler -i 'testdata/cars/micro1_v5.db' --rootdir 'testdata/cars' examineImages
 ```
 
