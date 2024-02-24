@@ -7,9 +7,9 @@ import simplejson as json
 import pprint
 import tempfile
 import shutil
+import traceback
 
 from shuffler.backend import backend_db
-from shuffler.backend import backend_media
 from shuffler.backend import backend_media
 from shuffler.utils import general as general_utils
 
@@ -28,6 +28,9 @@ def add_parsers(subparsers):
     exportToJsonToPublishParser(subparsers)
     decodeStampPredictionsParser(subparsers)
     classifyPagesParser(subparsers)
+    uploadDatasetToLabelboxParser(subparsers)
+    uploadAnnotationsToLabelboxParser(subparsers)
+    downloadAnnotationsFromLabelboxParser(subparsers)
 
 
 def upgradeStampImagepathsParser(subparsers):
@@ -697,9 +700,313 @@ def classifyPages(c, args):
             else:
                 objectid_left = objectid_b
                 objectid_right = objectid_a
-            c.execute('UPDATE objects SET name="page_l" WHERE objectid=?',
+            c.execute('UPDATE objects SET name="pagel" WHERE objectid=?',
                       (objectid_left, ))
-            c.execute('UPDATE objects SET name="page_r" WHERE objectid=?',
+            c.execute('UPDATE objects SET name="pager" WHERE objectid=?',
                       (objectid_right, ))
 
     logging.info('Have updated %d images.', count)
+
+
+def uploadDatasetToLabelboxParser(subparsers):
+    parser = subparsers.add_parser(
+        'uploadDatasetToLabelbox',
+        description='Exports stamps and pages to Labelbox NDJSON format.')
+    parser.set_defaults(func=uploadDatasetToLabelbox)
+    parser.add_argument(
+        '--api_key',
+        required=True,
+        help='API_KEY for LabelBox. If given will upload labels.')
+    parser.add_argument('--out_dataset_name',
+                        required=True,
+                        help='The dataset name on LabelBox.')
+
+
+def uploadDatasetToLabelbox(c, args):
+    import labelbox as lb
+
+    data_rows = []
+
+    c.execute('SELECT imagefile FROM images ORDER BY imagefile')
+    for i, (imagefile, ), in progressbar.progressbar(enumerate(c.fetchall())):
+        logging.debug('Imagefile "%s"', imagefile)
+        assert imagefile is not None and imagefile != "", imagefile
+        if backend_media._getMediaType(imagefile) != 'PICTURE':
+            raise ValueError('Media type must be PICTURE for %s' % imagefile)
+        data_rows.append({
+            "media_type": "IMAGE",
+            "row_data": op.join(args.rootdir, imagefile),
+            "global_key": imagefile  # + '.%06d' % i
+        })
+    logging.info('Will upload %d images', len(data_rows))
+
+    client = lb.Client(args.api_key)
+    dataset = client.get_datasets(
+        where=lb.Dataset.name == args.out_dataset_name).get_one()
+    if dataset is None:
+        logging.info('The dataset does not exist. Creating a new one.')
+        dataset = client.create_dataset(name=args.out_dataset_name)
+
+    def chunks(lst, n):
+        for i in range(0, len(lst), n):
+            yield lst[i:i + n]
+
+    CHUNK_SIZE = 100
+    for i, chunk in enumerate(chunks(data_rows, CHUNK_SIZE)):
+        logging.info('Uploading chunk %i, for range [%d, %d]', i,
+                     i * CHUNK_SIZE, i * CHUNK_SIZE + len(chunk))
+        try:
+            task = dataset.create_data_rows(chunk)
+            task.wait_till_done()
+        except:
+            traceback.print_exc()
+            logging.warning('Failed in the 1st time. Will try again.')
+            try:
+                task = dataset.create_data_rows(chunk)
+                task.wait_till_done()
+            except:
+                traceback.print_exc()
+                logging.error('Failed in the 2nd time. Chunk %d failed.', i)
+
+    logging.info('Upload succeeded.')
+
+
+def uploadAnnotationsToLabelboxParser(subparsers):
+    parser = subparsers.add_parser(
+        'uploadAnnotationsToLabelbox',
+        description='Exports stamps and pages to Labelbox NDJSON format.')
+    parser.set_defaults(func=uploadAnnotationsToLabelbox)
+    parser.add_argument('--api_key',
+                        required=True,
+                        help='API_KEY for LabelBox.')
+    parser.add_argument('--in_project_name',
+                        required=True,
+                        help='Name of the project to upload labels for.')
+    parser.add_argument('--in_ontology_name',
+                        required=True,
+                        choices=['stamps_and_pages', 'stamps', 'pages'],
+                        help='Ontology name on LabelBox.')
+    parser.add_argument('--out_ndjson_file',
+                        help='If given, will write json with labels here.')
+    parser.add_argument('--dry_run',
+                        action='store_true',
+                        help='If true, will not upload labels to Labelbox.')
+
+
+def uploadAnnotationsToLabelbox(c, args):
+    import uuid
+    import labelbox as lb
+
+    c.execute('SELECT imagefile FROM images')
+    imagefiles = c.fetchall()
+
+    def chunks(lst, n):
+        for i in range(0, len(lst), n):
+            yield lst[i:i + n]
+
+    CHUNK_SIZE = 100
+    for i, chunk in enumerate(chunks(imagefiles, CHUNK_SIZE)):
+        logging.info('Uploading chunk %i, for range [%d, %d]', i,
+                     i * CHUNK_SIZE, i * CHUNK_SIZE + len(chunk))
+
+        ndjson = []
+
+        for imagefile, in chunk:
+            c.execute('SELECT * FROM objects WHERE imagefile=?', (imagefile, ))
+            for entry in c.fetchall():
+                objectid = backend_db.objectField(entry, 'objectid')
+                name = backend_db.objectField(entry, 'name')
+                bbox = backend_db.objectField(entry, 'bbox')
+
+                annotation = {
+                    "name": "image_id",
+                    "confidence": 1,
+                    "answer": imagefile,
+                    "dataRow": {
+                        "globalKey": imagefile
+                    }
+                }
+                ndjson.append(annotation)
+
+                if 'stamps' in args.in_ontology_name and 'page' not in name:
+                    annotation = {
+                        "name": "stamp",
+                        "classifications": [{
+                            "name": "stamp_name",
+                            "answer": name
+                        }],
+                        "bbox": {
+                            "left": bbox[0],
+                            "top": bbox[1],
+                            "width": bbox[2],
+                            "height": bbox[3],
+                        },
+                        "dataRow": {
+                            "globalKey": imagefile
+                        },
+                    }
+                    ndjson.append(annotation)
+
+                if 'pages' in args.in_ontology_name and 'page' in name:
+                    # page_r -> pager, as defined by the ontology.
+                    name = name.replace('_', '')
+                    c.execute('SELECT * FROM polygons WHERE objectid=?',
+                              (objectid, ))
+                    polygon_entries = c.fetchall()
+                    if len(polygon_entries) != 4:
+                        logging.warning(
+                            'Page with objectid=%d has %d polygon points',
+                            objectid, len(polygon_entries))
+                    polygon = [{
+                        'x': backend_db.polygonField(p, 'x'),
+                        'y': backend_db.polygonField(p, 'y')
+                    } for p in polygon_entries]
+                    annotation = {
+                        "name":
+                        "page",
+                        "classifications": [{
+                            "name": "page_type",
+                            "answer": {
+                                "name": name
+                            }
+                        }],
+                        "polygon":
+                        polygon,
+                        "dataRow": {
+                            "globalKey": imagefile
+                        },
+                    }
+                    ndjson.append(annotation)
+
+        if not args.dry_run:
+            client = lb.Client(args.api_key)
+
+            project = client.get_projects(
+                where=lb.Project.name == args.in_project_name).get_one()
+            upload_job = lb.MALPredictionImport.create_from_objects(
+                client=client,
+                project_id=project.uid,
+                name="ml-" + str(uuid.uuid4()),
+                predictions=ndjson)
+            upload_job.wait_until_done()
+
+            print(f"Errors: {upload_job.errors}")
+            print(f"Status of uploads: {upload_job.statuses}")
+
+        if args.out_ndjson_file:
+            logging.info('Writing ndjson to "%s"', args.out_ndjson_file)
+            with open(args.out_ndjson_file, 'w') as f:
+                json.dump(ndjson, f, indent=4)
+
+    logging.info('Upload succeeded.')
+
+
+def downloadAnnotationsFromLabelboxParser(subparsers):
+    parser = subparsers.add_parser(
+        'downloadAnnotationsFromLabelbox',
+        description='Imports stamps and pages from Labelbox.')
+    parser.set_defaults(func=downloadAnnotationsFromLabelbox)
+    parser.add_argument('--in_project_name',
+                        required=True,
+                        help='Name of the project to upload labels for.')
+    parser.add_argument(
+        '--out_ndjson_file',
+        help='If given, will write json with labels from here.')
+    parser.add_argument('--api_key',
+                        required=True,
+                        help='API_KEY for LabelBox.')
+    parser.add_argument(
+        '--in_ndjson_file',
+        help=
+        'If given, will read json with labels from here instead of the Labelbox server.'
+    )
+
+
+def downloadAnnotationsFromLabelbox(c, args):
+    import labelbox as lb
+
+    export_params = {'data_row_details': True, 'metadata_fields': True}
+
+    client = lb.Client(args.api_key)
+
+    project = client.get_projects(
+        where=lb.Project.name == args.in_project_name).get_one()
+    project_id = project.uid
+    logging.info('Project id: %s', project_id)
+
+    if args.in_ndjson_file is not None:
+        with open(args.in_ndjson_file, 'r') as f:
+            export_ndjson = json.load(f)
+
+    else:
+        export_task = project.export_v2(params=export_params)
+        export_task.wait_till_done()
+        if export_task.errors:
+            raise ValueError(export_task.errors)
+        export_ndjson = export_task.result
+
+    if len(export_ndjson) == 0:
+        raise ValueError('Got an empty labels.')
+
+    if args.out_ndjson_file is not None:
+        with open(args.out_ndjson_file, 'w') as f:
+            json.dump(export_ndjson, f)
+
+    for export_json in progressbar.progressbar(export_ndjson):
+        # print(json.dumps(export_json, indent=2))
+        imagefile = export_json['data_row']['global_key']
+        # print(json.dumps(export_json['data_row'], indent=2))
+
+        c.execute('SELECT COUNT(imagefile) FROM images WHERE imagefile=?',
+                  (imagefile, ))
+        imagefile_is_not_there = c.fetchone()[0] == 0
+        if imagefile_is_not_there:
+            imheight = export_json['media_attributes']['height']
+            imwidth = export_json['media_attributes']['width']
+            c.execute(
+                'INSERT INTO images(imagefile,width,height) VALUES (?,?,?)',
+                (imagefile, imwidth, imheight))
+
+        annotations = export_json['projects'][project_id]['labels'][0][
+            'annotations']['objects']
+        for annotation in annotations:
+            # print(json.dumps(annotation, indent=2))
+            object_type = annotation['name']
+            if object_type == 'page':
+                name = annotation['classifications'][0]['radio_answer']['name']
+            elif object_type == 'stamp':
+                name = annotation['classifications'][0]['text_answer'][
+                    'content']
+
+            if object_type == 'page':
+                polygon = [(p['y'], p['x']) for p in annotation['polygon']]
+                assert len(
+                    polygon) >= 4  # The first and last point are the same.
+                assert polygon[0] == polygon[-1]
+                polygon = polygon[:-1]
+
+                y1 = min([p[0] for p in polygon])
+                y2 = max([p[0] for p in polygon])
+                x1 = min([p[1] for p in polygon])
+                x2 = max([p[1] for p in polygon])
+                width = x2 - x1
+                height = y2 - y1
+
+            elif object_type == 'stamp':
+                polygon = []
+
+                bbox = annotation['bounding_box']
+                x1 = bbox['left']
+                y1 = bbox['top']
+                width = bbox['width']
+                height = bbox['height']
+
+            c.execute(
+                'INSERT INTO objects(imagefile,x1,y1,width,height,name,score) '
+                'VALUES (?,?,?,?,?,?,?)',
+                (imagefile, x1, y1, width, height, name, 1))
+            objectid = c.lastrowid
+
+            for y, x in polygon:
+                c.execute('INSERT INTO polygons(objectid,y,x) VALUES (?,?,?)',
+                          (objectid, y, x))

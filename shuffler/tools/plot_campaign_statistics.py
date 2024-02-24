@@ -28,10 +28,11 @@ def plot_campaign_statistics(args):
     cursor.execute('SELECT COUNT(imagefile) FROM images')
     num_all_images = cursor.fetchone()[0]
     conn.close()
+    print('Total (labeled and unlabeled) images number: %d' % num_all_images)
 
     conn = sqlite3.connect('file:%s?mode=ro' % args.in_db_file, uri=True)
     cursor = conn.cursor()
-    cursor.execute('SELECT CAST(name AS INT),COUNT(imagefile) '
+    cursor.execute('SELECT CAST(name AS INT),COUNT(1) '
                    'FROM images '
                    'WHERE name IS NOT NULL '
                    'GROUP BY name '
@@ -43,18 +44,18 @@ def plot_campaign_statistics(args):
     df['cycle'] = df['campaign'] - 2
     df['cycle'] = df['cycle'].astype('string')
 
-    df = df.append(
-        {
+    df = pd.concat([
+        df,
+        pd.DataFrame([{
             'cycle': 'unlabeled',
             'count': num_all_images - df['count'].sum()
-        },
-        ignore_index=True)
+        }])
+    ],
+                   ignore_index=True)
 
     print(df)
     print(df['count'].sum())
     df['labels'] = df['cycle'] + ":  " + df['count'].astype('string')
-    df.loc[df.index[-2],
-           'labels'] = df.loc[df.index[-2], 'labels'] + " (in progress)"
 
     patches, _ = plt.pie(df['count'])
     plt.legend(patches, df['labels'], loc='lower left')
