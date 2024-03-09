@@ -43,7 +43,7 @@ def plot_campaign_statistics(args):
     df['cycle'] = df['campaign'] - 2
     df['cycle'] = df['cycle'].astype('string')
 
-    df = df.append(
+    df = df._append(
         {
             'cycle': 'unlabeled',
             'count': num_all_images - df['count'].sum()
