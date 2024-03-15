@@ -113,7 +113,13 @@ def getIoURoi(roi1, roi2):
 
 
 def getIoUPolygon(yxs1, yxs2):
-    ' Computes intersection over union for two polygons. '
+    '''
+    Computes intersection-over-union for two polygons.
+    Args:
+      yxs1, yxs2:  [(y1, x1), (y2, x2), (y3, x3), ...]
+    Returns:
+      A float in range [0, 1].
+    '''
     validatePolygon(yxs1)
     validatePolygon(yxs2)
     p1 = ShapelyPolygon(yxs1)
@@ -122,11 +128,74 @@ def getIoUPolygon(yxs1, yxs2):
     area1 = p1.area
     area2 = p2.area
     intersection = p1.intersection(p2).area
-    logging.info(p1.intersection(p2))
 
     union = area1 + area2 - intersection
-    logging.info('%f %f %f %f', area1, area2, intersection, union)
+    logging.debug('%f %f %f %f', area1, area2, intersection, union)
     return intersection / float(union) if union > 0 else 0.
+
+
+def clipPolygonToRoi(yxs, roi):
+    '''
+    If the polygon intersects with ROI, each polygon point is clipped to ROI.
+    If the polygon is inside, is guaranteed to return the original polygon.
+    If the polygon is outside, an empty list is returned.
+    Args:
+      yxs:  [(y1, x1), (y2, x2), (y3, x3), ...]
+      roi:  [y1, x1, y2, x2]
+    Returns:
+      [(y1, x1), (y2, x2), (y3, x3), ...]
+    '''
+    validatePolygon(yxs)
+    validateRoi(roi)
+
+    p1 = ShapelyPolygon(yxs)
+    p2 = ShapelyPolygon([(roi[0], roi[1]), (roi[0], roi[3]), (roi[2], roi[3]),
+                         (roi[2], roi[1])])
+
+    p = p1.intersection(p2)
+    logging.debug(p)
+
+    intersection_area = p1.intersection(p2).area
+    if intersection_area == 0:
+        logging.debug('Polygon %s and roi %s do not intersect.', yxs, roi)
+        return []
+    elif intersection_area == p1.area:
+        logging.debug('Polygon %s is inside roi %s.', yxs, roi)
+        return yxs
+    else:
+        return [(max(roi[0], min(y, roi[2])), max(roi[1], min(x, roi[3])))
+                for y, x in yxs]
+
+
+def intersectPolygonAndRoi(yxs, roi):
+    '''
+    Computes and returns the intersection of a polygon with a rectange.
+    If the polygon is inside, is guaranteed to return the original polygon.
+    Args:
+      yxs:  [(y1, x1), (y2, x2), (y3, x3), ...]
+      roi:  [y1, x1, y2, x2]
+    Returns:
+      [(y1, x1), (y2, x2), (y3, x3), ...]
+    '''
+    validatePolygon(yxs)
+    validateRoi(roi)
+
+    p1 = ShapelyPolygon(yxs)
+    p2 = ShapelyPolygon([(roi[0], roi[1]), (roi[0], roi[3]), (roi[2], roi[3]),
+                         (roi[2], roi[1])])
+
+    p = p1.intersection(p2)
+    logging.debug(p)
+
+    intersection_area = p1.intersection(p2).area
+    if intersection_area == 0:
+        logging.debug('Polygon %s and roi %s do not intersect.', yxs, roi)
+        return []
+    elif intersection_area == p1.area:
+        logging.debug('Polygon %s is inside roi %s.', yxs, roi)
+        return yxs
+
+    return list(p.exterior.coords[:-1])
 
 
 def expandRoi(roi, perc):

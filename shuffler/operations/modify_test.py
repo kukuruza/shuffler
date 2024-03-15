@@ -1326,3 +1326,94 @@ class Test_RevertObjectTransforms_SyntheticDb(testing_utils.EmptyDb):
         original_polygon = c.fetchall()
         assert len(original_polygon) == 4
         assert self.original_polygon_gt == original_polygon
+
+
+class Test_ClipObjectsToImageBoundaries_SyntheticDb(testing_utils.EmptyDb):
+    def _cast_float_xy_polygons(self, polygons):
+        return [(objectid, name, float(x), float(y))
+                for objectid, name, x, y in polygons]
+
+    @pytest.fixture()
+    def c(self, conn):
+        c = conn.cursor()
+        c.execute(
+            'INSERT INTO images(imagefile,width,height) VALUES ("image0",200,100)'
+        )
+
+        # The first object is fine, others must be clipped.
+        # The last three will have area=0.
+        c.execute(
+            'INSERT INTO objects(imagefile,objectid,x1,y1,width,height) VALUES '
+            '("image0",0, 10, 20, 30, 40), '
+            '("image0",1, -1, 20, 30, 40), '
+            '("image0",2, 10, -1, 30, 40), '
+            '("image0",3, 10, 20, 191,40), '
+            '("image0",4, 10, 20, 30, 81), '
+            '("image0",5, -2, 20, 1,  40), '
+            '("image0",6, 10, 102, 30, 1), '
+            '("image0",7, -20, -20, 10, 10)')
+
+        # Polygons below are completely independent from objects above.
+        # The first polygon is fine, the last one must be discarded,
+        # others must be clipped.
+        c.execute('INSERT INTO polygons(objectid,name,x,y) VALUES '
+                  '(0, null, 10,20), (0, null, 10,30), (0, null, 20,20), '
+                  '(1, null, -10,60), (1, null, 10,80), (1, null, 10,60), '
+                  '(2, null, 60,-10), (2, null, 80,10), (2, null, 60,10), '
+                  '(3, null, 190,20), (3, null, 210,40),(3, null, 190,40), '
+                  '(4, null, 20,90), (4, null, 40,110),(4, null, 40,90), '
+                  '(4, "ab", 20,90), (4, "ab", 40,110),(4, "ab", 40,90), '
+                  '(4, "cd", 20,90), (4, "cd", 40,110),(4, "cd", 40,90), '
+                  '(5, null, 1010,20), (5, null, 1010,30), (5, null, 1020,20)')
+
+        return c
+
+    def test__keep_num_vertices_in_clipped_polygons(self, c):
+        args = argparse.Namespace(keep_num_vertices_in_clipped_polygons=True)
+        modify.clipObjectsToImageBoundaries(c, args)
+
+        # Check bbox.
+        c.execute('SELECT objectid,x1,y1,width,height FROM objects')
+        bboxes = c.fetchall()
+        assert set(bboxes) == set([(0, 10.0, 20.0, 30.0, 40.0),
+                                   (1, 0.0, 20.0, 29.0, 40.0),
+                                   (2, 10.0, 0.0, 30.0, 39.0),
+                                   (3, 10.0, 20.0, 190.0, 40.0),
+                                   (4, 10.0, 20.0, 30.0, 80.0),
+                                   (5, 0.0, 20.0, 0.0, 40.0),
+                                   (6, 10.0, 100.0, 30.0, 0.0),
+                                   (7, 0, 0, 0, 0)])
+
+        # Check polygons.
+        c.execute('SELECT objectid,name,x,y FROM polygons')
+        polygons = c.fetchall()
+        # yapf: disable
+        assert set(polygons) == set(self._cast_float_xy_polygons([
+            (0, None, 10, 20), (0, None, 10, 30),  (0, None, 20, 20),
+            (1, None, 0, 60), (1, None, 10, 80),   (1, None, 10, 60),
+            (2, None, 60, 0), (2, None, 80, 10),   (2, None, 60, 10),
+            (3, None, 190, 20), (3, None, 200, 40), (3, None, 190, 40),
+            (4, None, 20, 90), (4, None, 40, 100), (4, None, 40, 90),
+            (4, "ab", 20, 90), (4, "ab", 40, 100), (4, "ab", 40, 90),
+            (4, "cd", 20, 90), (4, "cd", 40, 100), (4, "cd", 40, 90)
+        ]))
+        # yapf: enable
+
+    def test__NOT_keep_num_vertices_in_clipped_polygons(self, c):
+        args = argparse.Namespace(keep_num_vertices_in_clipped_polygons=False)
+        modify.clipObjectsToImageBoundaries(c, args)
+
+        # Check polygons.
+        c.execute('SELECT objectid,name,x,y FROM polygons')
+        polygons = c.fetchall()
+        # yapf: disable
+        assert set(polygons) == set(self._cast_float_xy_polygons([
+            (0, None, 10, 20), (0, None, 10, 30),  (0, None, 20, 20),
+            (1, None, 0, 60), (1, None, 0, 70), (1, None, 10, 80), (1, None, 10, 60),
+            (2, None, 60, 0), (2, None, 70, 0), (2, None, 80, 10),   (2, None, 60, 10),
+            (3, None, 190, 20), (3, None, 200, 30), (3, None, 200, 40), (3, None, 190, 40),
+            (4, None, 20, 90), (4, None, 30, 100), (4, None, 40, 100), (4, None, 40, 90),
+            (4, "ab", 20, 90), (4, "ab", 30, 100), (4, "ab", 40, 100), (4, "ab", 40, 90),
+            (4, "cd", 20, 90), (4, "cd", 30, 100), (4, "cd", 40, 100), (4, "cd", 40, 90)
+        ]))
+        # yapf: enable

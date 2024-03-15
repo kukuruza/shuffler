@@ -42,6 +42,7 @@ def add_parsers(subparsers):
     propertyToObjectsFieldParser(subparsers)
     revertObjectTransformsParser(subparsers)
     upgradeV4toV5Parser(subparsers)
+    clipObjectsToImageBoundariesParser(subparsers)
 
 
 def bboxesToPolygonsParser(subparsers):
@@ -1663,3 +1664,102 @@ def upgradeV4toV5Parser(subparsers):
 
 def upgradeV4toV5(c, _):
     backend_db.upgradeV4toV5(c)
+
+
+def clipObjectsToImageBoundariesParser(subparsers):
+    parser = subparsers.add_parser(
+        'clipObjectsToImageBoundaries',
+        description='Clip objects and polygons. '
+        'Polygons completely outside image boundaries are discarded.')
+    parser.add_argument(
+        '--keep_num_vertices_in_clipped_polygons',
+        action='store_true',
+        help='If false, will generate a intersection of a polygon and image. '
+        'If true, will simply clip polygon vertices to image boundary.')
+    parser.set_defaults(func=clipObjectsToImageBoundaries)
+
+
+def clipObjectsToImageBoundaries(c, args):
+    count_bboxes = 0
+    c.execute(
+        'SELECT objectid, o.x1, o.y1, o.width, o.height, i.width, i.height '
+        'FROM images i JOIN objects o ON i.imagefile = o.imagefile')
+    for entry in progressbar(c.fetchall()):
+        objectid, x1, y1, width, height, imwidth, imheight = entry
+        im_roi = [0, 0, imheight, imwidth]
+
+        bbox = [x1, y1, width, height]
+
+        # Clip the bbox, if present in "objects" table.
+        if any([x is None for x in bbox]):
+            continue
+
+        old_x1 = x1
+        old_y1 = y1
+        x1 = max(0, min(old_x1, imwidth))
+        y1 = max(0, min(old_y1, imheight))
+        width = max(0, min(width - x1 + old_x1, imwidth - x1))
+        height = max(0, min(height - y1 + old_y1, imheight - y1))
+        new_bbox = [x1, y1, width, height]
+
+        clipped = any([a[0] != a[1] for a in zip(bbox, new_bbox)])
+
+        if clipped:
+            count_bboxes += 1
+            logging.debug('Bbox changed from %s to %s for objectid %d.', bbox,
+                          new_bbox, objectid)
+            c.execute(
+                'UPDATE objects SET x1=?, y1=?,width=?,height=? WHERE objectid=?',
+                (x1, y1, width, height, objectid))
+
+    count_polygons = 0
+    c.execute('SELECT o.objectid, p.name, i.width, i.height FROM objects o '
+              'JOIN images i ON o.imagefile = i.imagefile '
+              'JOIN polygons p ON o.objectid == p.objectid '
+              'GROUP BY o.objectid, p.name')
+    for objectid, name, imwidth, imheight in c.fetchall():
+        if name is None:
+            c.execute(
+                'SELECT * FROM polygons WHERE objectid=? AND name IS NULL',
+                (objectid, ))
+        else:
+            c.execute('SELECT * FROM polygons WHERE objectid=? AND name=?',
+                      (objectid, name))
+        polygon = c.fetchall()
+
+        yxs = [(backend_db.polygonField(p,
+                                        'y'), backend_db.polygonField(p, 'x'))
+               for p in polygon]
+
+        im_roi = [0, 0, imheight, imwidth]
+        if args.keep_num_vertices_in_clipped_polygons:
+            new_yxs = boxes_utils.clipPolygonToRoi(yxs, im_roi)
+        else:
+            new_yxs = boxes_utils.intersectPolygonAndRoi(yxs, im_roi)
+
+        if yxs == new_yxs:
+            continue
+
+        if name is None:
+            c.execute('DELETE FROM polygons WHERE objectid=? AND name IS NULL',
+                      (objectid, ))
+        else:
+            c.execute('DELETE FROM polygons WHERE objectid=? AND name=?',
+                      (objectid, name))
+
+        count_polygons += 1
+        if len(new_yxs) == 0:
+            logging.warning(
+                'Polygon %s for object %d is out of the image boundary '
+                'and will be deleted.', str(polygon), objectid)
+        else:
+            logging.debug('Polygon changed from %s to %s for object %d',
+                          str(yxs), str(new_yxs), objectid)
+            # NOTE: Can be done in one statement at the expense of readability.
+            for y, x in new_yxs:
+                c.execute(
+                    'INSERT INTO polygons(objectid,name,y,x) VALUES (?,?,?,?)',
+                    (objectid, name, y, x))
+
+    logging.info('Have clipped %d bboxes and %d polygons', count_bboxes,
+                 count_polygons)

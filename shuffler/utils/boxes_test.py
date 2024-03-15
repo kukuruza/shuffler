@@ -1,5 +1,6 @@
 import pytest
 import numpy as np
+import collections
 
 from shuffler.utils import boxes as boxes_utils
 
@@ -146,6 +147,96 @@ class Test_GetIoUPolygon:
     def test_no_overlap(self):
         assert boxes_utils.getIoUPolygon([(0, 0), (1, 1), (1, 0)],
                                          [(5, 6), (6, 5), (6, 6)]) == 0.0
+
+    def test_touch_in_one_point(self):
+        assert boxes_utils.getIoUPolygon([(0, 0), (0, 1), (1, 1), (1, 0)],
+                                         [(1, 1), (1, 2), (2, 2), (2, 1)]) == 0
+
+    def test_touch_across_line_segment(self):
+        assert boxes_utils.getIoUPolygon([(0, 0), (0, 1), (1, 1), (1, 0)],
+                                         [(0, 1), (0, 2), (1, 2), (1, 1)]) == 0
+
+
+class Test_ClipPolygonToRoi:
+    def polygons_equivalent(self, yxs1, yxs2):
+        deque1 = collections.deque(yxs1)
+        deque2 = collections.deque(yxs2)
+        assert any([
+            deque1 == deque2 for _ in range(len(deque1))
+            if not deque2.rotate()
+        ]), (deque1, deque2)
+
+    def test_identical(self):
+        yxs = [(0, 0), (0, 1), (1, 1), (1, 0)]
+        roi = [0, 0, 1, 1]
+        assert boxes_utils.clipPolygonToRoi(yxs, roi) == yxs
+
+    def test_polygon_inside_roi(self):
+        yxs = [(0, 0), (0, 1), (1, 1), (1, 0)]
+        roi = [-1, -1, 2, 2]
+        assert boxes_utils.clipPolygonToRoi(yxs, roi) == yxs
+
+    def test_partial_overlap(self):
+        yxs = [(0, 0), (0, 3), (3, 0)]
+        roi = [0, 0, 2, 2]
+        self.polygons_equivalent(boxes_utils.clipPolygonToRoi(yxs, roi),
+                                 [(0, 0), (0, 2), (2, 0)])
+
+    def test_no_overlap(self):
+        yxs = [(0, 0), (0, 1), (1, 1), (1, 0)]
+        roi = [2, 2, 3, 3]
+        assert boxes_utils.clipPolygonToRoi(yxs, roi) == []
+
+    def test_touch_across_line_segment(self):
+        yxs = [(0, 0), (0, 1), (1, 1), (1, 0)]
+        roi = [1, 1, 2, 2]
+        assert boxes_utils.clipPolygonToRoi(yxs, roi) == []
+
+    def test_touch_across_one_line(self):
+        yxs = [(0, 0), (0, 1), (1, 1), (1, 0)]
+        roi = [1, 0, 2, 1]
+        assert boxes_utils.intersectPolygonAndRoi(yxs, roi) == []
+
+
+class Test_IntersectPolygonAndRoi:
+    def polygons_equivalent(self, yxs1, yxs2):
+        deque1 = collections.deque(yxs1)
+        deque2 = collections.deque(yxs2)
+        assert any([
+            deque1 == deque2 for _ in range(len(deque1))
+            if not deque2.rotate()
+        ]), (deque1, deque2)
+
+    def test_identical(self):
+        yxs = [(0, 0), (0, 1), (1, 1), (1, 0)]
+        roi = [0, 0, 1, 1]
+        assert boxes_utils.intersectPolygonAndRoi(yxs, roi) == yxs
+
+    def test_polygon_inside_roi(self):
+        yxs = [(0, 0), (0, 1), (1, 1), (1, 0)]
+        roi = [-1, -1, 2, 2]
+        assert boxes_utils.intersectPolygonAndRoi(yxs, roi) == yxs
+
+    def test_partial_overlap(self):
+        yxs = [(0, 0), (0, 3), (3, 0)]
+        roi = [0, 0, 2, 2]
+        self.polygons_equivalent(boxes_utils.intersectPolygonAndRoi(yxs, roi),
+                                 [(0, 0), (0, 2), (1, 2), (2, 1), (2, 0)])
+
+    def test_no_overlap(self):
+        yxs = [(0, 0), (0, 1), (1, 1), (1, 0)]
+        roi = [2, 2, 3, 3]
+        assert boxes_utils.intersectPolygonAndRoi(yxs, roi) == []
+
+    def test_touch_across_line_segment(self):
+        yxs = [(0, 0), (0, 1), (1, 1), (1, 0)]
+        roi = [1, 1, 2, 2]
+        assert boxes_utils.intersectPolygonAndRoi(yxs, roi) == []
+
+    def test_touch_across_one_line(self):
+        yxs = [(0, 0), (0, 1), (1, 1), (1, 0)]
+        roi = [1, 0, 2, 1]
+        assert boxes_utils.intersectPolygonAndRoi(yxs, roi) == []
 
 
 class Test_ExpandRoi:
