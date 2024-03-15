@@ -3,6 +3,7 @@ import os, os.path as op
 import sqlite3
 import argparse
 import tempfile
+import shutil
 
 from shuffler.backend import backend_db
 from shuffler.operations import modify
@@ -52,26 +53,6 @@ class Test_PolygonsToBboxes_SyntheticDb(testing_utils.EmptyDb):
         expected = [(0, 40.5, 20.5, 9.5, 9.5), (1, 40.0, 20.0, 10.0, 10.0),
                     (2, None, None, None, None)]
         assert set(actual) == set(expected)
-
-    def test_multiple_polygons_per_object_not_supported(self, c):
-        '''
-        Object with multiple polygons should trigger an error.
-        If an object has polygons with different names (multiple polygons),
-        the behavior is undetermined and thus not allowed.
-        '''
-        c.execute(
-            'INSERT INTO images(imagefile) VALUES ("image0"), ("image1")')
-        c.execute('INSERT INTO objects(imagefile,objectid) '
-                  'VALUES ("image0",0)')
-        # A rectangular & triangular polygons for object0.
-        c.execute(
-            'INSERT INTO polygons(objectid,x,y,name) VALUES'
-            '(0,40.5,20.5,"p0"), (0,50,20.5,"p0"), (0,50,30,"p0"), '
-            '(0,40,20,"p1"), (0,50,20,"p1"), (0,50,30,"p1"), (0,40,30,"p1")')
-
-        args = argparse.Namespace()
-        with pytest.raises(ValueError):
-            modify.polygonsToBboxes(c, args)
 
 
 class Test_Sql_SyntheticDb(testing_utils.EmptyDb):
@@ -581,6 +562,362 @@ class Test_MoveRootdir_SyntheticDb(testing_utils.EmptyDb):
 
     def test3(self, c):
         self._assert_result(c, rootdir='.', new_rootdir='c', expected='../a/b')
+
+
+class Test_AddDb_SyntheticDb(testing_utils.EmptyDb):
+    @pytest.fixture()
+    def ref_conn_and_path(self):
+        ref_db_path = tempfile.NamedTemporaryFile().name
+        ref_conn = sqlite3.connect(ref_db_path)
+        backend_db.createDb(ref_conn)
+        yield ref_conn, ref_db_path
+        if op.exists(ref_db_path):
+            os.remove(ref_db_path)
+
+    def fill_lowercase(self, c):
+        c.execute('INSERT INTO images(imagefile) VALUES ("a"), ("b"), ("c")')
+        c.execute('INSERT INTO objects(imagefile,objectid,x1,name,score) '
+                  'VALUES ("a",0,10,"cat",0.1), ("b",1,20,"dog",0.2), '
+                  '("c",2,30,"pig",0.3)')
+        c.execute('INSERT INTO properties(objectid,key,value) '
+                  'VALUES (0,"color","gray"), (1,"breed","poodle")')
+        c.execute('INSERT INTO polygons(objectid,x) VALUES (0,25), (1,35)')
+        c.execute('INSERT INTO matches(objectid,match) VALUES (0,0), (1,0)')
+
+    def fill_uppercase(self, c):
+        c.execute('INSERT INTO images(imagefile) VALUES ("A"), ("B"), ("C")')
+        c.execute('INSERT INTO objects(imagefile,objectid,x1,name,score) '
+                  'VALUES ("A",0,10,"CAT",0.1), ("B",1,20,"DOG",0.2), '
+                  '("C",2,30,"PIG",0.3)')
+        c.execute('INSERT INTO properties(objectid,key,value) '
+                  'VALUES (0,"color","brown"), (1,"breed","pitbull")')
+        c.execute('INSERT INTO polygons(objectid,x) VALUES (0,25), (1,35)')
+        c.execute('INSERT INTO matches(objectid,match) VALUES (0,0), (1,0)')
+
+    def test_trivial(self, conn, ref_conn_and_path):
+        ''' Test on the empty database. '''
+        c = conn.cursor()
+        _, ref_db_path = ref_conn_and_path
+        args = argparse.Namespace(rootdir='.',
+                                  db_file=ref_db_path,
+                                  db_rootdir=None)
+        modify.addDb(c, args)
+
+        # Verify "images" table is empty.
+        c.execute('SELECT COUNT(1) FROM images')
+        assert c.fetchone() == (0, )
+
+    def test_same_images(self, conn, ref_conn_and_path):
+        ''' Test on regular databases. '''
+        c = conn.cursor()
+        self.fill_lowercase(c)
+
+        ref_conn, ref_db_path = ref_conn_and_path
+        c_ref = ref_conn.cursor()
+        self.fill_lowercase(c_ref)
+        ref_conn.commit()
+
+        args = argparse.Namespace(rootdir='.',
+                                  db_file=ref_db_path,
+                                  db_rootdir=None)
+        modify.addDb(c, args)
+
+        # Verify the "images" table.
+        c.execute('SELECT imagefile FROM images')
+        expected = [("a", ), ("b", ), ("c", )]
+        assert set(c.fetchall()) == set(expected)
+
+        # Verify the "objects" table.
+        c.execute('SELECT imagefile,x1,name,score FROM objects')
+        expected = [("a", 10, "cat", 0.1), ("b", 20, "dog", 0.2),
+                    ("c", 30, "pig", 0.3)] * 2  # duplicate this list.
+        assert c.fetchall() == expected
+
+        # Verify the "polygons" table.
+        c.execute('SELECT o.name,x FROM polygons JOIN objects o '
+                  'ON polygons.objectid = o.objectid')
+        expected = [("cat", 25), ("dog", 35)] * 2  # duplicate this list.
+        assert c.fetchall() == expected
+
+        # Verify the "matches" table.
+        c.execute('SELECT o.name,match FROM matches JOIN objects o '
+                  'ON matches.objectid = o.objectid')
+        expected = [("cat", 0), ("dog", 0), ("cat", 1), ("dog", 1)]
+        assert c.fetchall() == expected
+
+        # Verify the "properties" table.
+        c.execute('SELECT o.name,key,value FROM properties JOIN objects o '
+                  'ON properties.objectid = o.objectid')
+        expected = [("cat", "color", "gray"), ("dog", "breed", "poodle")] * 2
+        assert c.fetchall() == expected
+
+    def test_different_images(self, conn, ref_conn_and_path):
+        ''' Test on regular databases. '''
+        c = conn.cursor()
+        self.fill_lowercase(c)
+
+        ref_conn, ref_db_path = ref_conn_and_path
+        c_ref = ref_conn.cursor()
+        self.fill_uppercase(c_ref)
+        ref_conn.commit()
+
+        args = argparse.Namespace(rootdir='.',
+                                  db_file=ref_db_path,
+                                  db_rootdir=None)
+        modify.addDb(c, args)
+
+        # Verify the "images" table.
+        c.execute('SELECT imagefile FROM images')
+        expected = [("a", ), ("b", ), ("c", ), ("A", ), ("B", ), ("C", )]
+        assert set(c.fetchall()) == set(expected)
+
+        # Verify the "objects" table.
+        c.execute('SELECT imagefile,x1,name,score FROM objects')
+        expected = [("a", 10, "cat", 0.1), ("b", 20, "dog", 0.2),
+                    ("c", 30, "pig", 0.3), ("A", 10, "CAT", 0.1),
+                    ("B", 20, "DOG", 0.2), ("C", 30, "PIG", 0.3)]
+        assert set(c.fetchall()) == set(expected)
+
+    def test_db_rootdir(self, conn, ref_conn_and_path):
+        c = conn.cursor()
+        self.fill_lowercase(c)
+
+        ref_conn, ref_db_path = ref_conn_and_path
+        c_ref = ref_conn.cursor()
+        self.fill_uppercase(c_ref)
+        ref_conn.commit()
+
+        args = argparse.Namespace(rootdir='.',
+                                  db_file=ref_db_path,
+                                  db_rootdir='another')
+        modify.addDb(c, args)
+
+        # Verify the "images" table.
+        c.execute('SELECT imagefile FROM images')
+        expected = [("a", ), ("b", ), ("c", ), ("another/A", ),
+                    ("another/B", ), ("another/C", )]
+        assert set(c.fetchall()) == set(expected)
+
+
+class Test_SplitDb_SyntheticDb(testing_utils.EmptyDb):
+    @pytest.fixture()
+    def work_dir(self):
+        work_dir = tempfile.mkdtemp()
+        yield work_dir
+        if os.path.exists(work_dir):
+            shutil.rmtree(work_dir)
+
+    def fill(self, c):
+        c.execute('INSERT INTO images(imagefile) VALUES ("a"), ("b")')
+        c.execute('INSERT INTO objects(imagefile,objectid,x1,name,score) '
+                  'VALUES ("a",0,10,"cat",0.1), ("b",1,20,"dog",0.2)')
+        c.execute('INSERT INTO properties(objectid,key,value) '
+                  'VALUES (0,"color","gray"), (1,"breed","poodle")')
+        c.execute('INSERT INTO polygons(objectid,x) VALUES (0,25), (1,35)')
+        c.execute('INSERT INTO matches(objectid,match) VALUES (0,0),(1,0)')
+
+    def test_empty(self, conn, work_dir):
+        ''' Test on the empty database. '''
+        c = conn.cursor()
+        args = argparse.Namespace(rootdir='.',
+                                  out_dir=work_dir,
+                                  out_names=['a.db', 'b.db'],
+                                  out_fractions=[0.5, 0.5],
+                                  randomly=False)
+        modify.splitDb(c, args)
+
+        a_path = os.path.join(work_dir, 'a.db')
+        b_path = os.path.join(work_dir, 'b.db')
+        assert os.path.exists(a_path)
+        assert os.path.exists(b_path)
+
+        # Verify "images" table is empty in both splits.
+        conn_a = sqlite3.connect('file:%s?mode=ro' % a_path, uri=True)
+        conn_b = sqlite3.connect('file:%s?mode=ro' % b_path, uri=True)
+        c_a = conn_a.cursor()
+        c_b = conn_b.cursor()
+        c_a.execute('SELECT COUNT(1) FROM images')
+        c_b.execute('SELECT COUNT(1) FROM images')
+        assert c_a.fetchone() == (0, )
+        assert c_b.fetchone() == (0, )
+        conn_a.close()
+        conn_b.close()
+
+    def test_regular(self, conn, work_dir):
+        c = conn.cursor()
+        args = argparse.Namespace(rootdir='.',
+                                  out_dir=work_dir,
+                                  out_names=['a.db', 'b.db'],
+                                  out_fractions=[0.5, 0.5],
+                                  randomly=False)
+        self.fill(c)
+        modify.splitDb(c, args)
+
+        a_path = os.path.join(work_dir, 'a.db')
+        b_path = os.path.join(work_dir, 'b.db')
+        assert os.path.exists(a_path)
+        assert os.path.exists(b_path)
+
+        conn_a = sqlite3.connect('file:%s?mode=ro' % a_path, uri=True)
+        conn_b = sqlite3.connect('file:%s?mode=ro' % b_path, uri=True)
+        c_a = conn_a.cursor()
+        c_b = conn_b.cursor()
+
+        # Verify the "images" table.
+        c_a.execute('SELECT imagefile FROM images')
+        expected = [("a", )]
+        assert set(c_a.fetchall()) == set(expected)
+        c_b.execute('SELECT imagefile FROM images')
+        expected = [("b", )]
+        assert set(c_b.fetchall()) == set(expected)
+
+        # Verify the "objects" table.
+        c_a.execute('SELECT imagefile,x1,name,score FROM objects')
+        expected = [("a", 10, "cat", 0.1)]
+        assert c_a.fetchall() == expected
+        c_b.execute('SELECT imagefile,x1,name,score FROM objects')
+        expected = [("b", 20, "dog", 0.2)]
+        assert c_b.fetchall() == expected
+
+        # Verify the "polygons" table.
+        c_a.execute('SELECT o.name,x FROM polygons JOIN objects o '
+                    'ON polygons.objectid = o.objectid')
+        expected = [("cat", 25)]
+        assert c_a.fetchall() == expected
+        c_b.execute('SELECT o.name,x FROM polygons JOIN objects o '
+                    'ON polygons.objectid = o.objectid')
+        expected = [("dog", 35)]
+        assert c_b.fetchall() == expected
+
+        # Verify the "matches" table.
+        c_a.execute('SELECT o.name FROM matches JOIN objects o '
+                    'ON matches.objectid = o.objectid')
+        expected = [("cat", )]
+        assert c_a.fetchall() == expected
+        c_b.execute('SELECT o.name FROM matches JOIN objects o '
+                    'ON matches.objectid = o.objectid')
+        expected = [("dog", )]
+        assert c_b.fetchall() == expected
+
+        # Verify the "properties" table.
+        c_a.execute('SELECT o.name,key,value FROM properties JOIN objects o '
+                    'ON properties.objectid = o.objectid')
+        expected = [("cat", "color", "gray")]
+        assert c_a.fetchall() == expected
+        c_b.execute('SELECT o.name,key,value FROM properties JOIN objects o '
+                    'ON properties.objectid = o.objectid')
+        expected = [("dog", "breed", "poodle")]
+        assert c_b.fetchall() == expected
+
+        conn_a.close()
+        conn_b.close()
+
+
+class Test_MergeIntersectingObjects_SyntheticDb(testing_utils.EmptyDb):
+    def _fill(self, c):
+        # "cat", "dog", and "pika" intersect.
+        # "pig" and "goat" would too but "pig" is in another image and "goat" has no imagefile.
+        # "sheep" does not intersect with them.
+        c.execute('INSERT INTO images(imagefile) VALUES ("a"), ("b")')
+        c.execute(
+            'INSERT INTO objects(imagefile,objectid,x1,y1,width,height,name,score) VALUES '
+            '("a",  0, 10,10,10,10, "cat",   0.1), '
+            '("a",  1, 10,15,10,10, "dog",   null), '
+            #            '("a",  2,15,10,10,10, "pika",  0.2), '
+            '("a",  3, 30,10,10,10, "sheep", 1.0), '
+            '("b",  4, 10,10,10,10, "pig",   1.0), '
+            '(null, 5, 10,10,10,10, "goat",  1.0) ')
+        c.execute(
+            'INSERT INTO properties(objectid,key,value) '
+            'VALUES (0,"says","miaw"), (1,"breed","poodle"), (3,"says","me")')
+        # "cat" and "dog" match (this match should dissapear).
+        c.execute('INSERT INTO matches(objectid,match) VALUES (0,0), (1,0)')
+        # "cat", "dog" and "sheep" match (this match should stay,
+        # except "cat" and "dog" objects will be merged).
+        c.execute(
+            'INSERT INTO matches(objectid,match) VALUES (1,1), (3,1), (0,1)')
+        # "pig" is matched only with itself.
+        c.execute('INSERT INTO matches(objectid,match) VALUES (4,2)')
+
+    def _replace_dog_bbox_with_polygon(self, c):
+        ''' Removes the bounding box of the "cat", and inserts the polygon. '''
+
+        dog_id = 1  # objectid of "dog".
+        c.execute('UPDATE objects SET x1=NULL WHERE objectid = ?', (dog_id, ))
+        c.execute(
+            'INSERT INTO polygons(objectid,x,y) '
+            'VALUES (?, 10,15), (?, 10,25), (?, 20,25), (?, 20,15)',
+            (dog_id, dog_id, dog_id, dog_id))
+
+    def _cast_float_xy_polygons(self, polygons):
+        return [(objectid, float(x), float(y)) for objectid, x, y in polygons]
+
+    def test_bboxes_only(self, c):
+        self._fill(c)
+
+        args = argparse.Namespace(IoU_threshold=0.1,
+                                  where_image='TRUE',
+                                  where_object='TRUE')
+        modify.mergeIntersectingObjects(c, args)
+
+        # Verify the "objects" table.
+        c.execute(
+            'SELECT imagefile,objectid,x1,y1,width,height,name,score FROM objects'
+        )
+        expected = [("a", 0, 10.0, 10.0, 10.0, 15.0, "cat", 0.1),
+                    ("a", 3, 30.0, 10.0, 10.0, 10.0, "sheep", 1.0),
+                    ("b", 4, 10.0, 10.0, 10.0, 10.0, "pig", 1.0),
+                    (None, 5, 10.0, 10.0, 10.0, 10.0, "goat", 1.0)]
+        assert set(c.fetchall()) == set(expected)
+
+        # Verify the "polygons" table.
+        c.execute('SELECT objectid,x,y FROM polygons')
+        expected = [(0, 10, 10), (0, 10, 20), (0, 20, 20), (0, 20, 10),
+                    (0, 10, 15), (0, 10, 25), (0, 20, 25), (0, 20, 15),
+                    (3, 30, 10), (3, 40, 10), (3, 40, 20), (3, 30, 20),
+                    (4, 10, 10), (4, 10, 20), (4, 20, 20), (4, 20, 10),
+                    (5, 10, 10), (5, 10, 20), (5, 20, 20), (5, 20, 10)]
+        assert set(c.fetchall()) == set(self._cast_float_xy_polygons(expected))
+
+        # Verify the "properties" table.
+        c.execute('SELECT objectid,key,value FROM properties')
+        expected = [(0, "says", "miaw"), (0, "breed", "poodle"),
+                    (0, "is_merged", "1"), (0, "merged_name", "cat"),
+                    (0, "merged_name", "dog"), (3, "says", "me")]
+        assert set(c.fetchall()) == set(expected)
+
+        # Verify the "matches" table.
+        c.execute('SELECT objectid,match FROM matches')
+        expected = [(0, 1), (3, 1), (4, 2)]
+        assert set(c.fetchall()) == set(expected)
+
+    def test_bboxes_and_polygons(self, c):
+        self._fill(c)
+        self._replace_dog_bbox_with_polygon(c)  # <- differs from bboxes only.
+
+        args = argparse.Namespace(IoU_threshold=0.1,
+                                  where_image='TRUE',
+                                  where_object='TRUE')
+        modify.mergeIntersectingObjects(c, args)
+
+        # Verify the "objects" table.
+        c.execute(
+            'SELECT imagefile,objectid,x1,y1,width,height,name,score FROM objects'
+        )
+        expected = [("a", 0, 10.0, 10.0, 10.0, 15.0, "cat", 0.1),
+                    ("a", 3, 30.0, 10.0, 10.0, 10.0, "sheep", 1.0),
+                    ("b", 4, 10.0, 10.0, 10.0, 10.0, "pig", 1.0),
+                    (None, 5, 10.0, 10.0, 10.0, 10.0, "goat", 1.0)]
+        assert set(c.fetchall()) == set(expected)
+
+        # Verify the "polygons" table.
+        c.execute('SELECT objectid,x,y FROM polygons')
+        expected = [(0, 10, 10), (0, 10, 20), (0, 20, 20), (0, 20, 10),
+                    (0, 10, 15), (0, 10, 25), (0, 20, 25), (0, 20, 15),
+                    (3, 30, 10), (3, 40, 10), (3, 40, 20), (3, 30, 20),
+                    (4, 10, 10), (4, 10, 20), (4, 20, 20), (4, 20, 10),
+                    (5, 10, 10), (5, 10, 20), (5, 20, 20), (5, 20, 10)]
+        assert set(c.fetchall()) == set(self._cast_float_xy_polygons(expected))
 
 
 class Test_PropertyToObjectsField_SyntheticDb(testing_utils.EmptyDb):

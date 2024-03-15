@@ -1,6 +1,5 @@
 import os, os.path as op
 import numpy as np
-import cv2
 import logging
 import sqlite3
 import imageio
@@ -15,7 +14,6 @@ from ast import literal_eval
 from shuffler.backend import backend_db
 from shuffler.backend import backend_media
 from shuffler.utils import general as general_utils
-from shuffler.utils import draw as draw_utils
 from shuffler.utils import boxes as boxes_utils
 from shuffler.utils import parser as parser_utils
 
@@ -32,8 +30,8 @@ def add_parsers(subparsers):
     expandObjectsParser(subparsers)
     moveMediaParser(subparsers)
     moveRootdirParser(subparsers)
-    addDbParser(subparsers)  # needs tests.
-    splitDbParser(subparsers)  # needs tests.
+    addDbParser(subparsers)
+    splitDbParser(subparsers)
     mergeIntersectingObjectsParser(subparsers)  # needs tests.
     syncObjectidsWithDbParser(subparsers)  # needs tests.
     syncPolygonIdsWithDbParser(subparsers)
@@ -65,9 +63,9 @@ def bboxesToPolygons(c, args):
 def polygonsToBboxesParser(subparsers):
     parser = subparsers.add_parser(
         'polygonsToBboxes',
-        description='Update bounding box in the "objects" table with values '
-        'from "polygons", if exist. The bounding box of a polygon is written. '
-        'Throws an exception if an object has polygons with different names.')
+        description='For each object, if a bounding box is not there, '
+        'it is set as a bounding box around polygon. '
+        'Polygons with different names are treated as one.')
     parser.set_defaults(func=polygonsToBboxes)
 
 
@@ -432,7 +430,6 @@ def moveMediaParser(subparsers):
 
 
 def moveMedia(c, args):
-
     def splitall(path):
         allparts = []
         while 1:
@@ -565,7 +562,6 @@ def addDbParser(subparsers):
         'If specified, imagefiles from add_db are considered relative to db_rootdir. '
         'They will be modified to be relative to rootdir of the active database.'
     )
-    parser.add_argument('--merge_duplicate_objects', action='store_true')
 
 
 def _maybeUpdateImageField(image_entry, image_entry_add, field):
@@ -587,7 +583,7 @@ def addDb(c, args):
 
     c_add.execute('SELECT COUNT(1) FROM images')
     if (c_add.fetchone()[0] == 0):
-        logging.error('Added detabase "%s" has no images.', args.db_file)
+        logging.warning('Added database "%s" has no images.', args.db_file)
         return
 
     # Copy images.
@@ -616,6 +612,8 @@ def addDb(c, args):
     max_match = c.fetchone()[0]
     if max_match is None:
         max_match = 0
+    else:
+        max_match += 1
 
     # Copy all other tables.
     c_add.execute('SELECT * FROM objects')
@@ -749,15 +747,27 @@ def splitDb(c, args):
 
 
 def _mergeNObjects(c, objectids):
-    ' Merge N objects given by their objectids. '
-
-    objectid_new = objectids[0]
-    logging.debug('Merging objects %s into object %d', str(objectids),
-                  objectid_new)
-
+    '''
+    Merge N objects given by their objectids.
+    - Bbox is computed as a bounding box around all polygons. 
+    - Name and score are taken from the first non-null value. 
+        'If there are multiple non-null names or scores, the others are added 
+        'to properties under keys "merged_name" and "merged_score". 
+    - Existing properties are concatenated.
+      A new property {"is_merged" : "1"} is added to merged objects.
+    - Polygon entries are concatendated.
+    - Matches within the same objects are deleted.
+    '''
     # No duplicates.
     if len(objectids) == 1:
         return
+
+    objectid_keep = objectids[0]
+    logging.debug('Merging objects %s into object %d', str(objectids),
+                  objectid_keep)
+    c.execute(
+        'INSERT INTO properties(objectid,key,value) VALUES (?,"is_merged","1")',
+        (objectid_keep, ))
 
     # String from the list.
     objectids_str = (','.join([str(x) for x in objectids]))
@@ -765,22 +775,24 @@ def _mergeNObjects(c, objectids):
     # Merge properties.
     for objectid in objectids[1:]:
         c.execute('UPDATE properties SET objectid=? WHERE objectid=?;',
-                  (objectid_new, objectid))
+                  (objectid_keep, objectid))
     c.execute(
         'SELECT key,COUNT(DISTINCT(value)) FROM properties WHERE objectid=? GROUP BY key',
-        (objectid_new, ))
+        (objectid_keep, ))
     for key, num in c.fetchall():
         if num > 1:
             logging.debug(
                 'Deleting %d duplicate properties for key=%s and objectid=%s',
-                num, key, objectid_new)
+                num, key, objectid_keep)
             c.execute('DELETE FROM properties WHERE objectid=? AND key=?',
-                      (objectid_new, key))
+                      (objectid_keep, key))
 
     # Merge polygons by adding all the polygons together.
     c.execute(
         'UPDATE polygons SET objectid=?, name=(IFNULL(name, "") || objectid) '
-        'WHERE objectid IN (%s)' % objectids_str, (objectid_new, ))
+        'WHERE objectid IN (%s)' % objectids_str, (objectid_keep, ))
+    # Merged bbox is uses a union of polygons
+    general_utils.polygon2bbox(c, objectid_keep)
 
     # Merge matches.
     # Delete matches between only matched objects.
@@ -791,93 +803,89 @@ def _mergeNObjects(c, objectids):
     # Merge matches from all merged to other objects.
     c.execute(
         'UPDATE matches SET objectid=? WHERE objectid IN (%s);' %
-        objectids_str, (objectid_new, ))
-    # Matches are not necessarily distinct.
-    # TODO: Remove duplicate or particially duplicate matches.
+        objectids_str, (objectid_keep, ))
+    # Remove duplicate or particially duplicate matches.
+    c.execute(
+        'DELETE FROM matches WHERE objectid=? AND id NOT IN '
+        '(SELECT MIN(id) FROM matches GROUP BY match)', (objectid_keep, ))
 
     # Merge score.
-    c.execute('SELECT DISTINCT(score) FROM objects '
+    c.execute('SELECT score FROM objects '
               'WHERE objectid IN (%s) AND score IS NOT NULL' % objectids_str)
     scores = [x for x, in c.fetchall()]
     logging.debug('Merged objects %s have scores %s', objectids_str, scores)
-    if len(scores) > 1:
-        logging.debug(
-            'Several distinct score values (%s) for objectids (%s). Will set NULL.',
-            str(scores), objectids_str)
-        c.execute('UPDATE objects SET score=NULL WHERE objectid=?',
-                  (objectid_new, ))
-    elif len(scores) == 1:
+    if len(scores) == 1:
         logging.debug('Writing score=%s to objectid=%s.', scores[0],
-                      objectid_new)
+                      objectid_keep)
         c.execute('UPDATE objects SET score=? WHERE objectid=?',
-                  (scores[0], objectid_new))
+                  (scores[0], objectid_keep))
     else:
         logging.debug(
             'No score found for objectid=%s.',
-            objectid_new,
+            objectid_keep,
         )
+    if len(scores) > 1:
+        logging.debug(
+            'Found several "score" values (%s) for objectids (%s). '
+            'Will add "merged_score" properties.', str(scores), objectids_str)
+        for score in scores:
+            c.execute(
+                'INSERT INTO properties(objectid,key,value) VALUES (?,?,?)',
+                (objectid_keep, "merged_score", score))
 
     # Merge name.
-    c.execute(
-        'SELECT DISTINCT(name) FROM objects WHERE objectid IN (%s) AND name IS NOT NULL'
-        % objectids_str)
+    c.execute('SELECT name FROM objects '
+              'WHERE objectid IN (%s) AND name IS NOT NULL' % objectids_str)
     names = [x for x, in c.fetchall()]
     logging.debug('Merged objects %s have names %s', objectids_str, names)
+    if len(names) == 1:
+        logging.debug('Writing name=%s to objectid=%s.', names[0],
+                      objectid_keep)
+        c.execute('UPDATE objects SET name=? WHERE objectid=?;',
+                  (names[0], objectid_keep))
+    else:
+        logging.debug('No name found for objectid=%s.', objectid_keep)
     if len(names) > 1:
         logging.debug(
-            'Several distinct name values (%s) for objectids (%s). Will set NULL.',
-            str(names), objectids_str)
-        c.execute('UPDATE objects SET name=NULL WHERE objectid=?;',
-                  (objectid_new, ))
-    elif len(names) == 1:
-        logging.debug('Writing name=%s to objectid=%s.', names[0],
-                      objectid_new)
-        c.execute('UPDATE objects SET name=? WHERE objectid=?;',
-                  (names[0], objectid_new))
-    else:
-        logging.debug('No name found for objectid=%s.', objectid_new)
+            'Found several "name" values (%s) for objectids (%s). '
+            'Will add "merged_name" properties.', str(names), objectids_str)
+        for name in names:
+            c.execute(
+                'INSERT INTO properties(objectid,key,value) VALUES (?,?,?)',
+                (objectid_keep, "merged_name", name))
 
     # Delete all duplicates from "objects" table. (i.e. except for the 1st object).
     c.execute(
         'DELETE FROM objects WHERE objectid IN (%s) AND objectid != ?' %
-        objectids_str, (objectid_new, ))
-    return objectid_new
+        objectids_str, (objectid_keep, ))
+    return objectid_keep
 
 
 def mergeIntersectingObjectsParser(subparsers):
     parser = subparsers.add_parser(
         'mergeIntersectingObjects',
         description='Merge objects that intersect via polygons when available, '
-        'or bboxes otherwise. Merge is pairwise, does not merge groups. '
-        'Currently implements only intersection by bounding boxes. '
-        'A merged object has polygons and properties from both source objects.'
-    )
+        'or bboxes when available. '
+        'Bbox is computed as a bounding box around all polygons. '
+        'Name and score are taken from the first non-null value. '
+        'If there are multiple non-null names or scores, all are added '
+        'to properties under keys "merged_name" and "merged_score". '
+        'Existing properties are concatenated. '
+        'A new property {"is_merged" : "1"} is added to merged objects. '
+        'Polygon entries are concatendated. '
+        'Matches within the same objects are deleted. ')
     parser.set_defaults(func=mergeIntersectingObjects)
     parser.add_argument(
         '--IoU_threshold',
         type=float,
         default=0.5,
         help='Intersection over Union threshold to consider merging.')
-    parser.add_argument(
-        '--target_name',
-        help='Name to assign to merged objects. If not specified, '
-        'the name is assigned only if the names of the two merged objects match.'
-    )
-    parser.add_argument('--filterObjectsByIoU',
-                        action='store_true',
-                        help='Until <Esc> key, display merged opjects.')
     parser_utils.addWhereImageArgument(parser)
-    parser_utils.addWhereObjectArgument(parser, '--where_object1')
-    parser_utils.addWhereObjectArgument(parser, '--where_object2')
+    parser_utils.addWhereObjectArgument(parser)
 
 
 def mergeIntersectingObjects(c, args):
-
-    if args.filterObjectsByIoU:
-        imreader = backend_media.MediaReader(rootdir=args.rootdir)
-
     # Make polygons if necessary
-    logging.info('Syncing bboxes and polygons.')
     polygonsToBboxes(c, None)
     bboxesToPolygons(c, None)
 
@@ -888,60 +896,18 @@ def mergeIntersectingObjects(c, args):
         # Get objects of interest from imagefile.
         c.execute(
             'SELECT * FROM objects WHERE imagefile=? AND (%s)' %
-            args.where_object1, (imagefile, ))
-        objects1 = c.fetchall()
-        c.execute(
-            'SELECT * FROM objects WHERE imagefile=? AND (%s)' %
-            args.where_object2, (imagefile, ))
-        objects2 = c.fetchall()
-        logging.debug('Image %s has %d and %d objects to match', imagefile,
-                      len(objects1), len(objects2))
+            args.where_object, (imagefile, ))
+        objects = c.fetchall()
+        logging.debug('Image %s has %d objects to consider', imagefile,
+                      len(objects))
 
         pairs_to_merge = general_utils.getIntersectingObjects(
-            general_utils.getPolygonsByObject(c, objects1),
-            general_utils.getPolygonsByObject(c, objects2),
-            args.IoU_threshold,
-            same_id_ok=False)
-
-        if args.filterObjectsByIoU and len(pairs_to_merge) > 0:
-            image = imreader.imread(imagefile)
+            general_utils.getPolygonsByObject(c, objects), None,
+            args.IoU_threshold)
 
         # Merge pairs.
         for objectid1, objectid2 in pairs_to_merge:
-            # Get rois.
-            c.execute('SELECT * WHERE objectid=?', objectid1)
-            old_roi1 = backend_db.objectField(c.fetchone(), 'roi')
-            c.execute('SELECT * WHERE objectid=?', objectid2)
-            old_roi2 = backend_db.objectField(c.fetchone(), 'roi')
-
-            if args.filterObjectsByIoU:
-                draw_utils.drawScoredRoi(image, old_roi1, score=0)
-                draw_utils.drawScoredRoi(image, old_roi2, score=0.25)
-
-            # Change the name to the target first.
-            if args.target_name is not None:
-                c.execute('UPDATE objects SET name=? WHERE objectid IN (?,?);',
-                          (args.target_name, objectid1, objectid2))
-
-            new_objectid = _mergeNObjects(c, [objectid1, objectid2])
-            general_utils.polygon2bbox(c, new_objectid)
-
-            c.execute('SELECT * FROM objects WHERE objectid=?',
-                      (new_objectid, ))
-            new_roi = backend_db.objectField(c.fetchone(), 'roi')
-            logging.info('Merged ROIs %s and %s to make one %s', old_roi1,
-                         old_roi2, new_roi)
-
-            if args.filterObjectsByIoU:
-                draw_utils.drawScoredRoi(image, new_roi, score=1)
-
-        if args.filterObjectsByIoU and len(pairs_to_merge) > 0:
-            logging.getLogger().handlers[0].flush()
-            cv2.imshow('mergeIntersectingObjects', image[:, :, ::-1])
-            key = cv2.waitKey()
-            if key == 27:
-                cv2.destroyWindow('mergeIntersectingObjects')
-                args.filterObjectsByIoU = False
+            _mergeNObjects(c, [objectid1, objectid2])
 
 
 def syncObjectidsWithDbParser(subparsers):
@@ -964,7 +930,6 @@ def syncObjectidsWithDbParser(subparsers):
 
 
 def syncObjectidsWithDb(c, args):
-
     def _getNextObjectidInDb(c):
         # Find the maximum objectid in this db. Will create new objectids greater.
         c.execute('SELECT MAX(objectid) FROM objects')
@@ -1088,7 +1053,6 @@ def syncPolygonIdsWithDbParser(subparsers):
 
 
 def syncPolygonIdsWithDb(c, args):
-
     def _getNextPolygonidInDb(c):
         # Find the maximum objectid in this db. Will create new objectids greater.
         c.execute('SELECT MAX(id) FROM polygons')

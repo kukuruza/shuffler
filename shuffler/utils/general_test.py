@@ -239,15 +239,12 @@ class Test_getIntersectingObjects:
             self._getPolygonsByObjectViaBbox(objects2), 0.5)
         assert pairs_to_merge == [(1, 2)]
 
-    def test_identical_sameId(self):
-        objects1 = [(1, 'image', 10, 10, 30, 30, 'name1', 1.)]
-        objects2 = [(1, 'image', 10, 10, 30, 30, 'name2', 1.)]
+    def test_within_itself(self):
+        objects1 = [(1, 'image', 10, 10, 30, 30, 'name1', 1.),
+                    (2, 'image', 20, 20, 30, 30, 'name2', 1.)]
         pairs_to_merge = general_utils.getIntersectingObjects(
-            self._getPolygonsByObjectViaBbox(objects1),
-            self._getPolygonsByObjectViaBbox(objects2),
-            0.5,
-            same_id_ok=False)
-        assert pairs_to_merge == []
+            self._getPolygonsByObjectViaBbox(objects1), None, 0.1)
+        assert pairs_to_merge == [(1, 2)]
 
     def test_non_intersecting(self):
         objects1 = [(1, 'image', 10, 10, 30, 30, 'name1', 1.)]

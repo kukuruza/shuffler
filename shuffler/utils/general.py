@@ -196,18 +196,12 @@ def polygon2bbox(cursor, objectid):
     A bounding box is created around objects that don't have it
     via enclosing the polygon. The polygon is assumed to be present.
     '''
-    cursor.execute(
-        'SELECT COUNT(1) FROM polygons WHERE objectid=? GROUP BY name',
-        (objectid, ))
-    num_distinct_polygons = len(cursor.fetchall())
-    if num_distinct_polygons == 0:
+    cursor.execute('SELECT COUNT(1) FROM polygons WHERE objectid=?',
+                   (objectid, ))
+    num_polygons = cursor.fetchone()[0]
+    if num_polygons == 0:
         logging.debug('Objectid %d does not have polygons.', objectid)
         return
-    if num_distinct_polygons > 1:
-        raise ValueError(
-            'Object %d has %d polygons (polygons with different names). '
-            'Merging them is not supported.' %
-            (objectid, num_distinct_polygons))
 
     cursor.execute(
         'UPDATE objects SET x1=(SELECT MIN(x) FROM polygons '
@@ -293,24 +287,28 @@ def getPolygonsByObject(cursor, objects):
 
 
 def getIntersectingObjects(polygons_by_object1: dict,
-                           polygons_by_object2: dict,
-                           IoU_threshold: float,
-                           same_id_ok: bool = True):
+                           polygons_by_object2: dict, IoU_threshold: float):
     '''
     Given two lists of objects find pairs that intersect by IoU_threshold.
     Objects are assumed to be in the same image.
 
     Args:
-      polygons_by_object1, polygons_by_object2:  
-                           A dict of {objectid: [a list of {y,x}]}
+      polygons_by_object1: A dict of {objectid: [a list of {y,x}]}
+      polygons_by_object2: Same as polygons_by_object1 OR None.
+                           If None, objects are merged within polygons_by_object1.
       IoU_threshold:       A float in range [0, 1].
-      same_id_ok:          if false, intersection of identical objectids is NaN.
     Returns:
       A list of tuples. Each tuple has objectid of an entry in 'objects1' and
                            objectid of an entry in 'objects2'.
     '''
     polygons_by_object1 = list(polygons_by_object1.items())
-    polygons_by_object2 = list(polygons_by_object2.items())
+
+    upper_triangular = False
+    if polygons_by_object2 is None:
+        polygons_by_object2 = list(polygons_by_object1)
+        upper_triangular = True
+    else:
+        polygons_by_object2 = list(polygons_by_object2.items())
 
     # Compute pairwise distances between rectangles.
     # TODO: possibly can optimize in future to avoid O(N^2) complexity.
@@ -320,8 +318,8 @@ def getIntersectingObjects(polygons_by_object1: dict,
     for i1, (objectid1, polygon1) in enumerate(polygons_by_object1):
         for i2, (objectid2, polygon2) in enumerate(polygons_by_object2):
             # Do not merge an object with itself.
-            if objectid1 == objectid2 and not same_id_ok:
-                pairwise_IoU[i1, i2] = np.nan
+            if objectid1 >= objectid2 and upper_triangular:
+                pairwise_IoU[i1, i2] = -1
             else:
                 pairwise_IoU[i1, i2] = boxes_utils.getIoUPolygon(
                     polygon1, polygon2)
@@ -336,7 +334,7 @@ def getIntersectingObjects(polygons_by_object1: dict,
         logging.debug('Next object at indices [%d, %d]. IoU: %s', i1, i2,
                       str(IoU))
         # Stop if no more good pairs.
-        if np.isnan(IoU) or IoU < IoU_threshold:
+        if IoU < IoU_threshold:
             break
         # Disable these objects for the next step.
         pairwise_IoU[i1, :] = 0.
@@ -346,6 +344,7 @@ def getIntersectingObjects(polygons_by_object1: dict,
         objectid2 = polygons_by_object2[i2][0]
         pairs_to_merge.append((objectid1, objectid2))
 
+    logging.debug('Found pairs_to_merge: %s', pairs_to_merge)
     return pairs_to_merge
 
 
