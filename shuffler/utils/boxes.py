@@ -112,26 +112,123 @@ def getIoURoi(roi1, roi2):
     return IoU
 
 
-def getIoUPolygon(yxs1, yxs2):
+def getIoUPolygons(polygons):
     '''
-    Computes intersection-over-union for two polygons.
+    Computes intersection-over-union for several polygons.
     Args:
-      yxs1, yxs2:  [(y1, x1), (y2, x2), (y3, x3), ...]
+      polygons1:    a list of polygons, where each polygon is
+                    [(y1, x1), (y2, x2), (y3, x3), ...]
     Returns:
       A float in range [0, 1].
     '''
-    validatePolygon(yxs1)
-    validatePolygon(yxs2)
-    p1 = ShapelyPolygon(yxs1)
-    p2 = ShapelyPolygon(yxs2)
+    if len(polygons) == 0:
+        raise ValueError('getIoUPolygons got an empty polygon: %s.', polygons2)
 
-    area1 = p1.area
-    area2 = p2.area
-    intersection = p1.intersection(p2).area
+    polygons = [
+        ShapelyPolygon(yxs) for yxs in polygons if validatePolygon(yxs) is None
+    ]
+    intersection = polygons[0]
+    union = polygons[0]
 
-    union = area1 + area2 - intersection
-    logging.debug('%f %f %f %f', area1, area2, intersection, union)
-    return intersection / float(union) if union > 0 else 0.
+    for p in polygons[1:]:
+        intersection = intersection.intersection(p)
+        union = union.union(p)
+
+    logging.debug('intersection: %f, union: %f', intersection.area, union.area)
+    return intersection.area / float(union.area) if union.area > 0 else 0.
+
+
+def getIntersectingPolygons(polygons_by_objectids: dict,
+                            IoU_threshold: float) -> list:
+    '''
+    Merge polygons into clusters based in IoU.
+
+    Args:
+      polygons_by_objectid: A dict {objectid: [polygon, polygon, ...]},
+                            where each polygon is [(y,x), (y,x), ...]
+      IoU_threshold:        A float in range (0, 1].
+    Returns:
+      A list of sets.       Each set contains objectids to merge.
+    '''
+    assert IoU_threshold > 0. and IoU_threshold <= 1., IoU_threshold
+
+    N = len(polygons_by_objectids)
+    if len(polygons_by_objectids) == 0:
+        return []
+
+    # Init clusters, intersections, and unions.
+    clusters = []
+    intersections = []
+    unions = []
+    for objectid, polygons in polygons_by_objectids.items():
+        clusters.append([objectid])
+        if len(polygons) == 0:
+            raise ValueError('Objectid %d came with no polygons' % objectid)
+        validatePolygon(polygons[0])
+        intersection = ShapelyPolygon(polygons[0])
+        union = intersection
+        for yxs in polygons[1:]:
+            validatePolygon(yxs)
+            polygon = ShapelyPolygon(yxs)
+            intersection = intersection.intersection(polygon)
+            union = union.union(polygon)
+        intersections.append(intersection)
+        unions.append(union)
+
+    # Fill in pairwise_IoU.
+    pairwise_IoU = np.full(shape=(N, N), fill_value=-np.inf, dtype=float)
+    for i in range(N):
+        for j in range(N):
+            if i < j:
+                intersection_area = intersections[i].intersection(
+                    intersections[j]).area
+                union_area = unions[i].union(unions[j]).area
+                pairwise_IoU[i, j] = intersection_area / union_area
+    logging.debug('Initial pairwise_IoU:\n%s', pairwise_IoU)
+
+    # Agglomerative merging.
+    while N > 1:
+
+        # Find the highest IoU.
+        i0, j0 = np.unravel_index(np.argmax(pairwise_IoU), pairwise_IoU.shape)
+        assert i0 < j0, 'Can not happen, pairwise matrix is upper-triangular.'
+        IoU = pairwise_IoU[i0, j0]
+        logging.debug('Merging clusters %d and %d. IoU: %s', i0, j0, str(IoU))
+
+        # Stop if no more good pairs.
+        if IoU < IoU_threshold:
+            break
+
+        # Update polygons of intersections and unions.
+        intersections[i0] = intersections[i0].intersection(intersections[j0])
+        unions[i0] = unions[i0].union(unions[j0])
+        del intersections[j0]
+        del unions[j0]
+        N = N - 1
+
+        # Merge objectids in the two clusters.
+        clusters[i0] += clusters[j0]
+        del clusters[j0]
+        logging.debug('New clusters:\n%s', clusters)
+
+        # Update pairwise_IoU.
+        pairwise_IoU = np.delete(pairwise_IoU, j0, axis=0)
+        pairwise_IoU = np.delete(pairwise_IoU, j0, axis=1)
+        for i in range(N):
+            if i == i0:
+                continue
+            intersection_area = intersections[i].intersection(
+                intersections[i0]).area
+            union_area = unions[i].union(unions[i0]).area
+            IoU = intersection_area / union_area
+            if i < i0:
+                pairwise_IoU[i, i0] = IoU
+            else:
+                pairwise_IoU[i0, i] = IoU
+        logging.debug('New pairwise_IoU:\n%s', pairwise_IoU)
+
+    logging.debug('Found %d clusters: %s', len(clusters), clusters)
+    return [tuple(sorted(cluster)) for cluster in clusters]
 
 
 def clipPolygonToRoi(yxs, roi):

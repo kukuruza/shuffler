@@ -823,7 +823,7 @@ class Test_MergeIntersectingObjects_SyntheticDb(testing_utils.EmptyDb):
             'INSERT INTO objects(imagefile,objectid,x1,y1,width,height,name,score) VALUES '
             '("a",  0, 10,10,10,10, "cat",   0.1), '
             '("a",  1, 10,15,10,10, "dog",   null), '
-            #            '("a",  2,15,10,10,10, "pika",  0.2), '
+            '("a",  2, 15,10,10,10, "pika",  0.2), '
             '("a",  3, 30,10,10,10, "sheep", 1.0), '
             '("b",  4, 10,10,10,10, "pig",   1.0), '
             '(null, 5, 10,10,10,10, "goat",  1.0) ')
@@ -864,7 +864,8 @@ class Test_MergeIntersectingObjects_SyntheticDb(testing_utils.EmptyDb):
         c.execute(
             'SELECT imagefile,objectid,x1,y1,width,height,name,score FROM objects'
         )
-        expected = [("a", 0, 10.0, 10.0, 10.0, 15.0, "cat", 0.1),
+        # Cat's bbox (10.0, 10.0, 15.0, 15.0) bounds around bboxes of cat, dog, and pika.
+        expected = [("a", 0, 10.0, 10.0, 15.0, 15.0, "cat", 0.1),
                     ("a", 3, 30.0, 10.0, 10.0, 10.0, "sheep", 1.0),
                     ("b", 4, 10.0, 10.0, 10.0, 10.0, "pig", 1.0),
                     (None, 5, 10.0, 10.0, 10.0, 10.0, "goat", 1.0)]
@@ -874,6 +875,7 @@ class Test_MergeIntersectingObjects_SyntheticDb(testing_utils.EmptyDb):
         c.execute('SELECT objectid,x,y FROM polygons')
         expected = [(0, 10, 10), (0, 10, 20), (0, 20, 20), (0, 20, 10),
                     (0, 10, 15), (0, 10, 25), (0, 20, 25), (0, 20, 15),
+                    (0, 15, 10), (0, 15, 20), (0, 25, 20), (0, 25, 10),
                     (3, 30, 10), (3, 40, 10), (3, 40, 20), (3, 30, 20),
                     (4, 10, 10), (4, 10, 20), (4, 20, 20), (4, 20, 10),
                     (5, 10, 10), (5, 10, 20), (5, 20, 20), (5, 20, 10)]
@@ -883,13 +885,17 @@ class Test_MergeIntersectingObjects_SyntheticDb(testing_utils.EmptyDb):
         c.execute('SELECT objectid,key,value FROM properties')
         expected = [(0, "says", "miaw"), (0, "breed", "poodle"),
                     (0, "is_merged", "1"), (0, "merged_name", "cat"),
-                    (0, "merged_name", "dog"), (3, "says", "me")]
+                    (0, "merged_name", "dog"), (0, "merged_name", "pika"),
+                    (0, "merged_score", '0.1'), (0, "merged_score", '0.2'),
+                    (3, "says", "me")]
         assert set(c.fetchall()) == set(expected)
 
         # Verify the "matches" table.
         c.execute('SELECT objectid,match FROM matches')
         expected = [(0, 1), (3, 1), (4, 2)]
-        assert set(c.fetchall()) == set(expected)
+        actual = c.fetchall()
+        assert len(actual) == len(expected), (actual, expected)
+        assert set(actual) == set(expected)
 
     def test_bboxes_and_polygons(self, c):
         self._fill(c)
@@ -904,7 +910,7 @@ class Test_MergeIntersectingObjects_SyntheticDb(testing_utils.EmptyDb):
         c.execute(
             'SELECT imagefile,objectid,x1,y1,width,height,name,score FROM objects'
         )
-        expected = [("a", 0, 10.0, 10.0, 10.0, 15.0, "cat", 0.1),
+        expected = [("a", 0, 10.0, 10.0, 15.0, 15.0, "cat", 0.1),
                     ("a", 3, 30.0, 10.0, 10.0, 10.0, "sheep", 1.0),
                     ("b", 4, 10.0, 10.0, 10.0, 10.0, "pig", 1.0),
                     (None, 5, 10.0, 10.0, 10.0, 10.0, "goat", 1.0)]
@@ -914,10 +920,14 @@ class Test_MergeIntersectingObjects_SyntheticDb(testing_utils.EmptyDb):
         c.execute('SELECT objectid,x,y FROM polygons')
         expected = [(0, 10, 10), (0, 10, 20), (0, 20, 20), (0, 20, 10),
                     (0, 10, 15), (0, 10, 25), (0, 20, 25), (0, 20, 15),
+                    (0, 15, 10), (0, 15, 20), (0, 25, 20), (0, 25, 10),
                     (3, 30, 10), (3, 40, 10), (3, 40, 20), (3, 30, 20),
                     (4, 10, 10), (4, 10, 20), (4, 20, 20), (4, 20, 10),
                     (5, 10, 10), (5, 10, 20), (5, 20, 20), (5, 20, 10)]
-        assert set(c.fetchall()) == set(self._cast_float_xy_polygons(expected))
+        expected = self._cast_float_xy_polygons(expected)
+        actual = c.fetchall()
+        assert len(actual) == len(expected), (actual, expected)
+        assert set(actual) == set(expected)
 
 
 class Test_PropertyToObjectsField_SyntheticDb(testing_utils.EmptyDb):

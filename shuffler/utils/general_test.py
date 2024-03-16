@@ -197,44 +197,51 @@ class Test_getPolygonsByObject:
 
     def test_general(self, c):
         # Two objects.
-        c.execute('INSERT INTO objects(objectid,x1,y1,width,height) '
-                  'VALUES (1, 40, 20, 10, 10), (2, 20.5, 30.5, 20.5, 10.5)')
-        # Object 1 has a polygon.
-        c.execute('INSERT INTO polygons(objectid,x,y) '
-                  'VALUES (1, 40, 20), (1, 40.5, 30.5), (1, 50.5, 30)')
+        c.execute('INSERT INTO objects(objectid,x1,y1,width,height) VALUES '
+                  '(1, 40, 20, 10, 10), (2, 20.5, 30.5, 20.5, 10.5)')
+        # Object 1 has two polygons.
+        c.execute(
+            'INSERT INTO polygons(objectid,name,x,y) VALUES '
+            '(1, "a", 40, 20), (1, "a", 40.5, 30.5), (1, "a", 50.5, 30), '
+            '(1, "b", 40, 20), (1, "b", 41, 31), (1, "b", 51, 31)')
 
+        # yapf: disable
         expected = {
-            1: [(20, 40), (30.5, 40.5), (30, 50.5)],
-            2: [(30.5, 20.5), (41.0, 20.5), (41.0, 41.0), (30.5, 41.0)]
+            1: [[(20.0, 40.0), (30.5, 40.5), (30.0, 50.5)],
+                [(20.0, 40.0), (31.0, 41.0), (31.0, 51.0)]],
+            2: [[(30.5, 20.5), (41.0, 20.5), (41.0, 41.0), (30.5, 41.0)]]
         }
+        # yapf: enable
 
         c.execute('SELECT * FROM objects')
         objects = c.fetchall()
         assert general_utils.getPolygonsByObject(c, objects) == expected
 
 
-class Test_getIntersectingObjects:
+class Test_getBipartiteIntersectingObjects:
+    ''' All functions below only test with 1 polygon per object. '''
     def _getPolygonsByObjectViaBbox(self, objects):
         return {
             backend_db.objectField(object_, 'objectid'):
-            boxes_utils.box2polygon(backend_db.objectField(object_, 'bbox'))
+            [boxes_utils.box2polygon(backend_db.objectField(object_, 'bbox'))]
             for object_ in objects
         }
 
     def test_empty(self):
-        pairs_to_merge = general_utils.getIntersectingObjects({}, {}, 0.5)
+        pairs_to_merge = general_utils.getBipartiteIntersectingObjects({}, {},
+                                                                       0.5)
         assert pairs_to_merge == []
 
     def test_first_empty(self):
         objects2 = [(1, 'image', 10, 10, 30, 30, 'name2', 1.)]
-        pairs_to_merge = general_utils.getIntersectingObjects(
+        pairs_to_merge = general_utils.getBipartiteIntersectingObjects(
             {}, self._getPolygonsByObjectViaBbox(objects2), 0.5)
         assert pairs_to_merge == []
 
     def test_identical(self):
         objects1 = [(1, 'image', 10, 10, 30, 30, 'name1', 1.)]
         objects2 = [(2, 'image', 10, 10, 30, 30, 'name2', 1.)]
-        pairs_to_merge = general_utils.getIntersectingObjects(
+        pairs_to_merge = general_utils.getBipartiteIntersectingObjects(
             self._getPolygonsByObjectViaBbox(objects1),
             self._getPolygonsByObjectViaBbox(objects2), 0.5)
         assert pairs_to_merge == [(1, 2)]
@@ -242,14 +249,14 @@ class Test_getIntersectingObjects:
     def test_within_itself(self):
         objects1 = [(1, 'image', 10, 10, 30, 30, 'name1', 1.),
                     (2, 'image', 20, 20, 30, 30, 'name2', 1.)]
-        pairs_to_merge = general_utils.getIntersectingObjects(
+        pairs_to_merge = general_utils.getBipartiteIntersectingObjects(
             self._getPolygonsByObjectViaBbox(objects1), None, 0.1)
         assert pairs_to_merge == [(1, 2)]
 
     def test_non_intersecting(self):
         objects1 = [(1, 'image', 10, 10, 30, 30, 'name1', 1.)]
         objects2 = [(2, 'image', 20, 20, 40, 40, 'name2', 1.)]
-        pairs_to_merge = general_utils.getIntersectingObjects(
+        pairs_to_merge = general_utils.getBipartiteIntersectingObjects(
             self._getPolygonsByObjectViaBbox(objects1),
             self._getPolygonsByObjectViaBbox(objects2), 0.5)
         assert pairs_to_merge == []
@@ -259,7 +266,7 @@ class Test_getIntersectingObjects:
         objects2 = [(2, 'image', 20, 20, 30, 30, 'name2', 1.),
                     (3, 'image', 10, 10, 30, 30, 'name3', 1.),
                     (4, 'image', 40, 50, 60, 70, 'name4', 1.)]
-        pairs_to_merge = general_utils.getIntersectingObjects(
+        pairs_to_merge = general_utils.getBipartiteIntersectingObjects(
             self._getPolygonsByObjectViaBbox(objects1),
             self._getPolygonsByObjectViaBbox(objects2), 0.1)
         assert pairs_to_merge == [(1, 3)]
@@ -270,7 +277,7 @@ class Test_getIntersectingObjects:
                     (2, 'image', 20, 20, 30, 30, 'name2', 1.)]
         objects2 = [(3, 'image', 20, 20, 30, 30, 'name3', 1.),
                     (4, 'image', 10, 10, 30, 30, 'name4', 1.)]
-        pairs_to_merge = general_utils.getIntersectingObjects(
+        pairs_to_merge = general_utils.getBipartiteIntersectingObjects(
             self._getPolygonsByObjectViaBbox(objects1),
             self._getPolygonsByObjectViaBbox(objects2), 0.1)
         assert set(pairs_to_merge) == set([(1, 4), (2, 3)])
@@ -279,7 +286,7 @@ class Test_getIntersectingObjects:
                     (2, 'image', 20, 20, 30, 30, 'name2', 1.)]
         objects2 = [(3, 'image', 10, 10, 30, 30, 'name3', 1.),
                     (4, 'image', 20, 20, 30, 30, 'name4', 1.)]
-        pairs_to_merge = general_utils.getIntersectingObjects(
+        pairs_to_merge = general_utils.getBipartiteIntersectingObjects(
             self._getPolygonsByObjectViaBbox(objects1),
             self._getPolygonsByObjectViaBbox(objects2), 0.1)
         assert set(pairs_to_merge) == set([(1, 3), (2, 4)])
@@ -289,7 +296,7 @@ class Test_getIntersectingObjects:
         objects2 = [(3, 'image', 10, 10, 30, 30, 'name3', 1.),
                     (4, 'image', 0, 0, 30, 30, 'name4', 1.),
                     (5, 'image', 20, 20, 30, 30, 'name5', 1.)]
-        pairs_to_merge = general_utils.getIntersectingObjects(
+        pairs_to_merge = general_utils.getBipartiteIntersectingObjects(
             self._getPolygonsByObjectViaBbox(objects1),
             self._getPolygonsByObjectViaBbox(objects2), 0.1)
         assert set(pairs_to_merge) == set([(1, 3), (2, 5)])

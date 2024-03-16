@@ -4,6 +4,7 @@ import logging
 import cv2
 import numpy as np
 import re
+import collections
 
 from shuffler.backend import backend_db
 from shuffler.utils import boxes as boxes_utils
@@ -259,76 +260,78 @@ def polygons2mask(cursor, objectid):
 
 def getPolygonsByObject(cursor, objects):
     '''
-    Queries the db for the polygon for each object, or if abscent, 
-    makes a 4-point polygon from the object's roi.
+    Queries the db for the polygons for each object, or if abscent, 
+    makes one 4-point polygon from the object's roi.
     Return:
-       a dict {objectid: [a list of {y,x}]}
+       a dict {objectid: [polygon, polygon, ...]},
+              where each polygon is [(y,x), (y,x), ...]
     '''
     polygons_by_object = {}
     for object_ in objects:
         objectid = backend_db.objectField(object_, 'objectid')
-        cursor.execute('SELECT DISTINCT(name) FROM polygons WHERE objectid=?',
+        cursor.execute('SELECT y,x,name FROM polygons WHERE objectid=?',
                        (objectid, ))
-        polygon_names = cursor.fetchall()
-        if len(polygon_names) > 1:
-            # TODO: Implement.
-            raise ValueError(
-                'Multiple polygons for one object (identified by polygon name) '
-                'are not supported. For objectid %d got names: %s' %
-                (objectid, ', '.join(polygon_names)))
-        cursor.execute('SELECT y,x FROM polygons WHERE objectid=?',
-                       (objectid, ))
-        polygon = cursor.fetchall()
-        if len(polygon) == 0:
-            polygon = boxes_utils.box2polygon(
+        yxs_by_name = collections.defaultdict(list)
+        for y, x, name in cursor.fetchall():
+            yxs_by_name[name].append((y, x))
+        if len(yxs_by_name) == 0:
+            yxs = boxes_utils.box2polygon(
                 backend_db.objectField(object_, 'bbox'))
-        polygons_by_object[objectid] = polygon
+            yxs_by_name["from_bbox"] = yxs
+        polygons_by_object[objectid] = [
+            yxs for _, yxs in yxs_by_name.items()
+            if boxes_utils.validatePolygon(yxs) is None
+        ]
     return polygons_by_object
 
 
-def getIntersectingObjects(polygons_by_object1: dict,
-                           polygons_by_object2: dict, IoU_threshold: float):
+def getBipartiteIntersectingObjects(polygons_by_objectid1: dict,
+                                    polygons_by_objectid2: dict,
+                                    IoU_threshold: float):
     '''
     Given two lists of objects find pairs that intersect by IoU_threshold.
     Objects are assumed to be in the same image.
 
     Args:
-      polygons_by_object1: A dict of {objectid: [a list of {y,x}]}
-      polygons_by_object2: Same as polygons_by_object1 OR None.
-                           If None, objects are merged within polygons_by_object1.
-      IoU_threshold:       A float in range [0, 1].
+      polygons_by_objectid1, polygons_by_objectid2:
+              a dict {objectid: [polygon, polygon, ...]},
+              where each polygon is [(y,x), (y,x), ...]
+      IoU_threshold:   A float in range (0, 1].
     Returns:
       A list of tuples. Each tuple has objectid of an entry in 'objects1' and
                            objectid of an entry in 'objects2'.
     '''
-    polygons_by_object1 = list(polygons_by_object1.items())
+    assert IoU_threshold > 0. and IoU_threshold <= 1., IoU_threshold
+
+    polygons_by_objectid1 = list(polygons_by_objectid1.items())
 
     upper_triangular = False
-    if polygons_by_object2 is None:
-        polygons_by_object2 = list(polygons_by_object1)
+    if polygons_by_objectid2 is None:
+        polygons_by_objectid2 = list(polygons_by_objectid1)
         upper_triangular = True
     else:
-        polygons_by_object2 = list(polygons_by_object2.items())
+        polygons_by_objectid2 = list(polygons_by_objectid2.items())
 
     # Compute pairwise distances between rectangles.
     # TODO: possibly can optimize in future to avoid O(N^2) complexity.
-    pairwise_IoU = np.zeros(shape=(len(polygons_by_object1),
-                                   len(polygons_by_object2)),
+    pairwise_IoU = np.zeros(shape=(len(polygons_by_objectid1),
+                                   len(polygons_by_objectid2)),
                             dtype=float)
-    for i1, (objectid1, polygon1) in enumerate(polygons_by_object1):
-        for i2, (objectid2, polygon2) in enumerate(polygons_by_object2):
+    for i1, (objectid1, polygons1) in enumerate(polygons_by_objectid1):
+        for i2, (objectid2, polygons2) in enumerate(polygons_by_objectid2):
             # Do not merge an object with itself.
             if objectid1 >= objectid2 and upper_triangular:
-                pairwise_IoU[i1, i2] = -1
+                pairwise_IoU[i1, i2] = -np.inf
             else:
-                pairwise_IoU[i1, i2] = boxes_utils.getIoUPolygon(
-                    polygon1, polygon2)
+                pairwise_IoU[i1, i2] = boxes_utils.getIoUPolygons(polygons1 +
+                                                                  polygons2)
     logging.debug('getIntersectingObjects got Pairwise_IoU:\n%s',
                   np.array2string(pairwise_IoU, precision=1))
 
     # Greedy search for pairs.
     pairs_to_merge = []
-    for _ in range(min(len(polygons_by_object1), len(polygons_by_object2))):
+    for _ in range(min(len(polygons_by_objectid1),
+                       len(polygons_by_objectid2))):
         i1, i2 = np.unravel_index(np.argmax(pairwise_IoU), pairwise_IoU.shape)
         IoU = pairwise_IoU[i1, i2]
         logging.debug('Next object at indices [%d, %d]. IoU: %s', i1, i2,
@@ -337,11 +340,11 @@ def getIntersectingObjects(polygons_by_object1: dict,
         if IoU < IoU_threshold:
             break
         # Disable these objects for the next step.
-        pairwise_IoU[i1, :] = 0.
-        pairwise_IoU[:, i2] = 0.
+        pairwise_IoU[i1, :] = -np.inf
+        pairwise_IoU[:, i2] = -np.inf
         # Add a pair to the list.
-        objectid1 = polygons_by_object1[i1][0]
-        objectid2 = polygons_by_object2[i2][0]
+        objectid1 = polygons_by_objectid1[i1][0]
+        objectid2 = polygons_by_objectid2[i2][0]
         pairs_to_merge.append((objectid1, objectid2))
 
     logging.debug('Found pairs_to_merge: %s', pairs_to_merge)

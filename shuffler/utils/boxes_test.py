@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 import collections
+from shapely.geometry import Polygon as ShapelyPolygon
 
 from shuffler.utils import boxes as boxes_utils
 
@@ -129,32 +130,144 @@ class Test_GetIoURoi:
         assert boxes_utils.getIoURoi([2, 1, 4, 3], [2, 3, 4, 5]) == 0.0
 
 
-class Test_GetIoUPolygon:
+class Test_getIntersectingPolygons:
+    def test_empty(self):
+        assert boxes_utils.getIntersectingPolygons({}, 0.5) == []
+
+    def test_one(self):
+        input = {1: [[(10, 10), (10, 20), (20, 20)]]}
+
+        actual = boxes_utils.getIntersectingPolygons(input, 0.5)
+        assert set(actual) == set([(1, )])
+
+    def test_two_1(self):
+        ''' No intersection. '''
+        input = {
+            1: [[(10, 10), (10, 30), (30, 30), (30, 10)]],
+            2: [[(60, 60), (60, 80), (80, 80), (80, 60)]],
+        }
+
+        actual = boxes_utils.getIntersectingPolygons(input, 0.5)
+        assert set(actual) == set([(1, ), (2, )])
+
+    def test_two_2(self):
+        ''' With intersection. '''
+        input = {
+            1: [[(10, 10), (10, 30), (30, 30), (30, 10)]],
+            2: [[(20, 20), (20, 40), (40, 40), (40, 20)]]
+        }
+
+        actual = boxes_utils.getIntersectingPolygons(input, 0.1)
+        assert set(actual) == set([(1, 2)])
+
+        actual = boxes_utils.getIntersectingPolygons(input, 0.5)
+        assert set(actual) == set([(1, ), (2, )])
+
+    def test_three_1(self):
+        ''' 1st and 3rd intersect, 2nd does not. '''
+        input = {
+            1: [[(10, 10), (10, 30), (30, 30), (30, 10)]],
+            2: [[(60, 60), (60, 80), (80, 80), (80, 60)]],
+            3: [[(20, 20), (20, 40), (40, 40), (40, 20)]]
+        }
+
+        actual = boxes_utils.getIntersectingPolygons(input, 0.1)
+        assert set(actual) == set([(1, 3), (2, )])
+
+        actual = boxes_utils.getIntersectingPolygons(input, 0.5)
+        assert set(actual) == set([(1, ), (2, ), (3, )])
+
+    def test_three_2(self):
+        ''' 2nd and 3rd intersect, 1st does not. '''
+        input = {
+            1: [[(60, 60), (60, 80), (80, 80), (80, 60)]],
+            2: [[(10, 10), (10, 30), (30, 30), (30, 10)]],
+            3: [[(20, 20), (20, 40), (40, 40), (40, 20)]]
+        }
+
+        actual = boxes_utils.getIntersectingPolygons(input, 0.1)
+        assert set(actual) == set([(2, 3), (1, )])
+
+        actual = boxes_utils.getIntersectingPolygons(input, 0.5)
+        assert set(actual) == set([(1, ), (2, ), (3, )])
+
+    def test_three_3(self):
+        ''' All intersect. '''
+        input = {
+            1: [[(20, 10), (20, 30), (40, 30), (40, 10)]],
+            2: [[(10, 10), (10, 30), (30, 30), (30, 10)]],
+            3: [[(20, 20), (20, 40), (40, 40), (40, 20)]]
+        }
+
+        actual = boxes_utils.getIntersectingPolygons(input, 0.1)
+        assert set(actual) == set([(1, 2, 3)])
+
+        actual = boxes_utils.getIntersectingPolygons(input, 1 / 7.5)
+        assert set(actual) == set([(1, 2), (3, )])
+
+        actual = boxes_utils.getIntersectingPolygons(input, 0.5)
+        assert set(actual) == set([(1, ), (2, ), (3, )])
+
+    def test_four_1(self):
+        ''' 1st and 4th intersect. Also 2nd and 3rd intersect. '''
+        input = {
+            1: [[(60, 60), (60, 80), (80, 80), (80, 60)]],
+            2: [[(10, 10), (10, 30), (30, 30), (30, 10)]],
+            3: [[(20, 20), (20, 40), (40, 40), (40, 20)]],
+            4: [[(70, 70), (70, 90), (90, 90), (90, 70)]]
+        }
+
+        actual = boxes_utils.getIntersectingPolygons(input, 0.1)
+        assert set(actual) == set([(1, 4), (2, 3)])
+
+        actual = boxes_utils.getIntersectingPolygons(input, 0.5)
+        assert set(actual) == set([(1, ), (2, ), (3, ), (4, )])
+
+    def test_two__multiple_polygons_per_object(self):
+        ''' Polygons in 1 and 2 all intersect. '''
+        input = {
+            1: [[(10, 10), (10, 30), (30, 30), (30, 10)],
+                [(10, 20), (10, 40), (30, 40), (30, 20)]],
+            2: [[(20, 10), (20, 30), (40, 30), (40, 10)],
+                [(20, 20), (20, 40), (40, 40), (40, 20)]]
+        }
+
+        actual = boxes_utils.getIntersectingPolygons(input, 0.1)
+        assert set(actual) == set([(1, 2)])
+
+        actual = boxes_utils.getIntersectingPolygons(input, 0.5)
+        assert set(actual) == set([(1, ), (2, )])
+
+
+class Test_GetIoUPolygons:
     def test_identical(self):
-        assert boxes_utils.getIoUPolygon([(0, 0), (1, 1), (1, 0)],
-                                         [(0, 0), (1, 1), (1, 0)]) == 1.
+        assert boxes_utils.getIoUPolygons([[(0, 0), (1, 1), (1, 0)],
+                                           [(0, 0), (1, 1), (1, 0)]]) == 1.
 
     def test_one_inside_the_other(self):
         # One is 50% larger than the other and is completely inside.
-        assert boxes_utils.getIoUPolygon([(0, 0), (1, 1), (1, 0)],
-                                         [(0, 0), (2, 2), (2, 0)]) == 0.25
+        assert boxes_utils.getIoUPolygons([[(0, 0), (1, 1), (1, 0)],
+                                           [(0, 0), (2, 2), (2, 0)]]) == 0.25
 
     def test_partial_overlap(self):
         one_third = pytest.approx(1 / 3, 0.00001)
-        assert boxes_utils.getIoUPolygon([(0, 0), (1, 1), (1, 0)],
-                                         [(0, 1), (1, 0), (1, 1)]) == one_third
+        assert boxes_utils.getIoUPolygons([[(0, 0), (1, 1), (1, 0)],
+                                           [(0, 1), (1, 0),
+                                            (1, 1)]]) == one_third
 
     def test_no_overlap(self):
-        assert boxes_utils.getIoUPolygon([(0, 0), (1, 1), (1, 0)],
-                                         [(5, 6), (6, 5), (6, 6)]) == 0.0
+        assert boxes_utils.getIoUPolygons([[(0, 0), (1, 1), (1, 0)],
+                                           [(5, 6), (6, 5), (6, 6)]]) == 0.0
 
     def test_touch_in_one_point(self):
-        assert boxes_utils.getIoUPolygon([(0, 0), (0, 1), (1, 1), (1, 0)],
-                                         [(1, 1), (1, 2), (2, 2), (2, 1)]) == 0
+        assert boxes_utils.getIoUPolygons([[(0, 0), (0, 1), (1, 1), (1, 0)],
+                                           [(1, 1), (1, 2), (2, 2),
+                                            (2, 1)]]) == 0
 
     def test_touch_across_line_segment(self):
-        assert boxes_utils.getIoUPolygon([(0, 0), (0, 1), (1, 1), (1, 0)],
-                                         [(0, 1), (0, 2), (1, 2), (1, 1)]) == 0
+        assert boxes_utils.getIoUPolygons([[(0, 0), (0, 1), (1, 1), (1, 0)],
+                                           [(0, 1), (0, 2), (1, 2),
+                                            (1, 1)]]) == 0
 
 
 class Test_ClipPolygonToRoi:

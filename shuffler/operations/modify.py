@@ -32,7 +32,7 @@ def add_parsers(subparsers):
     moveRootdirParser(subparsers)
     addDbParser(subparsers)
     splitDbParser(subparsers)
-    mergeIntersectingObjectsParser(subparsers)  # needs tests.
+    mergeIntersectingObjectsParser(subparsers)
     syncObjectidsWithDbParser(subparsers)  # needs tests.
     syncPolygonIdsWithDbParser(subparsers)
     syncObjectsDataWithDbParser(subparsers)  # needs tests.
@@ -902,13 +902,12 @@ def mergeIntersectingObjects(c, args):
         logging.debug('Image %s has %d objects to consider', imagefile,
                       len(objects))
 
-        pairs_to_merge = general_utils.getIntersectingObjects(
-            general_utils.getPolygonsByObject(c, objects), None,
-            args.IoU_threshold)
+        objectids_by_cluster = boxes_utils.getIntersectingPolygons(
+            general_utils.getPolygonsByObject(c, objects), args.IoU_threshold)
 
         # Merge pairs.
-        for objectid1, objectid2 in pairs_to_merge:
-            _mergeNObjects(c, [objectid1, objectid2])
+        for objectids in objectids_by_cluster:
+            _mergeNObjects(c, objectids)
 
 
 def syncObjectidsWithDbParser(subparsers):
@@ -997,7 +996,7 @@ def syncObjectidsWithDb(c, args):
         logging.debug('Image %s has %d and %d objects to match', imagefile,
                       len(objects), len(objects_ref))
         objectid_this_to_ref_map = dict(
-            general_utils.getIntersectingObjects(
+            general_utils.getBipartiteIntersectingObjects(
                 general_utils.getPolygonsByObject(c, objects),
                 general_utils.getPolygonsByObject(c, objects_ref),
                 args.IoU_threshold))
