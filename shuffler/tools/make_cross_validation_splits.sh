@@ -62,7 +62,6 @@ opts=$(getopt \
 
 # Defaults.
 seed=0
-shuffler_bin=python -m shuffler
 
 eval set --$opts
 

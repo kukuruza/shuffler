@@ -10,6 +10,7 @@ import shutil
 
 from shuffler.backend import backend_db
 from shuffler.backend import backend_media
+from shuffler.backend import backend_media
 from shuffler.utils import general as general_utils
 
 
@@ -399,18 +400,19 @@ def recordPositionOnPage(c, args):
             pages = c.fetchall()
 
             if len(pages) == 0:
-                logging.error('Did not find a any page for stamp %d', objectid)
+                logging.debug('Did not find a any page for stamp %d', objectid)
                 x_perc = None
                 y_perc = None
                 width_perc = None
                 height_perc = None
 
             else:
-                logging.info('Found a page for stamp %d with margin', objectid)
+                logging.debug('Found a page for stamp %d with margin',
+                              objectid)
 
         else:
             if len(pages) > 1:
-                logging.warning('Found several pages with stamp %d', objectid)
+                logging.debug('Found several pages with stamp %d', objectid)
             page = pages[0]
 
             # Get position and dimensions of a stamp relative to its page.

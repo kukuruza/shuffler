@@ -10,13 +10,15 @@ import matplotlib.ticker as ticker
 def get_parser():
     parser = argparse.ArgumentParser(
         'Plot the precision-recall curve with data from several campaigns.')
-    parser.add_argument('--curve_paths_root', required=True)
+    parser.add_argument('--curve_paths_root',
+                        default='/ocean/projects/hum210002p/shared/databases')
     parser.add_argument(
         '--curve_path_pattern',
         default=
-        'campaign%d/detected-trained-on-campaign3to%d/campaign%d-1800x1200.stamps/precision-recall-stamp.txt',
+        'campaign12/campaign12.v1-detected/trained-on-campaign%d-set-stamp-1800x1200-run%d/tested-on-v8-iou0.5/precision-recall.txt',
         help='Relative to campaign_dir.')
     parser.add_argument('--campaign_ids', type=int, required=True, nargs='+')
+    parser.add_argument('--run_ids', type=int, required=True, nargs='+')
     parser.add_argument('-o', '--out_plot_path')
     parser.add_argument('--show', action='store_true')
     parser.add_argument(
@@ -30,9 +32,11 @@ def get_parser():
 
 def plot_detection_curves_from_campaigns(args):
 
-    for campaign_id in args.campaign_ids:
-        curve_path_pattern = op.join(args.curve_paths_root,
-                                     args.curve_path_pattern % campaign_id)
+    assert len(args.campaign_ids) == len(args.run_ids)
+    for campaign_id, run_id in zip(args.campaign_ids, args.run_ids):
+        curve_path_pattern = op.join(
+            args.curve_paths_root,
+            args.curve_path_pattern % (campaign_id, run_id))
         curve_paths = glob.glob(curve_path_pattern)
         if len(curve_paths) == 0:
             logging.error('Failed to find paths matching glob pattern %s',
