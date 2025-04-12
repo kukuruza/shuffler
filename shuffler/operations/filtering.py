@@ -62,7 +62,10 @@ def filterImagesViaAnotherDb(c, args):
     conn_ref = sqlite3.connect('file:%s?mode=ro' % args.ref_db_file, uri=True)
     c_ref = conn_ref.cursor()
     c_ref.execute('SELECT imagefile FROM images')
-    imagefiles_ref = [imagefile for imagefile, in c_ref.fetchall()]
+    imagefiles_ref = [
+        general_utils.takeSubpath(imagefile, args.dirtree_level)
+        for imagefile, in c_ref.fetchall()
+    ]
     logging.info('Total %d images in ref.', len(imagefiles_ref))
     conn_ref.close()
 
@@ -144,6 +147,7 @@ def filterBadImagesParser(subparsers):
 
 
 def filterBadImages(c, args):
+
     def isImageOk(imreader, imagefile, maskfile):
         if imagefile is not None:
             try:
@@ -218,6 +222,7 @@ def filterObjectsAtImageEdgesParser(subparsers):
 
 
 def filterObjectsAtImageEdges(c, args):
+
     def isPolygonAtImageEdge(polygon_entries, imwidth, imheight, threshold):
         '''
         A polygon is considered to be at image edge iff at least one point is
@@ -351,6 +356,7 @@ def filterObjectsByIntersectionParser(subparsers):
 
 
 def filterObjectsByIntersection(c, args):
+
     def getRoiIntersection(roi1, roi2):
         dy = min(roi1[2], roi2[2]) - max(roi1[0], roi2[0])
         dx = min(roi1[3], roi2[3]) - max(roi1[1], roi2[1])
@@ -550,7 +556,7 @@ def filterObjectsInsideCertainObjects(c, args):
                         np.array(shadow_polygon).astype(int), center_yx,
                         False) >= 0
                     logging.debug('Object %d is %sinside polygon', objectid,
-                                  ' ' if is_inside else 'not ')
+                                  '' if is_inside else 'NOT ')
                 else:
                     shadow_roi = boxes_utils.bbox2roi(
                         backend_db.objectField(shadow_object_entry, 'bbox'))
@@ -559,7 +565,7 @@ def filterObjectsInsideCertainObjects(c, args):
                                  and center_yx[1] > shadow_roi[1]
                                  and center_yx[1] < shadow_roi[3])
                     logging.debug('Object %d is %sinside bbox', objectid,
-                                  ' ' if is_inside else 'not ')
+                                  '' if is_inside else 'NOT ')
 
                 if is_inside:
                     is_inside_any = True
