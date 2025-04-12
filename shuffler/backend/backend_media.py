@@ -312,7 +312,7 @@ class PictureReader:
         try:
             image = imageio.v2.imread(image_id)
             return np.asarray(image)
-        except ValueError as e:
+        except Exception as e:
             raise ValueError('PictureReader failed to read image_id %s.' %
                              image_id) from e
 

@@ -348,7 +348,7 @@ def expandPolygon(ys, xs, perc):
     xs = np.array(xs, dtype=float)
     center_y = (ys.min() + ys.max()) / 2
     center_x = (xs.min() + xs.max()) / 2
-    logging.info('Center: %s', (center_x, center_y))
+    logging.debug('Center: %s', (center_x, center_y))
     ys = [center_y + (y - center_y) * (1 + perc_y) for y in ys]
     xs = [center_x + (x - center_x) * (1 + perc_x) for x in xs]
     return ys, xs

@@ -291,9 +291,11 @@ def polygonFields(entry, fields):
 
 
 def deleteObject(cursor, objectid):
-    ''' Delete entries from all tables associated with the object.
-  If the object does not exist, raises KeyError.
-  '''
+    '''
+    Delete entries from all tables associated with the object.
+    If the object does not exist, raises KeyError.
+    '''
+    logging.debug('Deleting object_id %d', objectid)
     cursor.execute('SELECT COUNT(1) FROM objects WHERE objectid=?;',
                    (objectid, ))
     if cursor.fetchone()[0] == 0:

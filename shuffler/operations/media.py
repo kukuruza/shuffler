@@ -7,6 +7,7 @@ import pprint
 import ast
 import datetime
 import math
+import traceback
 
 from shuffler.backend import backend_media
 from shuffler.backend import backend_db
@@ -186,7 +187,12 @@ def cropObjects(c, args):
 
         # Write image.
         if prev_old_imagefile != old_imagefile:
-            old_image = imreader.imread(old_imagefile)
+            try:
+                old_image = imreader.imread(old_imagefile)
+            except Exception:
+                traceback.print_stack()
+                logging.info(f'Failed to read an image, skip {old_imagefile}')
+                continue
         logging.debug('Cropping roi=%s from image of shape %s', old_roi,
                       old_image.shape)
         new_image, transform = boxes_utils.cropPatch(old_image, old_roi,
@@ -213,7 +219,12 @@ def cropObjects(c, args):
         # Write mask.
         if args.mask_path is not None and old_maskfile is not None:
             if prev_old_imagefile != old_imagefile:
-                old_mask = imreader.maskread(old_maskfile)
+                try:
+                    old_mask = imreader.maskread(old_maskfile)
+                except Exception:
+                    traceback.print_stack()
+                    logging.info(f'Failed to read a mask, skip {old_maskfile}')
+                    continue
             new_mask, _ = boxes_utils.cropPatch(old_mask, old_roi, args.edges,
                                                 args.target_height,
                                                 args.target_width)
